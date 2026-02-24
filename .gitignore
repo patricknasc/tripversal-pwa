@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Next.js build / cache
+.next/
+.next/cache/
+
+# Vercel
+.vercel/
+
+# Build outputs
+dist/
+build/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# System files
+.DS_Store
+
+# Logs
+*.log
+
+# Editor folders
+.vscode/
+.idea/
+
+# Package archives
+*.tgz
