@@ -1,13 +1,15 @@
-import { useState, useEffect, useRef } from "react";
+'use client'
+
+import { useState } from "react";
 
 // ─── Icons (inline SVG helpers) ────────────────────────────────────────────
-const Icon = ({ d, size = 22, stroke = "currentColor", fill = "none", strokeWidth = 1.8, ...p }) => (
+const Icon = ({ d, size = 22, stroke = "currentColor", fill = "none", strokeWidth = 1.8, ...p }: any) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" {...p}>
-    {Array.isArray(d) ? d.map((path, i) => <path key={i} d={path} />) : <path d={d} />}
+    {Array.isArray(d) ? d.map((path: string, i: number) => <path key={i} d={path} />) : <path d={d} />}
   </svg>
 );
 
-const icons = {
+const icons: Record<string, any> = {
   home: "M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z",
   map: ["M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z", "M8 2v16", "M16 6v16"],
   wallet: ["M21 4H3a2 2 0 00-2 2v12a2 2 0 002 2h18a2 2 0 002-2V6a2 2 0 00-2-2z", "M16 12a1 1 0 100 2 1 1 0 000-2z"],
@@ -52,28 +54,14 @@ const icons = {
   calendar: ["M3 9h18", "M8 3v3", "M16 3v3", "M3 5a2 2 0 012-2h14a2 2 0 012 2v15a2 2 0 01-2 2H5a2 2 0 01-2-2V5z"],
 };
 
-// ─── Color palette ──────────────────────────────────────────────────────────
 const C = {
-  bg: "#0a0a0a",
-  card: "#141414",
-  card2: "#1c1c1e",
-  card3: "#232326",
-  border: "#2a2a2e",
-  cyan: "#00e5ff",
-  cyanDim: "#00b8cc",
-  text: "#ffffff",
-  textMuted: "#8e8e93",
-  textSub: "#636366",
-  red: "#ff3b30",
-  redDim: "#3d1a1a",
-  green: "#30d158",
-  yellow: "#ffd60a",
-  purple: "#1a1333",
-  purpleBorder: "#3d2d6e",
+  bg: "#0a0a0a", card: "#141414", card2: "#1c1c1e", card3: "#232326",
+  border: "#2a2a2e", cyan: "#00e5ff", cyanDim: "#00b8cc", text: "#ffffff",
+  textMuted: "#8e8e93", textSub: "#636366", red: "#ff3b30", redDim: "#3d1a1a",
+  green: "#30d158", yellow: "#ffd60a", purple: "#1a1333", purpleBorder: "#3d2d6e",
 };
 
-// ─── Shared UI Atoms ─────────────────────────────────────────────────────────
-const Avatar = ({ name, size = 36, color = C.cyan }) => {
+const Avatar = ({ name, size = 36, color = C.cyan }: any) => {
   const bg = color === C.cyan ? "#003d45" : "#2a2a2e";
   return (
     <div style={{ width: size, height: size, borderRadius: "50%", background: bg, border: `2px solid ${color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.38, fontWeight: 700, color, flexShrink: 0, fontFamily: "inherit" }}>
@@ -82,29 +70,27 @@ const Avatar = ({ name, size = 36, color = C.cyan }) => {
   );
 };
 
-const Badge = ({ children, color = C.cyan, bg }) => (
+const Badge = ({ children, color = C.cyan, bg }: any) => (
   <span style={{ background: bg || (color === C.cyan ? "#003d45" : "#2a2a2e"), color, border: `1px solid ${color}40`, borderRadius: 6, padding: "2px 8px", fontSize: 11, fontWeight: 700, letterSpacing: 0.5 }}>
     {children}
   </span>
 );
 
-const Toggle = ({ value, onChange }) => (
+const Toggle = ({ value, onChange }: any) => (
   <div onClick={() => onChange(!value)} style={{ width: 51, height: 31, borderRadius: 16, background: value ? C.cyan : "#3a3a3c", position: "relative", cursor: "pointer", transition: "background 0.2s", flexShrink: 0 }}>
     <div style={{ position: "absolute", top: 3, left: value ? 23 : 3, width: 25, height: 25, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.4)" }} />
   </div>
 );
 
-const Input = ({ placeholder, value, onChange, style = {} }) => (
+const Input = ({ placeholder, value, onChange, style = {} }: any) => (
   <input
-    placeholder={placeholder}
-    value={value}
-    onChange={e => onChange(e.target.value)}
-    style={{ background: C.card3, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "14px 16px", color: C.text, fontSize: 15, width: "100%", outline: "none", fontFamily: "inherit", boxSizing: "border-box", ...style }}
+    placeholder={placeholder} value={value} onChange={(e: any) => onChange(e.target.value)}
+    style={{ background: C.card3, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "14px 16px", color: C.text, fontSize: 15, width: "100%", outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const, ...style }}
   />
 );
 
-const Btn = ({ children, onClick, variant = "primary", style = {}, icon }) => {
-  const styles = {
+const Btn = ({ children, onClick, variant = "primary", style = {}, icon }: any) => {
+  const styles: any = {
     primary: { background: C.cyan, color: "#000", fontWeight: 700 },
     secondary: { background: C.card3, color: C.text, fontWeight: 600 },
     ghost: { background: "transparent", color: C.text, border: `1.5px solid ${C.border}` },
@@ -118,7 +104,7 @@ const Btn = ({ children, onClick, variant = "primary", style = {}, icon }) => {
   );
 };
 
-const SectionLabel = ({ children, icon, action }) => (
+const SectionLabel = ({ children, icon, action }: any) => (
   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
     <div style={{ display: "flex", alignItems: "center", gap: 8, color: C.textMuted, fontSize: 12, fontWeight: 700, letterSpacing: 1.2 }}>
       {icon && <Icon d={icons[icon]} size={14} />}{children}
@@ -127,17 +113,16 @@ const SectionLabel = ({ children, icon, action }) => (
   </div>
 );
 
-const Card = ({ children, style = {}, onClick }) => (
+const Card = ({ children, style = {}, onClick }: any) => (
   <div onClick={onClick} style={{ background: C.card, borderRadius: 16, padding: 16, ...style, cursor: onClick ? "pointer" : undefined }}>
     {children}
   </div>
 );
 
-// ─── Header ──────────────────────────────────────────────────────────────────
-const Header = ({ onSettings, isOnline = true }) => (
+const Header = ({ onSettings, isOnline = true }: any) => (
   <div style={{ padding: "12px 20px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${C.border}20` }}>
     <div>
-      <div style={{ color: C.cyan, fontSize: 13, fontWeight: 800, letterSpacing: 2, fontFamily: "inherit" }}>TRIPVERSAL</div>
+      <div style={{ color: C.cyan, fontSize: 13, fontWeight: 800, letterSpacing: 2 }}>TRIPVERSAL</div>
       <div style={{ display: "flex", alignItems: "center", gap: 4, color: C.textMuted, fontSize: 13 }}>
         <Icon d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z M12 10a2 2 0 100-4 2 2 0 000 4z" size={13} />
         Paris, France
@@ -156,8 +141,7 @@ const Header = ({ onSettings, isOnline = true }) => (
   </div>
 );
 
-// ─── Bottom Nav ───────────────────────────────────────────────────────────────
-const BottomNav = ({ active, onNav }) => {
+const BottomNav = ({ active, onNav }: any) => {
   const tabs = [
     { id: "home", icon: icons.home },
     { id: "itinerary", icon: icons.map },
@@ -181,10 +165,8 @@ const BottomNav = ({ active, onNav }) => {
   );
 };
 
-// ─── Screen: Home ─────────────────────────────────────────────────────────────
-const HomeScreen = ({ onNav, onAddExpense }) => (
+const HomeScreen = ({ onNav, onAddExpense }: any) => (
   <div style={{ padding: "0 0 100px" }}>
-    {/* Budget bar */}
     <div style={{ padding: "16px 20px 0" }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
@@ -199,8 +181,6 @@ const HomeScreen = ({ onNav, onAddExpense }) => (
         <div style={{ width: "32%", height: "100%", background: C.cyan, borderRadius: 4 }} />
       </div>
     </div>
-
-    {/* Action card */}
     <div style={{ margin: "16px 20px 0", background: "linear-gradient(135deg, #0d2526 0%, #0a1a1a 100%)", borderRadius: 20, padding: 20, border: `1px solid ${C.cyan}20` }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <div style={{ background: "#003d4520", border: `1px solid ${C.cyan}40`, borderRadius: 20, padding: "5px 12px", display: "flex", alignItems: "center", gap: 6, color: C.cyan, fontSize: 12, fontWeight: 700 }}>
@@ -217,23 +197,19 @@ const HomeScreen = ({ onNav, onAddExpense }) => (
         <Btn style={{ flex: 1, borderRadius: 12 }} variant="secondary" icon={<Icon d={icons.navigation} size={16} />}>Directions</Btn>
       </div>
     </div>
-
-    {/* Quick actions */}
     <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, margin: "16px 20px 0" }}>
       {[
         { label: "EXPENSE", icon: icons.plus, action: onAddExpense },
         { label: "PHOTO", icon: icons.camera, action: () => onNav("photos") },
         { label: "GROUP", icon: icons.users, action: () => onNav("settings") },
         { label: "SOS", icon: icons.phone, variant: "red" },
-      ].map(({ label, icon, variant, action }) => (
+      ].map(({ label, icon, variant, action }: any) => (
         <button key={label} onClick={action} style={{ background: variant === "red" ? C.redDim : C.card2, borderRadius: 16, padding: "16px 8px", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
           <Icon d={icon} size={22} stroke={variant === "red" ? C.red : C.cyan} />
           <span style={{ color: variant === "red" ? C.red : C.textMuted, fontSize: 10, fontWeight: 700, letterSpacing: 1 }}>{label}</span>
         </button>
       ))}
     </div>
-
-    {/* Recent activity */}
     <div style={{ margin: "20px 20px 0" }}>
       <SectionLabel>RECENT ACTIVITY</SectionLabel>
       <Card>
@@ -258,7 +234,6 @@ const HomeScreen = ({ onNav, onAddExpense }) => (
   </div>
 );
 
-// ─── Screen: Itinerary ────────────────────────────────────────────────────────
 const itineraryData = [
   { time: "08:00", type: "plane", title: "Flight CDG → FCO", sub: "Air France AF1234 • Gate 2B", status: "done", icon: icons.plane },
   { time: "11:30", type: "transit", title: "Leonardo Express", sub: "Fiumicino → Termini • 32 min", status: "done", icon: icons.car },
@@ -269,7 +244,7 @@ const itineraryData = [
 
 const ItineraryScreen = () => (
   <div style={{ padding: "16px 20px 100px" }}>
-    <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>Today's Itinerary</div>
+    <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>{"Today's Itinerary"}</div>
     <div style={{ color: C.textMuted, fontSize: 13, marginBottom: 20 }}>Tuesday, 18 Feb 2026 · Rome, Italy</div>
     <div style={{ position: "relative" }}>
       <div style={{ position: "absolute", left: 19, top: 0, bottom: 0, width: 2, background: `linear-gradient(to bottom, ${C.cyan}40, ${C.cyan}10)` }} />
@@ -310,8 +285,7 @@ const ItineraryScreen = () => (
   </div>
 );
 
-// ─── Screen: Wallet ───────────────────────────────────────────────────────────
-const WalletScreen = ({ onAddExpense }) => {
+const WalletScreen = ({ onAddExpense }: any) => {
   const days = ["THU", "FRI", "SAT", "SUN", "MON", "TUE", "TODAY"];
   const heights = [12, 8, 15, 10, 6, 18, 72];
   return (
@@ -326,7 +300,6 @@ const WalletScreen = ({ onAddExpense }) => {
           <div style={{ color: C.textSub, fontSize: 11, letterSpacing: 1 }}>REMAINING</div>
         </div>
       </div>
-
       <Card style={{ marginBottom: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div>
@@ -350,7 +323,6 @@ const WalletScreen = ({ onAddExpense }) => {
           })}
         </div>
       </Card>
-
       <SectionLabel>TRANSACTIONS</SectionLabel>
       <Card style={{ marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -367,7 +339,6 @@ const WalletScreen = ({ onAddExpense }) => {
           </div>
         </div>
       </Card>
-
       <div style={{ position: "fixed", bottom: 90, right: "calc(50% - 200px)", width: 56, height: 56, borderRadius: "50%", background: C.cyan, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: `0 4px 20px ${C.cyan}50` }} onClick={onAddExpense}>
         <Icon d={icons.plus} size={24} stroke="#000" strokeWidth={2.5} />
       </div>
@@ -375,7 +346,6 @@ const WalletScreen = ({ onAddExpense }) => {
   );
 };
 
-// ─── Screen: Add Expense (modal-like scroll) ──────────────────────────────────
 const categories = [
   { id: "food", label: "FOOD", icon: icons.food },
   { id: "transport", label: "TRANSPORT", icon: icons.car },
@@ -387,18 +357,16 @@ const categories = [
 
 const members = ["You", "Patrick", "Sarah"];
 
-const AddExpenseScreen = ({ onBack }) => {
+const AddExpenseScreen = ({ onBack }: any) => {
   const [amount, setAmount] = useState("0.00");
   const [cat, setCat] = useState("food");
   const [expType, setExpType] = useState("group");
   const [whoPaid, setWhoPaid] = useState("You");
   const [desc, setDesc] = useState("");
-  const [shares, setShares] = useState({ You: 1, Patrick: 1, Sarah: 1 });
-
+  const [shares, setShares] = useState<Record<string, number>>({ You: 1, Patrick: 1, Sarah: 1 });
   const totalShares = Object.values(shares).reduce((a, b) => a + b, 0);
   const total = parseFloat(amount) || 0;
-
-  const handleKey = (k) => {
+  const handleKey = (k: string) => {
     setAmount(prev => {
       if (k === "⌫") return prev.length > 1 ? prev.slice(0, -1) : "0";
       if (k === ".") return prev.includes(".") ? prev : prev + ".";
@@ -406,31 +374,20 @@ const AddExpenseScreen = ({ onBack }) => {
       return prev + k;
     });
   };
-
   return (
     <div style={{ padding: "0 20px 100px", overflowY: "auto" }}>
-      {/* Amount */}
       <div style={{ textAlign: "center", padding: "24px 0 16px", borderBottom: `1px solid ${C.border}` }}>
         <div style={{ color: C.textMuted, fontSize: 12, letterSpacing: 1.5, marginBottom: 12 }}>AMOUNT</div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
           <span style={{ fontSize: 32, color: C.textMuted }}>€</span>
           <span style={{ fontSize: amount.length > 6 ? 32 : 44, fontWeight: 800, color: C.text, letterSpacing: -2 }}>{amount}</span>
-          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-            <button onClick={() => handleKey("1")} style={{ background: C.card3, border: "none", borderRadius: 4, padding: "2px 6px", cursor: "pointer", color: C.text }}>▲</button>
-            <button onClick={() => handleKey("⌫")} style={{ background: C.card3, border: "none", borderRadius: 4, padding: "2px 6px", cursor: "pointer", color: C.text }}>▼</button>
-          </div>
         </div>
-        {/* Numpad */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginTop: 16, maxWidth: 280, margin: "16px auto 0" }}>
           {["1","2","3","4","5","6","7","8","9",".","0","⌫"].map(k => (
-            <button key={k} onClick={() => handleKey(k)} style={{ background: C.card3, border: "none", borderRadius: 10, padding: "14px", fontSize: 18, fontWeight: 600, color: C.text, cursor: "pointer", fontFamily: "inherit" }}>
-              {k}
-            </button>
+            <button key={k} onClick={() => handleKey(k)} style={{ background: C.card3, border: "none", borderRadius: 10, padding: "14px", fontSize: 18, fontWeight: 600, color: C.text, cursor: "pointer", fontFamily: "inherit" }}>{k}</button>
           ))}
         </div>
       </div>
-
-      {/* Category */}
       <div style={{ paddingTop: 20 }}>
         <SectionLabel>CATEGORY</SectionLabel>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
@@ -445,36 +402,28 @@ const AddExpenseScreen = ({ onBack }) => {
           })}
         </div>
       </div>
-
-      {/* Date */}
       <div style={{ marginTop: 20 }}>
         <SectionLabel>DATE</SectionLabel>
         <Card style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Icon d={icons.calendar} size={16} stroke={C.textMuted} />
           <span style={{ color: C.text, fontSize: 15, flex: 1 }}>18/02/2026</span>
-          <Icon d={icons.calendar} size={16} stroke={C.textMuted} />
         </Card>
       </div>
-
-      {/* Expense type */}
       <div style={{ marginTop: 20 }}>
         <SectionLabel>EXPENSE TYPE</SectionLabel>
         <div style={{ background: C.card3, borderRadius: 14, padding: 4, display: "flex" }}>
           {["personal", "group"].map(t => (
             <button key={t} onClick={() => setExpType(t)} style={{ flex: 1, padding: "12px", borderRadius: 10, border: "none", cursor: "pointer", background: expType === t ? C.cyan : "transparent", color: expType === t ? "#000" : C.textMuted, fontWeight: expType === t ? 700 : 400, fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit", transition: "all 0.2s" }}>
-              <Icon d={t === "group" ? icons.users : "M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2 M12 11a4 4 0 100-8 4 4 0 000 8z"} size={16} stroke={expType === t ? "#000" : C.textMuted} />
               {t.charAt(0).toUpperCase() + t.slice(1)}
             </button>
           ))}
         </div>
       </div>
-
-      {/* Split */}
       {expType === "group" && (
         <div style={{ marginTop: 20 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
             <span style={{ color: C.textMuted, fontSize: 12, fontWeight: 700, letterSpacing: 1 }}>SPLIT</span>
-            <span style={{ color: C.cyan, fontSize: 12, fontWeight: 600 }}>split remaining: €{(total - total * 0).toFixed(2)}</span>
+            <span style={{ color: C.cyan, fontSize: 12, fontWeight: 600 }}>remaining: €{total.toFixed(2)}</span>
           </div>
           {members.map(m => {
             const toPay = totalShares > 0 ? (total * shares[m] / totalShares).toFixed(2) : "0.00";
@@ -484,24 +433,21 @@ const AddExpenseScreen = ({ onBack }) => {
                   <Avatar name={m} />
                   <div>
                     <div style={{ fontWeight: 600 }}>{m}</div>
-                    <div style={{ color: C.cyan, fontSize: 12 }}>split to pay: €{toPay}</div>
+                    <div style={{ color: C.cyan, fontSize: 12 }}>€{toPay}</div>
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
                   <div style={{ flex: 1, background: C.card3, borderRadius: 10, padding: 12 }}>
-                    <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 8 }}>SPLIT SHARES</div>
+                    <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 8 }}>SHARES</div>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <button onClick={() => setShares(s => ({ ...s, [m]: Math.max(0, s[m] - 1) }))} style={{ width: 30, height: 30, borderRadius: "50%", background: C.card, border: "none", cursor: "pointer", color: C.text, fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
+                      <button onClick={() => setShares((s: any) => ({ ...s, [m]: Math.max(0, s[m] - 1) }))} style={{ width: 30, height: 30, borderRadius: "50%", background: C.card, border: "none", cursor: "pointer", color: C.text, fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
                       <span style={{ fontWeight: 700, fontSize: 16 }}>{shares[m]}</span>
-                      <button onClick={() => setShares(s => ({ ...s, [m]: s[m] + 1 }))} style={{ width: 30, height: 30, borderRadius: "50%", background: C.card, border: "none", cursor: "pointer", color: C.text, fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+                      <button onClick={() => setShares((s: any) => ({ ...s, [m]: s[m] + 1 }))} style={{ width: 30, height: 30, borderRadius: "50%", background: C.card, border: "none", cursor: "pointer", color: C.text, fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
                     </div>
                   </div>
                   <div style={{ flex: 1, background: C.card3, borderRadius: 10, padding: 12 }}>
-                    <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 8 }}>SPLIT FIXED</div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ color: C.textMuted }}>€</span>
-                      <input placeholder="" style={{ background: "transparent", border: "none", outline: "none", color: C.text, fontSize: 15, fontFamily: "inherit", width: "100%" }} />
-                    </div>
+                    <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 8 }}>FIXED €</div>
+                    <input placeholder="0.00" style={{ background: "transparent", border: "none", outline: "none", color: C.text, fontSize: 15, fontFamily: "inherit", width: "100%" }} />
                   </div>
                 </div>
               </Card>
@@ -509,26 +455,18 @@ const AddExpenseScreen = ({ onBack }) => {
           })}
         </div>
       )}
-
-      {/* Description */}
       <div style={{ marginTop: 20 }}>
         <SectionLabel>DESCRIPTION</SectionLabel>
         <Input placeholder="e.g. Dinner" value={desc} onChange={setDesc} />
       </div>
-
-      {/* Who paid */}
       <div style={{ marginTop: 20 }}>
         <SectionLabel>WHO PAID?</SectionLabel>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" as const }}>
           {members.map(m => (
-            <button key={m} onClick={() => setWhoPaid(m)} style={{ background: whoPaid === m ? "#fff" : C.card3, color: whoPaid === m ? "#000" : C.text, border: "none", borderRadius: 20, padding: "10px 18px", fontWeight: whoPaid === m ? 700 : 400, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>
-              {m}
-            </button>
+            <button key={m} onClick={() => setWhoPaid(m)} style={{ background: whoPaid === m ? "#fff" : C.card3, color: whoPaid === m ? "#000" : C.text, border: "none", borderRadius: 20, padding: "10px 18px", fontWeight: whoPaid === m ? 700 : 400, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>{m}</button>
           ))}
         </div>
       </div>
-
-      {/* Receipt */}
       <div style={{ marginTop: 20, marginBottom: 20 }}>
         <SectionLabel>RECEIPT</SectionLabel>
         <div style={{ border: `2px dashed ${C.border}`, borderRadius: 14, padding: 20, display: "flex", alignItems: "center", justifyContent: "center", gap: 10, cursor: "pointer" }}>
@@ -536,13 +474,11 @@ const AddExpenseScreen = ({ onBack }) => {
           <span style={{ color: C.textMuted, fontSize: 14 }}>Add Receipt</span>
         </div>
       </div>
-
       <Btn style={{ width: "100%" }} onClick={onBack}>Save Expense</Btn>
     </div>
   );
 };
 
-// ─── Screen: Photos ───────────────────────────────────────────────────────────
 const PhotosScreen = () => (
   <div style={{ padding: "16px 20px 100px" }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 4 }}>
@@ -555,7 +491,6 @@ const PhotosScreen = () => (
         <span style={{ color: C.green }}>LIVE FEED</span>
       </div>
     </div>
-
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 400, gap: 16 }}>
       <div style={{ width: 80, height: 80, borderRadius: "50%", background: C.card3, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <Icon d={icons.camera} size={36} stroke={C.textMuted} />
@@ -563,17 +498,14 @@ const PhotosScreen = () => (
       <div style={{ color: C.textMuted, fontSize: 15, fontStyle: "italic" }}>No memories shared yet. Be the first!</div>
       <button style={{ background: "transparent", border: `1.5px solid ${C.cyan}`, borderRadius: 20, padding: "12px 24px", color: C.cyan, fontSize: 13, fontWeight: 700, letterSpacing: 1, cursor: "pointer", fontFamily: "inherit" }}>POST MEMORY</button>
     </div>
-
     <div style={{ position: "fixed", bottom: 90, right: "calc(50% - 200px)", width: 56, height: 56, borderRadius: "50%", background: C.cyan, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: `0 4px 20px ${C.cyan}50` }}>
       <Icon d={icons.camera} size={24} stroke="#000" />
     </div>
   </div>
 );
 
-// ─── Screen: SOS / Safety ─────────────────────────────────────────────────────
 const SOSScreen = () => (
   <div style={{ padding: "16px 20px 100px", overflowY: "auto" }}>
-    {/* Medical ID */}
     <Card style={{ marginBottom: 16, border: `1px solid #ff3b3020` }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -585,30 +517,21 @@ const SOSScreen = () => (
           <span style={{ color: C.cyan, fontSize: 11, fontWeight: 700 }}>SHARING</span>
         </div>
       </div>
-      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 0.8, marginBottom: 8 }}>? WHO CAN SEE THIS?</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
         <div style={{ background: C.card3, borderRadius: 12, padding: 12 }}>
-          <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-            <Icon d={icons.droplet} size={12} /> BLOOD TYPE
-          </div>
+          <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>BLOOD TYPE</div>
           <div style={{ fontWeight: 800, fontSize: 22 }}>O+</div>
         </div>
         <div style={{ background: C.card3, borderRadius: 12, padding: 12 }}>
-          <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-            <Icon d={icons.userCheck} size={12} /> EMERGENCY CONTACT
-          </div>
+          <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>EMERGENCY CONTACT</div>
           <div style={{ fontWeight: 700, fontSize: 15 }}>Mom</div>
         </div>
       </div>
       <div style={{ background: C.card3, borderRadius: 12, padding: 12 }}>
-        <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-          <Icon d={icons.stethoscope} size={12} /> MEDICAL NOTES
-        </div>
+        <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>MEDICAL NOTES</div>
         <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic" }}>No critical notes added.</div>
       </div>
     </Card>
-
-    {/* Insurance */}
     <SectionLabel>TRAVEL INSURANCE</SectionLabel>
     <Card style={{ marginBottom: 16 }}>
       <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>PROVIDER</div>
@@ -625,8 +548,6 @@ const SOSScreen = () => (
       </div>
       <Btn style={{ width: "100%", background: C.cyan, color: "#000" }} icon={<Icon d={icons.phone} size={16} stroke="#000" />}>CALL GLOBAL ASSIST</Btn>
     </Card>
-
-    {/* Critical Docs */}
     <SectionLabel icon="fileText" action={<button style={{ width: 32, height: 32, borderRadius: 10, background: C.card3, border: "none", cursor: "pointer", color: C.text, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon d={icons.plus} size={16} /></button>}>CRITICAL DOCUMENTS</SectionLabel>
     <Card style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: 40, gap: 12 }}>
       <div style={{ width: 60, height: 60, borderRadius: "50%", background: C.card3, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -637,16 +558,13 @@ const SOSScreen = () => (
   </div>
 );
 
-// ─── Screen: Settings ─────────────────────────────────────────────────────────
-const SettingsScreen = ({ onManageCrew }) => {
+const SettingsScreen = ({ onManageCrew }: any) => {
   const [offlineSim, setOfflineSim] = useState(false);
   const [forcePending, setForcePending] = useState(false);
   const [showNewTrip, setShowNewTrip] = useState(false);
   const [tripName, setTripName] = useState("");
-
   return (
     <div style={{ padding: "16px 20px 100px", overflowY: "auto" }}>
-      {/* General */}
       <SectionLabel>GENERAL</SectionLabel>
       <Card style={{ marginBottom: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -667,8 +585,6 @@ const SettingsScreen = ({ onManageCrew }) => {
           <Icon d={icons.chevronRight} size={16} stroke={C.textMuted} />
         </div>
       </Card>
-
-      {/* Budget */}
       <SectionLabel icon="wallet">BUDGET SETTINGS</SectionLabel>
       <Card style={{ marginBottom: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -676,14 +592,8 @@ const SettingsScreen = ({ onManageCrew }) => {
             <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TOTAL BUDGET</div>
             <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 14 }}>€5.000</div>
             <div style={{ display: "flex", gap: 24 }}>
-              <div>
-                <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>DAILY LIMIT</div>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>€400</div>
-              </div>
-              <div>
-                <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>CURRENCY</div>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>EUR</div>
-              </div>
+              <div><div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>DAILY LIMIT</div><div style={{ fontWeight: 700, fontSize: 15 }}>€400</div></div>
+              <div><div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>CURRENCY</div><div style={{ fontWeight: 700, fontSize: 15 }}>EUR</div></div>
             </div>
           </div>
           <div style={{ width: 40, height: 40, borderRadius: "50%", background: C.card3, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -691,8 +601,6 @@ const SettingsScreen = ({ onManageCrew }) => {
           </div>
         </div>
       </Card>
-
-      {/* My Tripversals */}
       <SectionLabel icon="layers">MY TRIPVERSALS</SectionLabel>
       <Card style={{ marginBottom: 10, border: `1.5px solid ${C.cyan}30`, position: "relative", overflow: "visible" }}>
         <div style={{ position: "absolute", top: -1, right: 0, background: C.cyan, color: "#000", fontSize: 12, fontWeight: 800, padding: "4px 14px", borderRadius: "0 14px 0 14px" }}>Active</div>
@@ -705,7 +613,6 @@ const SettingsScreen = ({ onManageCrew }) => {
         </div>
         <Btn style={{ width: "100%" }} variant="secondary" onClick={onManageCrew} icon={<Icon d={icons.users} size={16} stroke={C.text} />}>Manage Crew</Btn>
       </Card>
-
       {!showNewTrip ? (
         <Btn style={{ width: "100%", marginBottom: 20 }} variant="secondary" onClick={() => setShowNewTrip(true)} icon={<Icon d={icons.plane} size={16} stroke={C.textMuted} />}>Start New Tripversal</Btn>
       ) : (
@@ -718,12 +625,10 @@ const SettingsScreen = ({ onManageCrew }) => {
           </div>
         </Card>
       )}
-
-      {/* Dev Controls */}
       <SectionLabel icon="bug">DEV CONTROLS</SectionLabel>
       <Card>
         {[
-          { label: "Offline Simulation", sub: offlineSim ? "NETWORK OFFLINE" : "NETWORK ONLINE", icon: icons.wifi, val: offlineSim, set: setOfflineSim, iconBg: offlineSim ? "#1a2a1a" : "#003d10", iconColor: offlineSim ? C.textMuted : C.green },
+          { label: "Offline Simulation", sub: offlineSim ? "NETWORK OFFLINE" : "NETWORK ONLINE", icon: icons.wifi, val: offlineSim, set: setOfflineSim, iconBg: "#003d10", iconColor: C.green },
           { label: "Force Pending State", sub: "Simulate data waiting to sync.", icon: icons.refreshCw, val: forcePending, set: setForcePending, iconBg: "#1a1a00", iconColor: C.yellow },
         ].map(item => (
           <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
@@ -732,91 +637,67 @@ const SettingsScreen = ({ onManageCrew }) => {
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 600 }}>{item.label}</div>
-              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 0.5 }}>{item.sub}</div>
+              <div style={{ color: C.textMuted, fontSize: 11 }}>{item.sub}</div>
             </div>
             <Toggle value={item.val} onChange={item.set} />
           </div>
         ))}
       </Card>
-
-      <div style={{ color: C.textSub, fontSize: 11, textAlign: "center", marginTop: 20 }}>
-        FamilyVoyage v1.1.0 latam • UUID: HW1DC1
-      </div>
+      <div style={{ color: C.textSub, fontSize: 11, textAlign: "center", marginTop: 20 }}>FamilyVoyage v1.1.0 latam • UUID: HW1DC1</div>
     </div>
   );
 };
 
-// ─── Screen: Manage Crew ──────────────────────────────────────────────────────
-const ManageCrewScreen = ({ onBack }) => {
-  const [newMember, setNewMember] = useState("");
+const ManageCrewScreen = ({ onBack }: any) => {
+  const [showPass, setShowPass] = useState(false);
   const [showAddSeg, setShowAddSeg] = useState(false);
   const [segName, setSegName] = useState("");
   const [segColor, setSegColor] = useState("#e53935");
   const segColors = ["#e53935","#f57c00","#f9cf1e","#2e7d32","#00bcd4","#1565c0","#6a1b9a","#e91e8c"];
-  const [crew] = useState(["You", "Patrick", "Sarah"]);
-  const [showInvite, setShowInvite] = useState(true);
-  const [showPass, setShowPass] = useState(false);
-
+  const crew = ["You", "Patrick", "Sarah"];
   return (
     <div style={{ padding: "16px 20px 100px", overflowY: "auto" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-        <button onClick={onBack} style={{ background: C.card3, border: "none", borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: C.text }}>
-          ←
-        </button>
+        <button onClick={onBack} style={{ background: C.card3, border: "none", borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: C.text, fontSize: 18 }}>←</button>
         <span style={{ fontSize: 18, fontWeight: 700 }}>Manage Crew</span>
       </div>
-
-      {/* Invite card */}
-      <div style={{ background: `linear-gradient(135deg, ${C.purple} 0%, #120d24 100%)`, borderRadius: 20, padding: 20, marginBottom: 20, border: `1px solid ${C.purpleBorder}`, position: "relative", overflow: "hidden" }}>
-        <div style={{ position: "absolute", top: -20, right: -20, width: 100, height: 100, background: `${C.purpleBorder}30`, borderRadius: "50%" }} />
+      <div style={{ background: `linear-gradient(135deg, ${C.purple} 0%, #120d24 100%)`, borderRadius: 20, padding: 20, marginBottom: 20, border: `1px solid ${C.purpleBorder}` }}>
         <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>Invite Family</div>
         <div style={{ color: C.textMuted, fontSize: 13, marginBottom: 16 }}>Share this code with family members to join the Tripversal.</div>
-        
         <div style={{ background: "#ffffff10", borderRadius: 12, padding: 14, marginBottom: 10 }}>
           <div style={{ color: C.textSub, fontSize: 10, letterSpacing: 1.5, marginBottom: 6 }}>TRIPVERSAL CODE</div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ color: C.cyan, fontSize: 24, fontWeight: 800, letterSpacing: 2 }}>TRV-8821</span>
-            <button style={{ width: 36, height: 36, borderRadius: 10, background: "#ffffff15", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: C.text }}>
-              <Icon d={icons.copy} size={16} />
-            </button>
+            <button style={{ width: 36, height: 36, borderRadius: 10, background: "#ffffff15", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: C.text }}><Icon d={icons.copy} size={16} /></button>
           </div>
         </div>
-
         <div style={{ background: "#ffffff10", borderRadius: 12, padding: 14, marginBottom: 16 }}>
           <div style={{ color: C.textSub, fontSize: 10, letterSpacing: 1.5, marginBottom: 6 }}>TRIPVERSAL PASSWORD</div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ letterSpacing: 4, fontSize: 14 }}>{showPass ? "pass123" : "● ● ● ● ● ● ●"}</span>
-              <button onClick={() => setShowPass(p => !p)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted }}>
-                <Icon d={icons.eye} size={16} />
-              </button>
+              <button onClick={() => setShowPass((p: boolean) => !p)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted }}><Icon d={icons.eye} size={16} /></button>
             </div>
-            <button style={{ width: 36, height: 36, borderRadius: 10, background: "#ffffff15", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: C.text }}>
-              <Icon d={icons.edit} size={16} />
-            </button>
+            <button style={{ width: 36, height: 36, borderRadius: 10, background: "#ffffff15", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: C.text }}><Icon d={icons.edit} size={16} /></button>
           </div>
         </div>
-
         <Btn variant="white" style={{ width: "100%" }} icon={<Icon d={icons.share} size={16} />}>Share Invite</Btn>
       </div>
-
-      {/* Trip Segments */}
       <Card style={{ marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, color: C.textMuted, fontSize: 12, fontWeight: 700, letterSpacing: 1 }}>
             <Icon d={icons.layers} size={14} /> TRIP SEGMENTS
           </div>
-          <button onClick={() => setShowAddSeg(p => !p)} style={{ background: C.cyan, color: "#000", borderRadius: 20, padding: "6px 14px", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}>
+          <button onClick={() => setShowAddSeg((p: boolean) => !p)} style={{ background: C.cyan, color: "#000", borderRadius: 20, padding: "6px 14px", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}>
             <Icon d={icons.plus} size={12} stroke="#000" strokeWidth={2.5} /> NEW SEGMENT
           </button>
         </div>
-
         {showAddSeg && (
           <div style={{ background: C.card3, borderRadius: 14, padding: 16, marginBottom: 14 }}>
             <div style={{ fontWeight: 700, marginBottom: 12 }}>Add Segment</div>
             <Input placeholder="e.g. Europe Leg 1" value={segName} onChange={setSegName} style={{ marginBottom: 14 }} />
             <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 10 }}>SEGMENT COLOR</div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, marginBottom: 16 }}>
               {segColors.map(c => (
                 <button key={c} onClick={() => setSegColor(c)} style={{ width: 36, height: 36, borderRadius: "50%", background: c, border: segColor === c ? "3px solid #fff" : "3px solid transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   {segColor === c && <Icon d={icons.check} size={14} stroke="#fff" strokeWidth={3} />}
@@ -826,15 +707,12 @@ const ManageCrewScreen = ({ onBack }) => {
             <Btn style={{ width: "100%" }} variant="secondary">Create</Btn>
           </div>
         )}
-
         <div style={{ background: C.card3, borderRadius: 20, padding: "10px 16px", display: "flex", alignItems: "center", gap: 8, width: "fit-content" }}>
           <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.cyan }} />
           <span style={{ fontWeight: 600 }}>Everyone</span>
           <span style={{ color: C.textMuted, fontSize: 13 }}>(Default)</span>
         </div>
       </Card>
-
-      {/* Group Settings */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
         <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#003d3a", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Icon d={icons.users} size={24} stroke={C.cyan} />
@@ -844,14 +722,12 @@ const ManageCrewScreen = ({ onBack }) => {
           <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1 }}>TRAVEL CREW</div>
         </div>
       </div>
-
       <Card style={{ marginBottom: 12 }}>
         <div style={{ display: "flex", gap: 10 }}>
           <input placeholder="New member name..." style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: C.text, fontSize: 15, fontFamily: "inherit" }} />
           <button style={{ background: C.card3, border: "none", borderRadius: 10, padding: "8px 16px", color: C.text, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Add</button>
         </div>
       </Card>
-
       <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 10 }}>FAMILY MEMBERS ({crew.length})</div>
       {crew.map((m, i) => (
         <Card key={m} style={{ marginBottom: 8 }}>
@@ -861,11 +737,10 @@ const ManageCrewScreen = ({ onBack }) => {
               <div style={{ position: "absolute", bottom: 0, left: 4, width: 8, height: 8, borderRadius: "50%", background: C.cyan, border: "2px solid #141414" }} />
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600 }}>{m} {i === 0 && <span style={{ color: C.textMuted, fontSize: 13 }}>(Me)</span>}</div>
+              <span style={{ fontWeight: 600 }}>{m}</span>
+              {i === 0 && <span style={{ color: C.textMuted, fontSize: 13 }}> (Me)</span>}
             </div>
-            {i === 0 ? (
-              <Icon d={icons.edit} size={16} stroke={C.textMuted} />
-            ) : (
+            {i === 0 ? <Icon d={icons.edit} size={16} stroke={C.textMuted} /> : (
               <div style={{ display: "flex", gap: 12 }}>
                 <Icon d={icons.edit} size={16} stroke={C.textMuted} />
                 <Icon d={icons.trash} size={16} stroke={C.textMuted} />
@@ -878,34 +753,21 @@ const ManageCrewScreen = ({ onBack }) => {
   );
 };
 
-// ─── Main App ──────────────────────────────────────────────────────────────────
 export default function TripversalApp() {
   const [tab, setTab] = useState("home");
   const [showSettings, setShowSettings] = useState(false);
   const [showCrew, setShowCrew] = useState(false);
   const [showAddExpense, setShowAddExpense] = useState(false);
 
-  const handleNav = (t) => {
-    setShowSettings(false);
-    setShowCrew(false);
-    setShowAddExpense(false);
-    setTab(t);
-  };
-
-  const handleSettings = () => {
-    setShowSettings(true);
-    setShowCrew(false);
-    setShowAddExpense(false);
+  const handleNav = (t: string) => {
+    setShowSettings(false); setShowCrew(false); setShowAddExpense(false); setTab(t);
   };
 
   let content;
-  if (showAddExpense) {
-    content = <AddExpenseScreen onBack={() => setShowAddExpense(false)} />;
-  } else if (showCrew) {
-    content = <ManageCrewScreen onBack={() => setShowCrew(false)} />;
-  } else if (showSettings) {
-    content = <SettingsScreen onManageCrew={() => setShowCrew(true)} />;
-  } else {
+  if (showAddExpense) content = <AddExpenseScreen onBack={() => setShowAddExpense(false)} />;
+  else if (showCrew) content = <ManageCrewScreen onBack={() => setShowCrew(false)} />;
+  else if (showSettings) content = <SettingsScreen onManageCrew={() => setShowCrew(true)} />;
+  else {
     switch (tab) {
       case "home": content = <HomeScreen onNav={handleNav} onAddExpense={() => setShowAddExpense(true)} />; break;
       case "itinerary": content = <ItineraryScreen />; break;
@@ -916,23 +778,12 @@ export default function TripversalApp() {
     }
   }
 
-  const activeTab = showSettings ? null : showCrew ? null : showAddExpense ? null : tab;
+  const activeTab = showSettings || showCrew || showAddExpense ? null : tab;
 
   return (
     <div style={{ background: "#000", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{
-        width: "100%",
-        maxWidth: 430,
-        minHeight: "100vh",
-        background: C.bg,
-        color: C.text,
-        fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-        position: "relative",
-        overflowX: "hidden",
-        display: "flex",
-        flexDirection: "column",
-      }}>
-        <Header onSettings={handleSettings} />
+      <div style={{ width: "100%", maxWidth: 430, minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", position: "relative", overflowX: "hidden", display: "flex", flexDirection: "column" }}>
+        <Header onSettings={() => { setShowSettings(true); setShowCrew(false); setShowAddExpense(false); }} />
         <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
           {content}
         </div>
