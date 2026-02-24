@@ -575,6 +575,13 @@ const SettingsScreen = ({ onManageCrew }: any) => {
   const [dailyLimit, setDailyLimit] = useState("400");
   const [currency, setCurrency] = useState("EUR");
 
+  const currencySymbol = (c: string) => c === "EUR" ? "€" : c === "USD" ? "$" : c === "BRL" ? "R$" : c === "GBP" ? "£" : c === "COP" ? "$" : c;
+
+  const [trips, setTrips] = useState<any[]>([
+    { name: "European Summer", code: "TRV-8821", members: 3, active: true }
+  ]);
+  const activeTrip = trips.find(t => t.active) || trips[0];
+
   const onAvatarChange = (e: any) => {
     const f = e.target.files && e.target.files[0];
     if (f) {
@@ -632,9 +639,9 @@ const SettingsScreen = ({ onManageCrew }: any) => {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div>
               <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TOTAL BUDGET</div>
-              <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 14 }}>€{totalBudget}</div>
+              <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 14 }}>{currencySymbol(currency)}{totalBudget}</div>
               <div style={{ display: "flex", gap: 24 }}>
-                <div><div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>DAILY LIMIT</div><div style={{ fontWeight: 700, fontSize: 15 }}>€{dailyLimit}</div></div>
+                <div><div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>DAILY LIMIT</div><div style={{ fontWeight: 700, fontSize: 15 }}>{currencySymbol(currency)}{dailyLimit}</div></div>
                 <div><div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>CURRENCY</div><div style={{ fontWeight: 700, fontSize: 15 }}>{currency}</div></div>
               </div>
             </div>
@@ -658,6 +665,9 @@ const SettingsScreen = ({ onManageCrew }: any) => {
                 <select value={currency} onChange={(e: any) => setCurrency(e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: 10, background: C.card3, border: `1.5px solid ${C.border}`, color: C.text }}>
                   <option value="EUR">EUR</option>
                   <option value="USD">USD</option>
+                  <option value="BRL">BRL</option>
+                  <option value="GBP">GBP</option>
+                  <option value="COP">COP</option>
                 </select>
               </div>
             </div>
@@ -669,17 +679,19 @@ const SettingsScreen = ({ onManageCrew }: any) => {
         )}
       </Card>
       <SectionLabel icon="layers">MY TRIPVERSALS</SectionLabel>
-      <Card style={{ marginBottom: 10, border: `1.5px solid ${C.cyan}30`, position: "relative", overflow: "visible" }}>
-        <div style={{ position: "absolute", top: -1, right: 0, background: C.cyan, color: "#000", fontSize: 12, fontWeight: 800, padding: "4px 14px", borderRadius: "0 14px 0 14px" }}>Active</div>
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 20, fontWeight: 800 }}>European Summer</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-            <Badge color={C.textMuted} bg={C.card3}>TRV-8821</Badge>
-            <span style={{ color: C.textMuted, fontSize: 13 }}>• 3 members</span>
+      {activeTrip && (
+        <Card style={{ marginBottom: 10, border: `1.5px solid ${C.cyan}30`, position: "relative", overflow: "visible" }}>
+          <div style={{ position: "absolute", top: -1, right: 0, background: C.cyan, color: "#000", fontSize: 12, fontWeight: 800, padding: "4px 14px", borderRadius: "0 14px 0 14px" }}>Active</div>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 20, fontWeight: 800 }}>{activeTrip.name}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+              <Badge color={C.textMuted} bg={C.card3}>{activeTrip.code}</Badge>
+              <span style={{ color: C.textMuted, fontSize: 13 }}>• {activeTrip.members} members</span>
+            </div>
           </div>
-        </div>
-        <Btn style={{ width: "100%" }} variant="secondary" onClick={onManageCrew} icon={<Icon d={icons.users} size={16} stroke={C.text} />}>Manage Crew</Btn>
-      </Card>
+          <Btn style={{ width: "100%" }} variant="secondary" onClick={onManageCrew} icon={<Icon d={icons.users} size={16} stroke={C.text} />}>Manage Crew</Btn>
+        </Card>
+      )}
       {!showNewTrip ? (
         <Btn style={{ width: "100%", marginBottom: 20 }} variant="secondary" onClick={() => setShowNewTrip(true)} icon={<Icon d={icons.plane} size={16} stroke={C.textMuted} />}>Start New Tripversal</Btn>
       ) : (
@@ -688,7 +700,14 @@ const SettingsScreen = ({ onManageCrew }: any) => {
           <Input placeholder="Trip Name" value={tripName} onChange={setTripName} style={{ marginBottom: 12 }} />
           <div style={{ display: "flex", gap: 10 }}>
             <Btn style={{ flex: 1 }} variant="secondary" onClick={() => setShowNewTrip(false)}>Cancel</Btn>
-            <Btn style={{ flex: 1 }}>Create</Btn>
+            <Btn style={{ flex: 1 }} onClick={() => {
+              if (!tripName.trim()) return;
+              // archive existing active trip(s) and create a new active trip
+              const code = `TRV-${Math.floor(1000 + Math.random() * 9000)}`;
+              setTrips(prev => prev.map(t => ({ ...t, active: false })).concat([{ name: tripName.trim(), code, members: 1, active: true }]));
+              setTripName("");
+              setShowNewTrip(false);
+            }}>Create</Btn>
           </div>
         </Card>
       )}
@@ -723,8 +742,14 @@ const ManageCrewScreen = ({ onBack }: any) => {
   const [segments, setSegments] = useState([
     { name: "Everyone", color: C.cyan, default: true }
   ]);
+  const [whatsapp, setWhatsapp] = useState("");
+  const [crew, setCrew] = useState([
+    { name: "You", whatsapp: "your@whatsapp", status: "you" as const },
+    { name: "Patrick", whatsapp: "+55 11 98765-4321", status: "accepted" as const },
+    { name: "Sarah", whatsapp: "+33 6 12 34 56 78", status: "invited" as const }
+  ]);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const segColors = ["#e53935","#f57c00","#f9cf1e","#2e7d32","#00bcd4","#1565c0","#6a1b9a","#e91e8c"];
-  const crew = ["You", "Patrick", "Sarah"];
   return (
     <div style={{ padding: "16px 20px 100px", overflowY: "auto" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
@@ -804,31 +829,48 @@ const ManageCrewScreen = ({ onBack }: any) => {
       </div>
       <Card style={{ marginBottom: 12 }}>
         <div style={{ display: "flex", gap: 10 }}>
-          <input placeholder="New member name..." style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: C.text, fontSize: 15, fontFamily: "inherit" }} />
-          <button style={{ background: C.card3, border: "none", borderRadius: 10, padding: "8px 16px", color: C.text, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Add</button>
+          <input placeholder="WhatsApp or Phone" value={whatsapp} onChange={(e: any) => setWhatsapp(e.target.value)} style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: C.text, fontSize: 15, fontFamily: "inherit" }} />
+          <button onClick={() => {
+            if (whatsapp.trim() && !crew.some(c => c.whatsapp === whatsapp.trim())) {
+              setCrew([...crew, { name: `User_${crew.length}`, whatsapp: whatsapp.trim(), status: "invited" as const }]);
+              setWhatsapp("");
+            }
+          }} style={{ background: C.card3, border: "none", borderRadius: 10, padding: "8px 16px", color: C.text, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Add</button>
         </div>
       </Card>
       <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 10 }}>FAMILY MEMBERS ({crew.length})</div>
-      {crew.map((m, i) => (
-        <Card key={m} style={{ marginBottom: 8 }}>
+      {crew.map((m) => (
+        <Card key={m.whatsapp} style={{ marginBottom: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ position: "relative" }}>
-              <Avatar name={m} size={42} />
-              <div style={{ position: "absolute", bottom: 0, left: 4, width: 8, height: 8, borderRadius: "50%", background: C.cyan, border: "2px solid #141414" }} />
+              <Avatar name={m.name} size={42} color={m.status === "you" ? C.cyan : m.status === "invited" ? "#999" : C.cyan} />
+              <div style={{ position: "absolute", bottom: 0, left: 4, width: 8, height: 8, borderRadius: "50%", background: m.status === "you" ? C.cyan : m.status === "accepted" ? C.green : "#999", border: "2px solid #141414" }} />
             </div>
             <div style={{ flex: 1 }}>
-              <span style={{ fontWeight: 600 }}>{m}</span>
-              {i === 0 && <span style={{ color: C.textMuted, fontSize: 13 }}> (Me)</span>}
+              <span style={{ fontWeight: 600 }}>{m.name}</span>
+              <span style={{ color: C.textMuted, fontSize: 12, marginLeft: 6 }}>({m.status === "you" ? "Me" : m.status === "invited" ? "Pending invite" : "Accepted"})</span>
             </div>
-            {i === 0 ? <Icon d={icons.edit} size={16} stroke={C.textMuted} /> : (
-              <div style={{ display: "flex", gap: 12 }}>
-                <Icon d={icons.edit} size={16} stroke={C.textMuted} />
-                <Icon d={icons.trash} size={16} stroke={C.textMuted} />
-              </div>
+            {m.status === "you" ? <Icon d={icons.edit} size={16} stroke={C.textMuted} /> : (
+              <button onClick={() => setConfirmDelete(m.whatsapp)} style={{ background: "none", border: "none", cursor: "pointer", color: C.red, padding: 0 }}><Icon d={icons.trash} size={16} stroke={C.red} /></button>
             )}
           </div>
         </Card>
       ))}
+      {confirmDelete && (
+        <Card style={{ marginBottom: 16, background: `${C.redDim}80`, borderRadius: 16, padding: 20 }}>
+          <div style={{ textAlign: "center", marginBottom: 16 }}>
+            <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 8, color: C.red }}>Remove member?</div>
+            <div style={{ color: C.textMuted, fontSize: 14 }}>This member will be removed from the trip group.</div>
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setConfirmDelete(null)}>Cancel</Btn>
+            <Btn style={{ flex: 1 }} variant="danger" onClick={() => {
+              setCrew(crew.filter(c => c.whatsapp !== confirmDelete));
+              setConfirmDelete(null);
+            }}>Remove</Btn>
+          </div>
+        </Card>
+      )}
     </div>
   );
 };
