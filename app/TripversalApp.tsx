@@ -776,7 +776,7 @@ const ManageCrewScreen = ({ onBack }: any) => {
             </div>
             <Btn style={{ width: "100%" }} variant="secondary" onClick={() => {
               if (segName.trim()) {
-                setSegments([...segments, { name: segName, color: segColor }]);
+                setSegments([...segments, { name: segName, color: segColor, default: false }]);
                 setSegName("");
                 setSegColor(segColors[0]);
                 setShowAddSeg(false);
