@@ -563,6 +563,26 @@ const SettingsScreen = ({ onManageCrew }: any) => {
   const [forcePending, setForcePending] = useState(false);
   const [showNewTrip, setShowNewTrip] = useState(false);
   const [tripName, setTripName] = useState("");
+  // Profile / language / budget states
+  const [language, setLanguage] = useState("en");
+  const [avatarFile, setAvatarFile] = useState<any>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [username, setUsername] = useState("Patrick");
+  const [email, setEmail] = useState("patrick@example.com");
+  const [phone, setPhone] = useState("+33 1 23 45 67 89");
+  const [budgetEdit, setBudgetEdit] = useState(false);
+  const [totalBudget, setTotalBudget] = useState("5000");
+  const [dailyLimit, setDailyLimit] = useState("400");
+  const [currency, setCurrency] = useState("EUR");
+
+  const onAvatarChange = (e: any) => {
+    const f = e.target.files && e.target.files[0];
+    if (f) {
+      setAvatarFile(f);
+      try { setAvatarUrl(URL.createObjectURL(f)); } catch (err) { setAvatarUrl(null); }
+    }
+  };
+
   return (
     <div style={{ padding: "16px 20px 100px", overflowY: "auto" }}>
       <SectionLabel>GENERAL</SectionLabel>
@@ -572,34 +592,81 @@ const SettingsScreen = ({ onManageCrew }: any) => {
             <Icon d={icons.globe} size={18} stroke="#6464e0" />
           </div>
           <span style={{ flex: 1, fontWeight: 500 }}>Language</span>
-          <span style={{ color: C.textMuted, fontSize: 14 }}>English</span>
-          <Icon d={icons.chevronRight} size={16} stroke={C.textMuted} />
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button onClick={() => setLanguage("pt")} style={{ background: language === "pt" ? C.cyan : C.card3, color: language === "pt" ? "#000" : C.text, border: "none", borderRadius: 10, padding: "8px 10px", cursor: "pointer" }}>Português</button>
+            <button onClick={() => setLanguage("en")} style={{ background: language === "en" ? C.cyan : C.card3, color: language === "en" ? "#000" : C.text, border: "none", borderRadius: 10, padding: "8px 10px", cursor: "pointer" }}>English</button>
+          </div>
         </div>
       </Card>
+
       <Card style={{ marginBottom: 20 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: "#003d2a", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Icon d={icons.login} size={18} stroke={C.green} />
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flex: 1 }}>
+            <div style={{ width: 72, display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 72, height: 72, borderRadius: "50%", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {avatarUrl ? <img src={avatarUrl} alt="avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Avatar name={username} size={72} color="#aaa" />}
+              </div>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                <input type="file" accept="image/*" onChange={onAvatarChange} style={{ display: "none" }} id="avatarInput" />
+                <label htmlFor="avatarInput" style={{ background: C.card3, padding: "8px 12px", borderRadius: 10, cursor: "pointer", color: C.text, fontWeight: 700 }}>Change Avatar</label>
+                <button onClick={() => { setAvatarFile(null); setAvatarUrl(null); }} style={{ background: C.card3, padding: "8px 12px", borderRadius: 10, border: "none", cursor: "pointer", color: C.text }}>Remove</button>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
+                <Input placeholder="Username" value={username} onChange={setUsername} />
+                <Input placeholder="Email" value={email} onChange={setEmail} />
+                <Input placeholder="Phone" value={phone} onChange={setPhone} />
+              </div>
+            </div>
           </div>
-          <span style={{ flex: 1, fontWeight: 500 }}>Join Another Tripversal</span>
-          <Icon d={icons.chevronRight} size={16} stroke={C.textMuted} />
+        </div>
+        <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
+          <Btn onClick={() => { /* save profile - placeholder */ }} variant="primary">Save Profile</Btn>
+          <Btn onClick={() => { setUsername("Patrick"); setEmail("patrick@example.com"); setPhone("+33 1 23 45 67 89"); setAvatarUrl(null); }} variant="ghost">Reset</Btn>
         </div>
       </Card>
       <SectionLabel icon="wallet">BUDGET SETTINGS</SectionLabel>
       <Card style={{ marginBottom: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <div>
-            <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TOTAL BUDGET</div>
-            <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 14 }}>€5.000</div>
-            <div style={{ display: "flex", gap: 24 }}>
-              <div><div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>DAILY LIMIT</div><div style={{ fontWeight: 700, fontSize: 15 }}>€400</div></div>
-              <div><div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>CURRENCY</div><div style={{ fontWeight: 700, fontSize: 15 }}>EUR</div></div>
+        {!budgetEdit ? (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div>
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TOTAL BUDGET</div>
+              <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 14 }}>€{totalBudget}</div>
+              <div style={{ display: "flex", gap: 24 }}>
+                <div><div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>DAILY LIMIT</div><div style={{ fontWeight: 700, fontSize: 15 }}>€{dailyLimit}</div></div>
+                <div><div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>CURRENCY</div><div style={{ fontWeight: 700, fontSize: 15 }}>{currency}</div></div>
+              </div>
+            </div>
+            <div style={{ width: 40, height: 40, borderRadius: "50%", background: C.card3, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <button onClick={() => setBudgetEdit(true)} style={{ background: "transparent", border: "none", cursor: "pointer", color: C.cyan }}><Icon d={icons.edit} size={16} stroke={C.cyan} /></button>
             </div>
           </div>
-          <div style={{ width: 40, height: 40, borderRadius: "50%", background: C.card3, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Icon d={icons.edit} size={16} stroke={C.cyan} />
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div>
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TOTAL BUDGET</div>
+              <Input value={totalBudget} onChange={setTotalBudget} />
+            </div>
+            <div style={{ display: "flex", gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>DAILY LIMIT</div>
+                <Input value={dailyLimit} onChange={setDailyLimit} />
+              </div>
+              <div style={{ width: 120 }}>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>CURRENCY</div>
+                <select value={currency} onChange={(e: any) => setCurrency(e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: 10, background: C.card3, border: `1.5px solid ${C.border}`, color: C.text }}>
+                  <option value="EUR">EUR</option>
+                  <option value="USD">USD</option>
+                </select>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <Btn onClick={() => setBudgetEdit(false)} variant="primary">Save</Btn>
+              <Btn onClick={() => { setTotalBudget("5000"); setDailyLimit("400"); setCurrency("EUR"); setBudgetEdit(false); }} variant="ghost">Cancel</Btn>
+            </div>
           </div>
-        </div>
+        )}
       </Card>
       <SectionLabel icon="layers">MY TRIPVERSALS</SectionLabel>
       <Card style={{ marginBottom: 10, border: `1.5px solid ${C.cyan}30`, position: "relative", overflow: "visible" }}>
@@ -653,6 +720,9 @@ const ManageCrewScreen = ({ onBack }: any) => {
   const [showAddSeg, setShowAddSeg] = useState(false);
   const [segName, setSegName] = useState("");
   const [segColor, setSegColor] = useState("#e53935");
+  const [segments, setSegments] = useState([
+    { name: "Everyone", color: C.cyan, default: true }
+  ]);
   const segColors = ["#e53935","#f57c00","#f9cf1e","#2e7d32","#00bcd4","#1565c0","#6a1b9a","#e91e8c"];
   const crew = ["You", "Patrick", "Sarah"];
   return (
@@ -704,14 +774,24 @@ const ManageCrewScreen = ({ onBack }: any) => {
                 </button>
               ))}
             </div>
-            <Btn style={{ width: "100%" }} variant="secondary">Create</Btn>
+            <Btn style={{ width: "100%" }} variant="secondary" onClick={() => {
+              if (segName.trim()) {
+                setSegments([...segments, { name: segName, color: segColor }]);
+                setSegName("");
+                setSegColor(segColors[0]);
+                setShowAddSeg(false);
+              }
+            }}>Create</Btn>
           </div>
         )}
-        <div style={{ background: C.card3, borderRadius: 20, padding: "10px 16px", display: "flex", alignItems: "center", gap: 8, width: "fit-content" }}>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.cyan }} />
-          <span style={{ fontWeight: 600 }}>Everyone</span>
-          <span style={{ color: C.textMuted, fontSize: 13 }}>(Default)</span>
-        </div>
+        {/* Lista de segmentos */}
+        {segments.map((seg, idx) => (
+          <div key={seg.name + idx} style={{ background: C.card3, borderRadius: 20, padding: "10px 16px", display: "flex", alignItems: "center", gap: 8, width: "fit-content", marginBottom: 6 }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: seg.color }} />
+            <span style={{ fontWeight: 600 }}>{seg.name}</span>
+            {seg.default && <span style={{ color: C.textMuted, fontSize: 13 }}>(Default)</span>}
+          </div>
+        ))}
       </Card>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
         <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#003d3a", display: "flex", alignItems: "center", justifyContent: "center" }}>
