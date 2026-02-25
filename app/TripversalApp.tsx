@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 // ─── Icons (inline SVG helpers) ────────────────────────────────────────────
 const Icon = ({ d, size = 22, stroke = "currentColor", fill = "none", strokeWidth = 1.8, ...p }: any) => (
@@ -31,6 +31,8 @@ const icons: Record<string, any> = {
   globe: ["M12 22a10 10 0 100-20 10 10 0 000 20z", "M2 12h20", "M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"],
   login: ["M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4", "M10 17l5-5-5-5", "M15 12H3"],
   sun: ["M12 17a5 5 0 100-10 5 5 0 000 10z", "M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"],
+  moon: "M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z",
+  cloud: "M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z",
   heart: "M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z",
   droplet: "M12 2.69l5.66 5.66a8 8 0 11-11.31 0z",
   userCheck: ["M16 11a4 4 0 100-8 4 4 0 000 8z", "M17.5 21H1v-1a7 7 0 0110.807-5.882M22 16l-2 2-1-1"],
@@ -119,27 +121,77 @@ const Card = ({ children, style = {}, onClick }: any) => (
   </div>
 );
 
-const Header = ({ onSettings, isOnline = true }: any) => (
-  <div style={{ padding: "12px 20px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${C.border}20` }}>
-    <div>
-      <div style={{ color: C.cyan, fontSize: 13, fontWeight: 800, letterSpacing: 2 }}>TRIPVERSAL</div>
-      <div style={{ display: "flex", alignItems: "center", gap: 4, color: C.textMuted, fontSize: 13 }}>
-        <Icon d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z M12 10a2 2 0 100-4 2 2 0 000 4z" size={13} />
-        Paris, France
+const Header = ({ onSettings, isOnline = true }: any) => {
+  const [weather, setWeather] = useState<{ temp: number; code: number; isDay: boolean } | null>(null);
+  const [cityName, setCityName] = useState("Localizando...");
+  const [localTime, setLocalTime] = useState("");
+  const [tz, setTz] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
+
+  useEffect(() => {
+    const tick = () => {
+      setLocalTime(new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: tz }));
+    };
+    tick();
+    const id = setInterval(tick, 30000);
+    return () => clearInterval(id);
+  }, [tz]);
+
+  useEffect(() => {
+    if (!navigator.geolocation) { setCityName("Paris, France"); return; }
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords: { latitude, longitude } }) => {
+        try {
+          const [wRes, gRes] = await Promise.all([
+            fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true&timezone=auto`),
+            fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`, { headers: { "Accept-Language": "en" } }),
+          ]);
+          const wData = await wRes.json();
+          const gData = await gRes.json();
+          if (wData.current_weather) {
+            setWeather({ temp: Math.round(wData.current_weather.temperature), code: wData.current_weather.weathercode, isDay: wData.current_weather.is_day === 1 });
+            if (wData.timezone) setTz(wData.timezone);
+          }
+          const addr = gData.address || {};
+          const city = addr.city || addr.town || addr.village || addr.county || "";
+          const country = addr.country || "";
+          if (city) setCityName(country ? `${city}, ${country}` : city);
+        } catch { setCityName("Paris, France"); }
+      },
+      () => setCityName("Paris, France")
+    );
+  }, []);
+
+  const getWeatherIcon = () => {
+    if (!weather) return icons.sun;
+    const { code, isDay } = weather;
+    if (code <= 1) return isDay ? icons.sun : icons.moon;
+    if (code <= 48) return icons.cloud;
+    return icons.droplet;
+  };
+
+  return (
+    <div style={{ padding: "12px 20px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${C.border}20` }}>
+      <div>
+        <div style={{ color: C.cyan, fontSize: 13, fontWeight: 800, letterSpacing: 2 }}>TRIPVERSAL</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 4, color: C.textMuted, fontSize: 13 }}>
+          <Icon d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z M12 10a2 2 0 100-4 2 2 0 000 4z" size={13} />
+          {cityName}
+        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ background: "#1c1c1e", borderRadius: 20, padding: "6px 12px", display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{ width: 7, height: 7, borderRadius: "50%", background: isOnline ? C.green : C.red }} />
+          {localTime && <span style={{ color: C.textMuted, fontSize: 12 }}>{localTime}</span>}
+          <Icon d={getWeatherIcon()} size={14} stroke={C.textMuted} />
+          <span style={{ color: C.text, fontSize: 13, fontWeight: 500 }}>{weather ? `${weather.temp}°C` : "—"}</span>
+        </div>
+        <button onClick={onSettings} style={{ width: 38, height: 38, borderRadius: "50%", background: "#1c1c1e", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: C.textMuted }}>
+          <Icon d={icons.settings} size={18} />
+        </button>
       </div>
     </div>
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <div style={{ background: "#1c1c1e", borderRadius: 20, padding: "6px 12px", display: "flex", alignItems: "center", gap: 6 }}>
-        <div style={{ width: 7, height: 7, borderRadius: "50%", background: isOnline ? C.green : C.red }} />
-        <Icon d={icons.sun} size={14} stroke={C.textMuted} />
-        <span style={{ color: C.text, fontSize: 13, fontWeight: 500 }}>18°C</span>
-      </div>
-      <button onClick={onSettings} style={{ width: 38, height: 38, borderRadius: "50%", background: "#1c1c1e", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: C.textMuted }}>
-        <Icon d={icons.settings} size={18} />
-      </button>
-    </div>
-  </div>
-);
+  );
+};
 
 const BottomNav = ({ active, onNav }: any) => {
   const tabs = [
