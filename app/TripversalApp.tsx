@@ -1062,9 +1062,10 @@ const AddExpenseScreen = ({ onBack }: any) => {
   // Credit vs balance distinction
   const selectedSource = budget.sources.find(s => s.id === selectedSourceId);
   const isCredit = selectedSource?.type === "credit";
-  const creditSpentOnSource = allExpenses.filter(e => e.sourceId === selectedSourceId).reduce((s, e) => s + e.baseAmount, 0);
-  const creditAvailable = (selectedSource?.limitInBase ?? selectedSource?.limit ?? 0) - creditSpentOnSource;
-  const balanceValue = isCredit ? creditAvailable : remainingBase;
+  const spentOnSource = allExpenses.filter(e => e.sourceId === selectedSourceId).reduce((s, e) => s + e.baseAmount, 0);
+  const sourceLimitBase = selectedSource?.limitInBase ?? selectedSource?.limit ?? 0;
+  const sourceRemainingBase = sourceLimitBase - spentOnSource;
+  const sourceRemainingLocal = displayRate > 0 ? sourceRemainingBase / displayRate : sourceRemainingBase;
 
   const handleKey = (k: string) => {
     setAmount(prev => {
@@ -1155,18 +1156,25 @@ const AddExpenseScreen = ({ onBack }: any) => {
             style={{ background: "transparent", border: "none", color: C.text, fontSize: 15, flex: 1, outline: "none", fontFamily: "inherit" }} />
         </Card>
       </div>
-      <div style={{ marginTop: 20, background: C.card3, borderRadius: 14, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div>
-          <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 4 }}>
-            {isCredit ? "CREDIT AVAILABLE TODAY" : "DAILY BALANCE"}
-          </div>
-          <div style={{ color: balanceValue >= 0 ? C.green : C.red, fontSize: 16, fontWeight: 800 }}>
-            {isCredit
-              ? `${currSym(budget.baseCurrency)}${fmtAmt(creditAvailable)}`
-              : `${currSym(budget.baseCurrency)}${fmtAmt(remainingBase)}${localCurrency !== budget.baseCurrency ? ` / ${currSym(localCurrency)}${fmtAmt(remainingLocal)}` : ""}`}
+      <div style={{ marginTop: 20, display: "flex", gap: 10 }}>
+        <div style={{ background: C.card3, borderRadius: 14, padding: "12px 16px", flex: 1 }}>
+          <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 4 }}>DAILY BALANCE REMAINING</div>
+          <div style={{ color: remainingBase >= 0 ? C.green : C.red, fontSize: 15, fontWeight: 800 }}>
+            {currSym(budget.baseCurrency)}{fmtAmt(remainingBase)}
+            {localCurrency !== budget.baseCurrency ? ` / ${currSym(localCurrency)}${fmtAmt(remainingLocal)}` : ""}
           </div>
         </div>
-        {isCredit && <div style={{ color: C.textSub, fontSize: 11, maxWidth: 120, textAlign: "right", lineHeight: 1.4 }}>For debit & cash only</div>}
+        {selectedSource && (
+          <div style={{ background: C.card3, borderRadius: 14, padding: "12px 16px", flex: 1 }}>
+            <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 4 }}>
+              {isCredit ? "SOURCE CREDIT REMAINING" : "SOURCE BALANCE REMAINING"}
+            </div>
+            <div style={{ color: sourceRemainingBase >= 0 ? C.green : C.red, fontSize: 15, fontWeight: 800 }}>
+              {currSym(budget.baseCurrency)}{fmtAmt(sourceRemainingBase)}
+              {!isCredit && localCurrency !== budget.baseCurrency ? ` / ${currSym(localCurrency)}${fmtAmt(sourceRemainingLocal)}` : ""}
+            </div>
+          </div>
+        )}
       </div>
       <div style={{ marginTop: 20 }}>
         <SectionLabel>EXPENSE TYPE</SectionLabel>
