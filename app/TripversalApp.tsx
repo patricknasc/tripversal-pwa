@@ -3,6 +3,65 @@
 import { useState, useEffect } from "react";
 import { GoogleOAuthProvider, useGoogleLogin } from "@react-oauth/google";
 
+// ─── Types + Helpers ────────────────────────────────────────────────────────
+type Currency = "BRL" | "EUR" | "USD" | "GBP" | "COP";
+type SourceType = "balance" | "credit";
+
+interface PaymentSource {
+  id: string;
+  name: string;
+  type: SourceType;
+  currency: Currency;
+  limit: number;
+  limitInBase?: number;
+  color: string;
+}
+
+interface Expense {
+  id: string;
+  description: string;
+  category: string;
+  date: string;
+  sourceId: string;
+  type: "personal" | "group";
+  localAmount: number;
+  localCurrency: Currency;
+  baseAmount: number;
+  baseCurrency: Currency;
+  localToBaseRate: number;
+  whoPaid?: string;
+  splits?: Record<string, number>;
+}
+
+interface TripBudget {
+  baseCurrency: Currency;
+  dailyLimit: number;
+  sources: PaymentSource[];
+}
+
+function calcSummary(budget: TripBudget, expenses: Expense[]) {
+  const totalBudgetInBase = budget.sources.reduce(
+    (acc, s) => acc + (s.limitInBase ?? s.limit), 0
+  );
+  const totalSpent = expenses.reduce((sum, e) => sum + e.baseAmount, 0);
+  const remaining = totalBudgetInBase - totalSpent;
+  const pct = totalBudgetInBase > 0 ? Math.min(totalSpent / totalBudgetInBase, 1) : 0;
+  return { totalBudgetInBase, totalSpent, remaining, pct };
+}
+
+const CURRENCY_SYMBOLS: Record<Currency, string> = {
+  EUR: "€", USD: "$", BRL: "R$", GBP: "£", COP: "$",
+};
+const currSym = (c: Currency) => CURRENCY_SYMBOLS[c] ?? c;
+
+async function fetchRate(from: Currency, to: Currency): Promise<number> {
+  const res = await fetch(`https://open.er-api.com/v6/latest/${from}`);
+  const data = await res.json();
+  return data.rates[to] as number;
+}
+
+const DEFAULT_BUDGET: TripBudget = { baseCurrency: "EUR", dailyLimit: 400, sources: [] };
+
 // ─── Icons (inline SVG helpers) ────────────────────────────────────────────
 const Icon = ({ d, size = 22, stroke = "currentColor", fill = "none", strokeWidth = 1.8, ...p }: any) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" {...p}>
@@ -348,17 +407,44 @@ const ItineraryScreen = () => (
 );
 
 const WalletScreen = ({ onAddExpense }: any) => {
-  const days = ["THU", "FRI", "SAT", "SUN", "MON", "TUE", "TODAY"];
-  const heights = [12, 8, 15, 10, 6, 18, 72];
+  const [budget, setBudgetState] = useState<TripBudget>(DEFAULT_BUDGET);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+
+  useEffect(() => {
+    try {
+      const bs = localStorage.getItem('tripversal_budget');
+      if (bs) setBudgetState(JSON.parse(bs));
+      const es = localStorage.getItem('tripversal_expenses');
+      if (es) setExpenses(JSON.parse(es));
+    } catch {}
+  }, []);
+
+  const { totalBudgetInBase, totalSpent, remaining } = calcSummary(budget, expenses);
+
+  // Build 7-day trend
+  const today = new Date();
+  const dayData = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() - (6 - i));
+    const key = d.toISOString().slice(0, 10);
+    const label = i === 6 ? "TODAY" : d.toLocaleDateString("en", { weekday: "short" }).toUpperCase().slice(0, 3);
+    const total = expenses.filter(e => e.date.slice(0, 10) === key).reduce((s, e) => s + e.baseAmount, 0);
+    return { label, total, isToday: i === 6 };
+  });
+  const maxDay = Math.max(...dayData.map(d => d.total), 1);
+
+  // Source lookup
+  const sourceMap = Object.fromEntries(budget.sources.map(s => [s.id, s]));
+
   return (
     <div style={{ padding: "0 20px 100px" }}>
       <div style={{ paddingTop: 16, marginBottom: 4 }}>
-        <div style={{ fontSize: 36, fontWeight: 800, letterSpacing: -1 }}>€2.150</div>
+        <div style={{ fontSize: 36, fontWeight: 800, letterSpacing: -1 }}>{currSym(budget.baseCurrency)}{totalSpent.toFixed(2)}</div>
         <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, fontWeight: 600 }}>TOTAL TRIP SPEND</div>
       </div>
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 20 }}>
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: C.textMuted }}>€2.850</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: C.textMuted }}>{currSym(budget.baseCurrency)}{remaining.toFixed(2)}</div>
           <div style={{ color: C.textSub, fontSize: 11, letterSpacing: 1 }}>REMAINING</div>
         </div>
       </div>
@@ -374,33 +460,40 @@ const WalletScreen = ({ onAddExpense }: any) => {
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 100 }}>
-          {days.map((d, i) => {
-            const isToday = d === "TODAY";
-            return (
-              <div key={d} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                <div style={{ width: "100%", height: `${heights[i]}%`, background: isToday ? C.cyan : C.card3, borderRadius: "6px 6px 0 0", minHeight: 4 }} />
-                <div style={{ fontSize: 9, color: isToday ? C.cyan : C.textSub, fontWeight: isToday ? 700 : 400 }}>{d}</div>
-              </div>
-            );
-          })}
+          {dayData.map(d => (
+            <div key={d.label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+              <div style={{ width: "100%", height: `${Math.max((d.total / maxDay) * 100, d.total > 0 ? 4 : 0)}%`, background: d.isToday ? C.cyan : C.card3, borderRadius: "6px 6px 0 0", minHeight: d.total > 0 ? 4 : 0 }} />
+              <div style={{ fontSize: 9, color: d.isToday ? C.cyan : C.textSub, fontWeight: d.isToday ? 700 : 400 }}>{d.label}</div>
+            </div>
+          ))}
         </div>
       </Card>
       <SectionLabel>TRANSACTIONS</SectionLabel>
-      <Card style={{ marginBottom: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: "#2a1a00", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Icon d={icons.food} size={20} stroke="#f5a623" />
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 600, fontSize: 14 }}>Paid for Lunch at Le Bistro</div>
-            <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 0.5 }}>PATRICK • FOOD</div>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontWeight: 700, fontSize: 15 }}>€126</div>
-            <div style={{ color: C.textSub, fontSize: 11 }}>18 WED</div>
-          </div>
-        </div>
-      </Card>
+      {expenses.length === 0 && (
+        <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", padding: "20px 0", textAlign: "center" }}>No expenses yet. Tap + to add one.</div>
+      )}
+      {expenses.slice(0, 20).map(exp => {
+        const src = sourceMap[exp.sourceId];
+        const catIcon = categories.find(c => c.id === exp.category)?.icon || icons.moreH;
+        const dateStr = new Date(exp.date).toLocaleDateString("en", { day: "numeric", month: "short" }).toUpperCase();
+        return (
+          <Card key={exp.id} style={{ marginBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: C.card3, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Icon d={catIcon} size={20} stroke={C.cyan} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{exp.description}</div>
+                <div style={{ color: src ? src.color : C.textMuted, fontSize: 11, letterSpacing: 0.5 }}>{src ? src.name.toUpperCase() : "—"} • {exp.category.toUpperCase()}</div>
+              </div>
+              <div style={{ textAlign: "right", flexShrink: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{currSym(exp.localCurrency)}{exp.localAmount.toFixed(2)}</div>
+                <div style={{ color: C.textSub, fontSize: 11 }}>{dateStr}</div>
+              </div>
+            </div>
+          </Card>
+        );
+      })}
       <div style={{ position: "fixed", bottom: 90, right: "calc(50% - 200px)", width: 56, height: 56, borderRadius: "50%", background: C.cyan, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: `0 4px 20px ${C.cyan}50` }} onClick={onAddExpense}>
         <Icon d={icons.plus} size={24} stroke="#000" strokeWidth={2.5} />
       </div>
@@ -428,6 +521,21 @@ const AddExpenseScreen = ({ onBack }: any) => {
   const [shares, setShares] = useState<Record<string, number>>({ You: 1, Patrick: 1, Sarah: 1 });
   const totalShares = Object.values(shares).reduce((a, b) => a + b, 0);
   const total = parseFloat(amount) || 0;
+
+  const [budget] = useState<TripBudget>(() => {
+    try { const s = localStorage.getItem('tripversal_budget'); if (s) return JSON.parse(s); } catch {}
+    return DEFAULT_BUDGET;
+  });
+  const [localCurrency, setLocalCurrency] = useState<Currency>(() => {
+    try { const s = localStorage.getItem('tripversal_budget'); if (s) { const b = JSON.parse(s); if (b.sources?.[0]?.currency) return b.sources[0].currency; } } catch {}
+    return "EUR" as Currency;
+  });
+  const [selectedSourceId, setSelectedSourceId] = useState<string>(() => {
+    try { const s = localStorage.getItem('tripversal_budget'); if (s) { const b = JSON.parse(s); if (b.sources?.[0]?.id) return b.sources[0].id; } } catch {}
+    return "";
+  });
+  const [saving, setSaving] = useState(false);
+
   const handleKey = (k: string) => {
     setAmount(prev => {
       if (k === "⌫") return prev.length > 1 ? prev.slice(0, -1) : "0";
@@ -452,6 +560,36 @@ const AddExpenseScreen = ({ onBack }: any) => {
         </div>
       </div>
       <div style={{ paddingTop: 20 }}>
+        <SectionLabel>MOEDA LOCAL</SectionLabel>
+        <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+          {(["EUR","USD","BRL","GBP","COP"] as Currency[]).map(c => {
+            const active = localCurrency === c;
+            return (
+              <button key={c} onClick={() => setLocalCurrency(c)} style={{ flex: 1, background: active ? "#003d45" : C.card3, border: active ? `2px solid ${C.cyan}` : "2px solid transparent", borderRadius: 10, padding: "10px 4px", cursor: "pointer", color: active ? C.cyan : C.textMuted, fontWeight: active ? 700 : 400, fontSize: 12, fontFamily: "inherit" }}>
+                {c}
+              </button>
+            );
+          })}
+        </div>
+        {budget.sources.length > 0 && (
+          <>
+            <SectionLabel>PAYMENT SOURCE</SectionLabel>
+            <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 8, marginBottom: 12 }}>
+              {budget.sources.map(src => {
+                const active = selectedSourceId === src.id;
+                return (
+                  <button key={src.id} onClick={() => { setSelectedSourceId(src.id); setLocalCurrency(src.currency); }} style={{ flexShrink: 0, background: active ? "#003d45" : C.card3, border: active ? `2px solid ${src.color}` : "2px solid transparent", borderRadius: 14, padding: "12px 16px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4, minWidth: 120 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: src.color }} />
+                      <span style={{ color: active ? C.text : C.textMuted, fontWeight: active ? 700 : 400, fontSize: 13 }}>{src.name}</span>
+                    </div>
+                    <span style={{ color: C.textSub, fontSize: 11 }}>{src.currency}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
         <SectionLabel>CATEGORY</SectionLabel>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
           {categories.map(c => {
@@ -537,7 +675,38 @@ const AddExpenseScreen = ({ onBack }: any) => {
           <span style={{ color: C.textMuted, fontSize: 14 }}>Add Receipt</span>
         </div>
       </div>
-      <Btn style={{ width: "100%" }} onClick={onBack}>Save Expense</Btn>
+      <Btn style={{ width: "100%" }} onClick={async () => {
+        if (saving) return;
+        setSaving(true);
+        const localAmount = parseFloat(amount) || 0;
+        let localToBaseRate = 1;
+        try {
+          if (localCurrency !== budget.baseCurrency)
+            localToBaseRate = await fetchRate(localCurrency, budget.baseCurrency);
+        } catch {}
+        const expense: Expense = {
+          id: Date.now().toString(),
+          description: desc || categories.find(c => c.id === cat)?.label || cat,
+          category: cat,
+          date: new Date().toISOString(),
+          sourceId: selectedSourceId,
+          type: expType as "personal" | "group",
+          localAmount,
+          localCurrency,
+          baseAmount: localAmount * localToBaseRate,
+          baseCurrency: budget.baseCurrency,
+          localToBaseRate,
+          whoPaid: expType === "group" ? whoPaid : undefined,
+          splits: expType === "group" ? shares : undefined,
+        };
+        try {
+          const prev = localStorage.getItem('tripversal_expenses');
+          const arr: Expense[] = prev ? JSON.parse(prev) : [];
+          localStorage.setItem('tripversal_expenses', JSON.stringify([expense, ...arr]));
+        } catch {}
+        setSaving(false);
+        onBack();
+      }}>{saving ? "Saving..." : "Save Expense"}</Btn>
     </div>
   );
 };
@@ -633,7 +802,6 @@ const SettingsScreen = ({ onManageCrew, user, onLogout }: any) => {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [budgetEdit, setBudgetEdit] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
 
@@ -661,11 +829,54 @@ const SettingsScreen = ({ onManageCrew, user, onLogout }: any) => {
       setAvatarUrl(user?.picture || null);
     }
   }, []);
-  const [totalBudget, setTotalBudget] = useState("5000");
-  const [dailyLimit, setDailyLimit] = useState("400");
-  const [currency, setCurrency] = useState("EUR");
+  // Budget states (lazy initializers)
+  const [budget, setBudget] = useState<TripBudget>(() => {
+    try { const s = localStorage.getItem('tripversal_budget'); if (s) return JSON.parse(s); } catch {}
+    return DEFAULT_BUDGET;
+  });
+  const [expenses] = useState<Expense[]>(() => {
+    try { const s = localStorage.getItem('tripversal_expenses'); if (s) return JSON.parse(s); } catch {}
+    return [];
+  });
+  const saveBudget = (next: TripBudget) => { setBudget(next); localStorage.setItem('tripversal_budget', JSON.stringify(next)); };
 
-  const currencySymbol = (c: string) => c === "EUR" ? "€" : c === "USD" ? "$" : c === "BRL" ? "R$" : c === "GBP" ? "£" : c === "COP" ? "$" : c;
+  // Add source form states
+  const [showAddSource, setShowAddSource] = useState(false);
+  const [srcName, setSrcName] = useState("");
+  const [srcType, setSrcType] = useState<SourceType>("balance");
+  const [srcCurrency, setSrcCurrency] = useState<Currency>("EUR");
+  const [srcAmount, setSrcAmount] = useState("");
+  const [srcColor, setSrcColor] = useState("#00e5ff");
+  const [srcSaving, setSrcSaving] = useState(false);
+
+  const srcColors = ["#00e5ff","#30d158","#ffd60a","#ff3b30","#f57c00","#6a1b9a","#1565c0","#e91e8c"];
+
+  const addSource = async () => {
+    if (!srcName.trim() || !srcAmount) return;
+    setSrcSaving(true);
+    let limitInBase = parseFloat(srcAmount);
+    try {
+      if (srcCurrency !== budget.baseCurrency) {
+        const rate = await fetchRate(srcCurrency, budget.baseCurrency);
+        limitInBase = parseFloat(srcAmount) * rate;
+      }
+    } catch {}
+    const src: PaymentSource = {
+      id: Date.now().toString(),
+      name: srcName.trim(),
+      type: srcType,
+      currency: srcCurrency,
+      limit: parseFloat(srcAmount),
+      limitInBase,
+      color: srcColor,
+    };
+    const next = { ...budget, sources: [...budget.sources, src] };
+    saveBudget(next);
+    setSrcName(""); setSrcType("balance"); setSrcCurrency("EUR"); setSrcAmount(""); setSrcColor("#00e5ff");
+    setShowAddSource(false); setSrcSaving(false);
+  };
+
+  const removeSource = (id: string) => saveBudget({ ...budget, sources: budget.sources.filter(s => s.id !== id) });
 
   const [trips, setTrips] = useState<any[]>([
     { name: "European Summer", code: "TRV-8821", members: 3, active: true }
@@ -739,49 +950,124 @@ const SettingsScreen = ({ onManageCrew, user, onLogout }: any) => {
         </div>
       </Card>
       <SectionLabel icon="wallet">BUDGET SETTINGS</SectionLabel>
-      <Card style={{ marginBottom: 20 }}>
-        {!budgetEdit ? (
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <div>
-              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TOTAL BUDGET</div>
-              <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 14 }}>{currencySymbol(currency)}{totalBudget}</div>
-              <div style={{ display: "flex", gap: 24 }}>
-                <div><div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>DAILY LIMIT</div><div style={{ fontWeight: 700, fontSize: 15 }}>{currencySymbol(currency)}{dailyLimit}</div></div>
-                <div><div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>CURRENCY</div><div style={{ fontWeight: 700, fontSize: 15 }}>{currency}</div></div>
+      {/* Summary Card */}
+      {(() => {
+        const { totalBudgetInBase, totalSpent, remaining, pct } = calcSummary(budget, expenses);
+        const barColor = pct < 0.6 ? C.cyan : pct < 0.85 ? C.yellow : C.red;
+        return (
+          <Card style={{ marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ color: C.textMuted, fontSize: 11, fontWeight: 700, letterSpacing: 1 }}>BASE CURRENCY</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {(["EUR","USD","BRL","GBP","COP"] as Currency[]).map(c => (
+                  <button key={c} onClick={() => saveBudget({ ...budget, baseCurrency: c })} style={{ background: budget.baseCurrency === c ? C.cyan : C.card3, color: budget.baseCurrency === c ? "#000" : C.textMuted, border: "none", borderRadius: 8, padding: "5px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{c}</button>
+                ))}
               </div>
             </div>
-            <div style={{ width: 40, height: 40, borderRadius: "50%", background: C.card3, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <button onClick={() => setBudgetEdit(true)} style={{ background: "transparent", border: "none", cursor: "pointer", color: C.cyan }}><Icon d={icons.edit} size={16} stroke={C.cyan} /></button>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+              <div style={{ background: C.card3, borderRadius: 12, padding: 12 }}>
+                <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 4 }}>TOTAL BUDGET</div>
+                <div style={{ fontWeight: 800, fontSize: 18 }}>{currSym(budget.baseCurrency)}{totalBudgetInBase.toFixed(0)}</div>
+              </div>
+              <div style={{ background: C.card3, borderRadius: 12, padding: 12 }}>
+                <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 4 }}>SPENT</div>
+                <div style={{ fontWeight: 800, fontSize: 18, color: barColor }}>{currSym(budget.baseCurrency)}{totalSpent.toFixed(2)}</div>
+              </div>
             </div>
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <div>
-              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TOTAL BUDGET</div>
-              <Input value={totalBudget} onChange={setTotalBudget} />
+            <div style={{ height: 6, background: C.card3, borderRadius: 4, overflow: "hidden" }}>
+              <div style={{ width: `${pct * 100}%`, height: "100%", background: barColor, borderRadius: 4, transition: "width 0.3s" }} />
             </div>
-            <div style={{ display: "flex", gap: 12 }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
+              <span style={{ color: C.textMuted, fontSize: 11 }}>{currSym(budget.baseCurrency)}{remaining.toFixed(2)} remaining</span>
+            </div>
+          </Card>
+        );
+      })()}
+      {/* Payment Sources */}
+      <SectionLabel action={
+        <button onClick={() => setShowAddSource(p => !p)} style={{ background: C.cyan, color: "#000", borderRadius: 20, padding: "5px 12px", border: "none", cursor: "pointer", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}>
+          <Icon d={icons.plus} size={11} stroke="#000" strokeWidth={2.5} /> ADD
+        </button>
+      }>PAYMENT SOURCES</SectionLabel>
+      {budget.sources.length === 0 && !showAddSource && (
+        <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", marginBottom: 12, padding: "8px 0" }}>No sources yet. Add a wallet or credit card.</div>
+      )}
+      {budget.sources.map(src => {
+        const spent = expenses.filter(e => e.sourceId === src.id).reduce((s, e) => s + e.localAmount, 0);
+        const usePct = src.limit > 0 ? Math.min(spent / src.limit, 1) : 0;
+        return (
+          <Card key={src.id} style={{ marginBottom: 8, padding: "12px 14px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 10, height: 10, borderRadius: "50%", background: src.color, flexShrink: 0 }} />
               <div style={{ flex: 1 }}>
-                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>DAILY LIMIT</div>
-                <Input value={dailyLimit} onChange={setDailyLimit} />
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontWeight: 600, fontSize: 14 }}>{src.name}</span>
+                  <Badge color={src.type === "credit" ? C.yellow : C.cyan} bg={src.type === "credit" ? "#2a2000" : "#003d45"}>{src.type === "credit" ? "CRÉDITO" : "SALDO"}</Badge>
+                </div>
+                <div style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{currSym(src.currency)}{src.limit.toFixed(2)} {src.currency !== budget.baseCurrency && src.limitInBase ? `≈ ${currSym(budget.baseCurrency)}${src.limitInBase.toFixed(2)}` : ""}</div>
+                <div style={{ height: 3, background: C.card3, borderRadius: 2, overflow: "hidden", marginTop: 6 }}>
+                  <div style={{ width: `${usePct * 100}%`, height: "100%", background: src.color, borderRadius: 2 }} />
+                </div>
               </div>
-              <div style={{ width: 120 }}>
-                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>CURRENCY</div>
-                <select value={currency} onChange={(e: any) => setCurrency(e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: 10, background: C.card3, border: `1.5px solid ${C.border}`, color: C.text }}>
-                  <option value="EUR">EUR</option>
-                  <option value="USD">USD</option>
-                  <option value="BRL">BRL</option>
-                  <option value="GBP">GBP</option>
-                  <option value="COP">COP</option>
-                </select>
-              </div>
+              <button onClick={() => removeSource(src.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.red, padding: 4 }}><Icon d={icons.trash} size={16} stroke={C.red} /></button>
             </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <Btn onClick={() => setBudgetEdit(false)} variant="primary">Save</Btn>
-              <Btn onClick={() => { setTotalBudget("5000"); setDailyLimit("400"); setCurrency("EUR"); setBudgetEdit(false); }} variant="ghost">Cancel</Btn>
+          </Card>
+        );
+      })}
+      {/* Add source form */}
+      {showAddSource && (
+        <Card style={{ marginBottom: 12, border: `1px solid ${C.cyan}30` }}>
+          <div style={{ fontWeight: 700, marginBottom: 12 }}>New Payment Source</div>
+          <Input placeholder="Name (e.g. Nubank, Cash)" value={srcName} onChange={setSrcName} style={{ marginBottom: 10 }} />
+          <div style={{ background: C.card3, borderRadius: 12, padding: 4, display: "flex", marginBottom: 10 }}>
+            {(["balance","credit"] as SourceType[]).map(t => (
+              <button key={t} onClick={() => setSrcType(t)} style={{ flex: 1, padding: "10px", borderRadius: 8, border: "none", cursor: "pointer", background: srcType === t ? C.cyan : "transparent", color: srcType === t ? "#000" : C.textMuted, fontWeight: srcType === t ? 700 : 400, fontSize: 13, fontFamily: "inherit", transition: "all 0.2s" }}>
+                {t === "balance" ? "Saldo" : "Crédito"}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>CURRENCY</div>
+              <select value={srcCurrency} onChange={(e: any) => setSrcCurrency(e.target.value as Currency)} style={{ width: "100%", padding: "12px", borderRadius: 10, background: C.card3, border: `1.5px solid ${C.border}`, color: C.text, fontFamily: "inherit", fontSize: 14 }}>
+                {(["EUR","USD","BRL","GBP","COP"] as Currency[]).map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>AMOUNT</div>
+              <Input placeholder="0.00" value={srcAmount} onChange={setSrcAmount} />
             </div>
           </div>
-        )}
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>COLOR</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {srcColors.map(c => (
+                <button key={c} onClick={() => setSrcColor(c)} style={{ width: 28, height: 28, borderRadius: "50%", background: c, border: srcColor === c ? "3px solid #fff" : "3px solid transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {srcColor === c && <Icon d={icons.check} size={12} stroke="#fff" strokeWidth={3} />}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Btn style={{ flex: 1 }} onClick={addSource} variant="primary">{srcSaving ? "Saving..." : "Add Source"}</Btn>
+            <Btn style={{ flex: 1 }} onClick={() => setShowAddSource(false)} variant="ghost">Cancel</Btn>
+          </div>
+        </Card>
+      )}
+      {/* Daily Limit */}
+      <Card style={{ marginBottom: 20, padding: "12px 16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>DAILY LIMIT ({budget.baseCurrency})</div>
+            <input
+              type="number"
+              value={budget.dailyLimit}
+              onChange={(e: any) => saveBudget({ ...budget, dailyLimit: parseFloat(e.target.value) || 0 })}
+              style={{ background: "transparent", border: "none", outline: "none", color: C.text, fontSize: 18, fontWeight: 700, fontFamily: "inherit", width: "100%" }}
+            />
+          </div>
+          <span style={{ color: C.textMuted, fontSize: 14 }}>{currSym(budget.baseCurrency)}/day</span>
+        </div>
       </Card>
       <SectionLabel icon="layers">MY TRIPVERSALS</SectionLabel>
       {activeTrip && (
@@ -1040,6 +1326,8 @@ function AppShell() {
   const handleLogout = () => {
     localStorage.removeItem('tripversal_user');
     localStorage.removeItem('tripversal_profile');
+    localStorage.removeItem('tripversal_budget');
+    localStorage.removeItem('tripversal_expenses');
     setUser(null);
   };
 
