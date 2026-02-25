@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from "react";
+import { GoogleOAuthProvider, useGoogleLogin } from "@react-oauth/google";
 
 // ─── Icons (inline SVG helpers) ────────────────────────────────────────────
 const Icon = ({ d, size = 22, stroke = "currentColor", fill = "none", strokeWidth = 1.8, ...p }: any) => (
@@ -63,11 +64,16 @@ const C = {
   green: "#30d158", yellow: "#ffd60a", purple: "#1a1333", purpleBorder: "#3d2d6e",
 };
 
-const Avatar = ({ name, size = 36, color = C.cyan }: any) => {
+const Avatar = ({ name, src, size = 36, color = C.cyan }: any) => {
   const bg = color === C.cyan ? "#003d45" : "#2a2a2e";
+  if (src) return (
+    <div style={{ width: size, height: size, borderRadius: "50%", overflow: "hidden", border: `2px solid ${color}`, flexShrink: 0 }}>
+      <img src={src} alt={name} referrerPolicy="no-referrer" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+    </div>
+  );
   return (
     <div style={{ width: size, height: size, borderRadius: "50%", background: bg, border: `2px solid ${color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.38, fontWeight: 700, color, flexShrink: 0, fontFamily: "inherit" }}>
-      {name[0].toUpperCase()}
+      {(name || "?")[0].toUpperCase()}
     </div>
   );
 };
@@ -121,7 +127,7 @@ const Card = ({ children, style = {}, onClick }: any) => (
   </div>
 );
 
-const Header = ({ onSettings, isOnline = true }: any) => {
+const Header = ({ onSettings, isOnline = true, user }: any) => {
   const [weather, setWeather] = useState<{ temp: number; code: number; isDay: boolean } | null>(null);
   const [cityName, setCityName] = useState("Localizando...");
   const [localTime, setLocalTime] = useState("");
@@ -185,8 +191,12 @@ const Header = ({ onSettings, isOnline = true }: any) => {
           <Icon d={getWeatherIcon()} size={14} stroke={C.textMuted} />
           <span style={{ color: C.text, fontSize: 13, fontWeight: 500 }}>{weather ? `${weather.temp}°C` : "—"}</span>
         </div>
-        <button onClick={onSettings} style={{ width: 38, height: 38, borderRadius: "50%", background: "#1c1c1e", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: C.textMuted }}>
-          <Icon d={icons.settings} size={18} />
+        <button onClick={onSettings} style={{ width: 38, height: 38, borderRadius: "50%", background: "#1c1c1e", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: C.textMuted, padding: 0, overflow: "hidden" }}>
+          {user?.picture ? (
+            <img src={user.picture} alt={user.name} referrerPolicy="no-referrer" style={{ width: 38, height: 38, objectFit: "cover" }} />
+          ) : (
+            <Icon d={icons.settings} size={18} />
+          )}
         </button>
       </div>
     </div>
@@ -611,7 +621,7 @@ const SOSScreen = () => (
   </div>
 );
 
-const SettingsScreen = ({ onManageCrew }: any) => {
+const SettingsScreen = ({ onManageCrew, user, onLogout }: any) => {
   const [offlineSim, setOfflineSim] = useState(false);
   const [forcePending, setForcePending] = useState(false);
   const [showNewTrip, setShowNewTrip] = useState(false);
@@ -620,10 +630,27 @@ const SettingsScreen = ({ onManageCrew }: any) => {
   const [language, setLanguage] = useState("en");
   const [avatarFile, setAvatarFile] = useState<any>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [username, setUsername] = useState("Patrick");
-  const [email, setEmail] = useState("patrick@example.com");
-  const [phone, setPhone] = useState("+33 1 23 45 67 89");
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [budgetEdit, setBudgetEdit] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('tripversal_profile');
+    if (stored) {
+      try {
+        const p = JSON.parse(stored);
+        setUsername(p.username || user?.name || "");
+        setEmail(p.email || user?.email || "");
+        setPhone(p.phone || "");
+        setAvatarUrl(p.avatarUrl || user?.picture || null);
+      } catch {}
+    } else {
+      setUsername(user?.name || "");
+      setEmail(user?.email || "");
+      setAvatarUrl(user?.picture || null);
+    }
+  }, []);
   const [totalBudget, setTotalBudget] = useState("5000");
   const [dailyLimit, setDailyLimit] = useState("400");
   const [currency, setCurrency] = useState("EUR");
@@ -639,7 +666,9 @@ const SettingsScreen = ({ onManageCrew }: any) => {
     const f = e.target.files && e.target.files[0];
     if (f) {
       setAvatarFile(f);
-      try { setAvatarUrl(URL.createObjectURL(f)); } catch (err) { setAvatarUrl(null); }
+      const reader = new FileReader();
+      reader.onloadend = () => setAvatarUrl(reader.result as string);
+      reader.readAsDataURL(f);
     }
   };
 
@@ -664,7 +693,7 @@ const SettingsScreen = ({ onManageCrew }: any) => {
           <div style={{ display: "flex", gap: 12, alignItems: "center", flex: 1 }}>
             <div style={{ width: 72, display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ width: 72, height: 72, borderRadius: "50%", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                {avatarUrl ? <img src={avatarUrl} alt="avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Avatar name={username} size={72} color="#aaa" />}
+                {avatarUrl ? <img src={avatarUrl} alt="avatar" referrerPolicy="no-referrer" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Avatar name={username || "?"} size={72} color="#aaa" />}
               </div>
             </div>
             <div style={{ flex: 1 }}>
@@ -682,8 +711,8 @@ const SettingsScreen = ({ onManageCrew }: any) => {
           </div>
         </div>
         <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
-          <Btn onClick={() => { /* save profile - placeholder */ }} variant="primary">Save Profile</Btn>
-          <Btn onClick={() => { setUsername("Patrick"); setEmail("patrick@example.com"); setPhone("+33 1 23 45 67 89"); setAvatarUrl(null); }} variant="ghost">Reset</Btn>
+          <Btn onClick={() => { localStorage.setItem('tripversal_profile', JSON.stringify({ username, email, phone, avatarUrl })); }} variant="primary">Save Profile</Btn>
+          <Btn onClick={() => { setUsername(user?.name || ""); setEmail(user?.email || ""); setPhone(""); setAvatarUrl(user?.picture || null); }} variant="ghost">Reset</Btn>
         </div>
       </Card>
       <SectionLabel icon="wallet">BUDGET SETTINGS</SectionLabel>
@@ -783,6 +812,9 @@ const SettingsScreen = ({ onManageCrew }: any) => {
         ))}
       </Card>
       <div style={{ color: C.textSub, fontSize: 11, textAlign: "center", marginTop: 20 }}>FamilyVoyage v1.1.0 latam • UUID: HW1DC1</div>
+      <div style={{ marginTop: 16, marginBottom: 8 }}>
+        <Btn variant="danger" style={{ width: "100%" }} onClick={onLogout} icon={<Icon d={icons.login} size={16} stroke={C.red} />}>Sign Out</Btn>
+      </div>
     </div>
   );
 };
@@ -928,11 +960,67 @@ const ManageCrewScreen = ({ onBack }: any) => {
   );
 };
 
-export default function TripversalApp() {
+const LoginScreen = ({ onLogin }: { onLogin: (user: any) => void }) => {
+  const login = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      try {
+        const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+        });
+        const data = await res.json();
+        const u = { name: data.name, email: data.email, picture: data.picture, sub: data.sub };
+        localStorage.setItem('tripversal_user', JSON.stringify(u));
+        onLogin(u);
+      } catch (e) {
+        console.error('Failed to fetch user info', e);
+      }
+    },
+    onError: () => console.error('Google login failed'),
+  });
+
+  return (
+    <div style={{ background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ width: "100%", maxWidth: 430, minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 40 }}>
+        <div style={{ color: C.cyan, fontSize: 32, fontWeight: 900, letterSpacing: 5, marginBottom: 8 }}>TRIPVERSAL</div>
+        <div style={{ color: C.textMuted, fontSize: 14, marginBottom: 60 }}>Your travel companion</div>
+        <button
+          onClick={() => login()}
+          style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", color: "#000", border: "none", borderRadius: 14, padding: "14px 28px", fontSize: 16, fontWeight: 700, cursor: "pointer", width: "100%", justifyContent: "center", fontFamily: "inherit" }}
+        >
+          <svg width={20} height={20} viewBox="0 0 48 48">
+            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+          </svg>
+          Continue with Google
+        </button>
+      </div>
+    </div>
+  );
+};
+
+function AppShell() {
+  const [user, setUser] = useState<any>(null);
   const [tab, setTab] = useState("home");
   const [showSettings, setShowSettings] = useState(false);
   const [showCrew, setShowCrew] = useState(false);
   const [showAddExpense, setShowAddExpense] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('tripversal_user');
+    if (stored) {
+      try { setUser(JSON.parse(stored)); } catch {}
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('tripversal_user');
+    localStorage.removeItem('tripversal_profile');
+    setUser(null);
+  };
+
+  if (!user) return <LoginScreen onLogin={setUser} />;
 
   const handleNav = (t: string) => {
     setShowSettings(false); setShowCrew(false); setShowAddExpense(false); setTab(t);
@@ -941,7 +1029,7 @@ export default function TripversalApp() {
   let content;
   if (showAddExpense) content = <AddExpenseScreen onBack={() => setShowAddExpense(false)} />;
   else if (showCrew) content = <ManageCrewScreen onBack={() => setShowCrew(false)} />;
-  else if (showSettings) content = <SettingsScreen onManageCrew={() => setShowCrew(true)} />;
+  else if (showSettings) content = <SettingsScreen onManageCrew={() => setShowCrew(true)} user={user} onLogout={handleLogout} />;
   else {
     switch (tab) {
       case "home": content = <HomeScreen onNav={handleNav} onAddExpense={() => setShowAddExpense(true)} />; break;
@@ -958,12 +1046,20 @@ export default function TripversalApp() {
   return (
     <div style={{ background: "#000", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ width: "100%", maxWidth: 430, minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", position: "relative", overflowX: "hidden", display: "flex", flexDirection: "column" }}>
-        <Header onSettings={() => { setShowSettings(true); setShowCrew(false); setShowAddExpense(false); }} />
+        <Header onSettings={() => { setShowSettings(true); setShowCrew(false); setShowAddExpense(false); }} user={user} />
         <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
           {content}
         </div>
         <BottomNav active={activeTab} onNav={handleNav} />
       </div>
     </div>
+  );
+}
+
+export default function TripversalApp() {
+  return (
+    <GoogleOAuthProvider clientId="389526326520-u55cak6f7dg9ckondrn97slfqj86f2j9.apps.googleusercontent.com">
+      <AppShell />
+    </GoogleOAuthProvider>
   );
 }
