@@ -31,6 +31,14 @@ interface Expense {
   localToBaseRate: number;
   whoPaid?: string;
   splits?: Record<string, number>;
+  receiptDataUrl?: string;
+  editHistory?: Array<{
+    at: string;
+    snapshot: {
+      description: string; localAmount: number; category: string;
+      date: string; sourceId: string; localCurrency: Currency;
+    };
+  }>;
 }
 
 interface TripBudget {
@@ -53,6 +61,17 @@ const CURRENCY_SYMBOLS: Record<Currency, string> = {
   EUR: "€", USD: "$", BRL: "R$", GBP: "£", COP: "$",
 };
 const currSym = (c: Currency) => CURRENCY_SYMBOLS[c] ?? c;
+
+function fmtAmt(n: number, decimals = 2): string {
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(n);
+}
+
+const GlobalStyles = () => (
+  <style>{`.no-scrollbar::-webkit-scrollbar{display:none}`}</style>
+);
 
 async function fetchRate(from: Currency, to: Currency): Promise<number> {
   const res = await fetch(`https://open.er-api.com/v6/latest/${from}`);
@@ -409,6 +428,15 @@ const ItineraryScreen = () => (
 const WalletScreen = ({ onAddExpense }: any) => {
   const [budget, setBudgetState] = useState<TripBudget>(DEFAULT_BUDGET);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [editDesc, setEditDesc] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editCat, setEditCat] = useState("");
+  const [editDate, setEditDate] = useState("");
+  const [editSourceId, setEditSourceId] = useState("");
+  const [editCurrency, setEditCurrency] = useState<Currency>("EUR");
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     try {
@@ -418,6 +446,37 @@ const WalletScreen = ({ onAddExpense }: any) => {
       if (es) setExpenses(JSON.parse(es));
     } catch {}
   }, []);
+
+  const saveExpenses = (arr: Expense[]) => {
+    setExpenses(arr);
+    localStorage.setItem('tripversal_expenses', JSON.stringify(arr));
+  };
+  const handleDelete = (id: string) => {
+    const exp = expenses.find(e => e.id === id);
+    if (exp) {
+      try {
+        const prev = localStorage.getItem('tripversal_deleted_expenses');
+        const arr = prev ? JSON.parse(prev) : [];
+        localStorage.setItem('tripversal_deleted_expenses',
+          JSON.stringify([{ ...exp, deletedAt: new Date().toISOString() }, ...arr]));
+      } catch {}
+    }
+    saveExpenses(expenses.filter(e => e.id !== id));
+    setSelectedExpenseId(null); setConfirmDelete(false);
+  };
+  const handleEdit = (id: string) => {
+    const next = expenses.map(e => {
+      if (e.id !== id) return e;
+      const snap = { description: e.description, localAmount: e.localAmount,
+        category: e.category, date: e.date, sourceId: e.sourceId, localCurrency: e.localCurrency };
+      return { ...e, description: editDesc, localAmount: parseFloat(editAmount) || e.localAmount,
+        category: editCat, date: editDate ? new Date(editDate).toISOString() : e.date,
+        sourceId: editSourceId || e.sourceId, localCurrency: editCurrency,
+        editHistory: [...(e.editHistory || []), { at: new Date().toISOString(), snapshot: snap }] };
+    });
+    saveExpenses(next);
+    setEditMode(false); setSelectedExpenseId(null);
+  };
 
   const { totalBudgetInBase, totalSpent, remaining } = calcSummary(budget, expenses);
 
@@ -439,12 +498,12 @@ const WalletScreen = ({ onAddExpense }: any) => {
   return (
     <div style={{ padding: "0 20px 100px" }}>
       <div style={{ paddingTop: 16, marginBottom: 4 }}>
-        <div style={{ fontSize: 36, fontWeight: 800, letterSpacing: -1 }}>{currSym(budget.baseCurrency)}{totalSpent.toFixed(2)}</div>
+        <div style={{ fontSize: 36, fontWeight: 800, letterSpacing: -1 }}>{currSym(budget.baseCurrency)}{fmtAmt(totalSpent)}</div>
         <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, fontWeight: 600 }}>TOTAL TRIP SPEND</div>
       </div>
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 20 }}>
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: C.textMuted }}>{currSym(budget.baseCurrency)}{remaining.toFixed(2)}</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: C.textMuted }}>{currSym(budget.baseCurrency)}{fmtAmt(remaining)}</div>
           <div style={{ color: C.textSub, fontSize: 11, letterSpacing: 1 }}>REMAINING</div>
         </div>
       </div>
@@ -487,9 +546,13 @@ const WalletScreen = ({ onAddExpense }: any) => {
                 <div style={{ color: src ? src.color : C.textMuted, fontSize: 11, letterSpacing: 0.5 }}>{src ? src.name.toUpperCase() : "—"} • {exp.category.toUpperCase()}</div>
               </div>
               <div style={{ textAlign: "right", flexShrink: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>{currSym(exp.localCurrency)}{exp.localAmount.toFixed(2)}</div>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{currSym(exp.localCurrency)}{fmtAmt(exp.localAmount)}</div>
                 <div style={{ color: C.textSub, fontSize: 11 }}>{dateStr}</div>
               </div>
+              <button onClick={e => { e.stopPropagation(); setSelectedExpenseId(exp.id); setEditMode(false); setConfirmDelete(false); }}
+                style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer", color: C.textMuted }}>
+                <Icon d={icons.moreH} size={16} stroke={C.textMuted} />
+              </button>
             </div>
           </Card>
         );
@@ -497,6 +560,116 @@ const WalletScreen = ({ onAddExpense }: any) => {
       <div style={{ position: "fixed", bottom: 90, right: "calc(50% - 200px)", width: 56, height: 56, borderRadius: "50%", background: C.cyan, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: `0 4px 20px ${C.cyan}50` }} onClick={onAddExpense}>
         <Icon d={icons.plus} size={24} stroke="#000" strokeWidth={2.5} />
       </div>
+      {selectedExpenseId && (() => {
+        const exp = expenses.find(e => e.id === selectedExpenseId)!;
+        if (!exp) return null;
+        return (
+          <>
+            <div onClick={() => { setSelectedExpenseId(null); setEditMode(false); setConfirmDelete(false); }}
+              style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 200 }} />
+            <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
+              width: "100%", maxWidth: 430, background: C.card, borderRadius: "20px 20px 0 0",
+              padding: "20px 20px 40px", zIndex: 201, maxHeight: "80vh", overflowY: "auto" }}>
+              <div style={{ width: 40, height: 4, background: C.border, borderRadius: 2, margin: "0 auto 16px" }} />
+              {!editMode && !confirmDelete ? (
+                <>
+                  {exp.receiptDataUrl && <img src={exp.receiptDataUrl} style={{ width: "100%", borderRadius: 12, marginBottom: 16, maxHeight: 180, objectFit: "cover" }} />}
+                  <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 4 }}>{exp.description}</div>
+                  <div style={{ color: C.textMuted, fontSize: 13, marginBottom: 16 }}>
+                    {new Date(exp.date).toLocaleDateString("en", { day: "numeric", month: "long", year: "numeric" })}
+                  </div>
+                  <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+                    <div style={{ background: C.card3, borderRadius: 12, padding: 12, flex: 1 }}>
+                      <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>AMOUNT</div>
+                      <div style={{ fontWeight: 700, fontSize: 16 }}>{currSym(exp.localCurrency)}{fmtAmt(exp.localAmount)}</div>
+                    </div>
+                    <div style={{ background: C.card3, borderRadius: 12, padding: 12, flex: 1 }}>
+                      <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>SOURCE</div>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>{sourceMap[exp.sourceId]?.name || "—"}</div>
+                    </div>
+                  </div>
+                  {exp.editHistory && exp.editHistory.length > 0 && (
+                    <div style={{ background: C.card3, borderRadius: 12, padding: 12, marginBottom: 16 }}>
+                      <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 8 }}>EDIT HISTORY</div>
+                      {exp.editHistory.map((h, i) => (
+                        <div key={i} style={{ color: C.textSub, fontSize: 11, marginBottom: 4 }}>
+                          {new Date(h.at).toLocaleString("en")} — was "{h.snapshot.description}" {currSym(h.snapshot.localCurrency)}{fmtAmt(h.snapshot.localAmount)}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <Btn style={{ flex: 1 }} variant="secondary" icon={<Icon d={icons.edit} size={16} />}
+                      onClick={() => { setEditDesc(exp.description); setEditAmount(String(exp.localAmount)); setEditCat(exp.category); setEditDate(exp.date.slice(0, 10)); setEditSourceId(exp.sourceId); setEditCurrency(exp.localCurrency); setEditMode(true); }}>
+                      Edit
+                    </Btn>
+                    <Btn style={{ flex: 1 }} variant="danger" icon={<Icon d={icons.trash} size={16} stroke={C.red} />}
+                      onClick={() => setConfirmDelete(true)}>
+                      Delete
+                    </Btn>
+                  </div>
+                </>
+              ) : confirmDelete ? (
+                <>
+                  <div style={{ textAlign: "center", marginBottom: 20 }}>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: C.red, marginBottom: 8 }}>Delete transaction?</div>
+                    <div style={{ color: C.textMuted, fontSize: 13 }}>It will be moved to history and cannot be undone.</div>
+                  </div>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setConfirmDelete(false)}>Cancel</Btn>
+                    <Btn style={{ flex: 1 }} variant="danger" onClick={() => handleDelete(selectedExpenseId)}>Delete</Btn>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontWeight: 700, marginBottom: 16 }}>Edit Transaction</div>
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>DESCRIPTION</div>
+                    <Input value={editDesc} onChange={setEditDesc} placeholder="Description" />
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>AMOUNT</div>
+                    <Input value={editAmount} onChange={setEditAmount} placeholder="0.00" />
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>DATE</div>
+                    <Card style={{ display: "flex", alignItems: "center", gap: 10, padding: 12 }}>
+                      <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
+                        style={{ background: "transparent", border: "none", color: C.text, flex: 1, outline: "none", fontFamily: "inherit", colorScheme: "dark" }} />
+                    </Card>
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>CATEGORY</div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {categories.map(c => (
+                        <button key={c.id} onClick={() => setEditCat(c.id)} style={{ background: editCat === c.id ? "#003d45" : C.card3, border: editCat === c.id ? `2px solid ${C.cyan}` : "2px solid transparent", borderRadius: 10, padding: "8px 12px", cursor: "pointer", color: editCat === c.id ? C.cyan : C.textMuted, fontSize: 12, fontWeight: editCat === c.id ? 700 : 400, fontFamily: "inherit" }}>
+                          {c.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {budget.sources.length > 0 && (
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>SOURCE</div>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {budget.sources.map(s => (
+                          <button key={s.id} onClick={() => setEditSourceId(s.id)} style={{ background: editSourceId === s.id ? "#003d45" : C.card3, border: editSourceId === s.id ? `2px solid ${s.color}` : "2px solid transparent", borderRadius: 10, padding: "8px 12px", cursor: "pointer", color: editSourceId === s.id ? C.text : C.textMuted, fontSize: 12, fontFamily: "inherit" }}>
+                            {s.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setEditMode(false)}>Cancel</Btn>
+                    <Btn style={{ flex: 1 }} onClick={() => handleEdit(selectedExpenseId)}>Save Changes</Btn>
+                  </div>
+                </>
+              )}
+            </div>
+          </>
+        );
+      })()}
     </div>
   );
 };
@@ -511,6 +684,25 @@ const categories = [
 ];
 
 const members = ["You", "Patrick", "Sarah"];
+
+function compressImage(file: File, maxPx = 800, quality = 0.7): Promise<string> {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = e.target!.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
 
 const AddExpenseScreen = ({ onBack }: any) => {
   const [amount, setAmount] = useState("0");
@@ -535,6 +727,8 @@ const AddExpenseScreen = ({ onBack }: any) => {
     return "";
   });
   const [saving, setSaving] = useState(false);
+  const [expDate, setExpDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [receiptDataUrl, setReceiptDataUrl] = useState<string | null>(null);
 
   const handleKey = (k: string) => {
     setAmount(prev => {
@@ -574,11 +768,12 @@ const AddExpenseScreen = ({ onBack }: any) => {
         {budget.sources.length > 0 && (
           <>
             <SectionLabel>PAYMENT SOURCE</SectionLabel>
-            <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 8, marginBottom: 12 }}>
+            <div style={{ position: "relative", margin: "0 -20px", padding: "0 20px", marginBottom: 12 }}>
+            <div className="no-scrollbar" style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 8, scrollbarWidth: "none", msOverflowStyle: "none" as any, scrollSnapType: "x mandatory", WebkitMaskImage: "linear-gradient(to right, transparent 0%, black 6%, black 94%, transparent 100%)", maskImage: "linear-gradient(to right, transparent 0%, black 6%, black 94%, transparent 100%)" }}>
               {budget.sources.map(src => {
                 const active = selectedSourceId === src.id;
                 return (
-                  <button key={src.id} onClick={() => { setSelectedSourceId(src.id); setLocalCurrency(src.currency); }} style={{ flexShrink: 0, background: active ? "#003d45" : C.card3, border: active ? `2px solid ${src.color}` : "2px solid transparent", borderRadius: 14, padding: "12px 16px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4, minWidth: 120 }}>
+                  <button key={src.id} onClick={() => { setSelectedSourceId(src.id); setLocalCurrency(src.currency); }} style={{ flexShrink: 0, background: active ? "#003d45" : C.card3, border: active ? `2px solid ${src.color}` : "2px solid transparent", borderRadius: 14, padding: "12px 16px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4, minWidth: 120, scrollSnapAlign: "start" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <div style={{ width: 8, height: 8, borderRadius: "50%", background: src.color }} />
                       <span style={{ color: active ? C.text : C.textMuted, fontWeight: active ? 700 : 400, fontSize: 13 }}>{src.name}</span>
@@ -587,6 +782,7 @@ const AddExpenseScreen = ({ onBack }: any) => {
                   </button>
                 );
               })}
+            </div>
             </div>
           </>
         )}
@@ -607,7 +803,9 @@ const AddExpenseScreen = ({ onBack }: any) => {
         <SectionLabel>DATE</SectionLabel>
         <Card style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Icon d={icons.calendar} size={16} stroke={C.textMuted} />
-          <span style={{ color: C.text, fontSize: 15, flex: 1 }}>18/02/2026</span>
+          <input type="date" value={expDate} onChange={e => setExpDate(e.target.value)}
+            style={{ background: "transparent", border: "none", color: C.text, fontSize: 15,
+              flex: 1, outline: "none", fontFamily: "inherit", colorScheme: "dark" }} />
         </Card>
       </div>
       <div style={{ marginTop: 20 }}>
@@ -670,10 +868,29 @@ const AddExpenseScreen = ({ onBack }: any) => {
       </div>
       <div style={{ marginTop: 20, marginBottom: 20 }}>
         <SectionLabel>RECEIPT</SectionLabel>
-        <div style={{ border: `2px dashed ${C.border}`, borderRadius: 14, padding: 20, display: "flex", alignItems: "center", justifyContent: "center", gap: 10, cursor: "pointer" }}>
-          <Icon d={icons.receipt} size={20} stroke={C.textMuted} />
-          <span style={{ color: C.textMuted, fontSize: 14 }}>Add Receipt</span>
-        </div>
+        <input type="file" accept="image/*" id="receiptInput" style={{ display: "none" }}
+          onChange={async e => {
+            const f = e.target.files?.[0];
+            if (!f) return;
+            const compressed = await compressImage(f);
+            setReceiptDataUrl(compressed);
+          }} />
+        {receiptDataUrl ? (
+          <div style={{ position: "relative" }}>
+            <img src={receiptDataUrl} style={{ width: "100%", borderRadius: 14, maxHeight: 180, objectFit: "cover" }} />
+            <button onClick={() => setReceiptDataUrl(null)} style={{ position: "absolute", top: 8, right: 8,
+              background: C.redDim, border: "none", borderRadius: "50%", width: 28, height: 28,
+              cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon d={icons.x} size={14} stroke={C.red} />
+            </button>
+          </div>
+        ) : (
+          <label htmlFor="receiptInput" style={{ border: `2px dashed ${C.border}`, borderRadius: 14, padding: 20,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 10, cursor: "pointer" }}>
+            <Icon d={icons.receipt} size={20} stroke={C.textMuted} />
+            <span style={{ color: C.textMuted, fontSize: 14 }}>Add Receipt</span>
+          </label>
+        )}
       </div>
       <Btn style={{ width: "100%" }} onClick={async () => {
         if (saving) return;
@@ -688,7 +905,7 @@ const AddExpenseScreen = ({ onBack }: any) => {
           id: Date.now().toString(),
           description: desc || categories.find(c => c.id === cat)?.label || cat,
           category: cat,
-          date: new Date().toISOString(),
+          date: expDate ? new Date(expDate).toISOString() : new Date().toISOString(),
           sourceId: selectedSourceId,
           type: expType as "personal" | "group",
           localAmount,
@@ -698,6 +915,7 @@ const AddExpenseScreen = ({ onBack }: any) => {
           localToBaseRate,
           whoPaid: expType === "group" ? whoPaid : undefined,
           splits: expType === "group" ? shares : undefined,
+          receiptDataUrl: receiptDataUrl || undefined,
         };
         try {
           const prev = localStorage.getItem('tripversal_expenses');
@@ -790,7 +1008,7 @@ const SOSScreen = () => (
   </div>
 );
 
-const SettingsScreen = ({ onManageCrew, user, onLogout }: any) => {
+const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory }: any) => {
   const [offlineSim, setOfflineSim] = useState(false);
   const [forcePending, setForcePending] = useState(false);
   const [showNewTrip, setShowNewTrip] = useState(false);
@@ -967,18 +1185,18 @@ const SettingsScreen = ({ onManageCrew, user, onLogout }: any) => {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
               <div style={{ background: C.card3, borderRadius: 12, padding: 12 }}>
                 <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 4 }}>TOTAL BUDGET</div>
-                <div style={{ fontWeight: 800, fontSize: 18 }}>{currSym(budget.baseCurrency)}{totalBudgetInBase.toFixed(0)}</div>
+                <div style={{ fontWeight: 800, fontSize: 18 }}>{currSym(budget.baseCurrency)}{fmtAmt(totalBudgetInBase, 0)}</div>
               </div>
               <div style={{ background: C.card3, borderRadius: 12, padding: 12 }}>
                 <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 4 }}>SPENT</div>
-                <div style={{ fontWeight: 800, fontSize: 18, color: barColor }}>{currSym(budget.baseCurrency)}{totalSpent.toFixed(2)}</div>
+                <div style={{ fontWeight: 800, fontSize: 18, color: barColor }}>{currSym(budget.baseCurrency)}{fmtAmt(totalSpent)}</div>
               </div>
             </div>
             <div style={{ height: 6, background: C.card3, borderRadius: 4, overflow: "hidden" }}>
               <div style={{ width: `${pct * 100}%`, height: "100%", background: barColor, borderRadius: 4, transition: "width 0.3s" }} />
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
-              <span style={{ color: C.textMuted, fontSize: 11 }}>{currSym(budget.baseCurrency)}{remaining.toFixed(2)} remaining</span>
+              <span style={{ color: C.textMuted, fontSize: 11 }}>{currSym(budget.baseCurrency)}{fmtAmt(remaining)} remaining</span>
             </div>
           </Card>
         );
@@ -1004,7 +1222,7 @@ const SettingsScreen = ({ onManageCrew, user, onLogout }: any) => {
                   <span style={{ fontWeight: 600, fontSize: 14 }}>{src.name}</span>
                   <Badge color={src.type === "credit" ? C.yellow : C.cyan} bg={src.type === "credit" ? "#2a2000" : "#003d45"}>{src.type === "credit" ? "CRÉDITO" : "SALDO"}</Badge>
                 </div>
-                <div style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{currSym(src.currency)}{src.limit.toFixed(2)} {src.currency !== budget.baseCurrency && src.limitInBase ? `≈ ${currSym(budget.baseCurrency)}${src.limitInBase.toFixed(2)}` : ""}</div>
+                <div style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{currSym(src.currency)}{fmtAmt(src.limit)} {src.currency !== budget.baseCurrency && src.limitInBase ? `≈ ${currSym(budget.baseCurrency)}${fmtAmt(src.limitInBase)}` : ""}</div>
                 <div style={{ height: 3, background: C.card3, borderRadius: 2, overflow: "hidden", marginTop: 6 }}>
                   <div style={{ width: `${usePct * 100}%`, height: "100%", background: src.color, borderRadius: 2 }} />
                 </div>
@@ -1102,6 +1320,10 @@ const SettingsScreen = ({ onManageCrew, user, onLogout }: any) => {
           </div>
         </Card>
       )}
+      <SectionLabel icon="clock">TRANSACTION HISTORY</SectionLabel>
+      <Btn style={{ width: "100%", marginBottom: 20 }} variant="secondary"
+        icon={<Icon d={icons.receipt} size={16} stroke={C.textMuted} />}
+        onClick={onHistory}>View History</Btn>
       <SectionLabel icon="bug">DEV CONTROLS</SectionLabel>
       <Card>
         {[
@@ -1124,6 +1346,76 @@ const SettingsScreen = ({ onManageCrew, user, onLogout }: any) => {
       <div style={{ marginTop: 16, marginBottom: 8 }}>
         <Btn variant="danger" style={{ width: "100%" }} onClick={onLogout} icon={<Icon d={icons.login} size={16} stroke={C.red} />}>Sign Out</Btn>
       </div>
+    </div>
+  );
+};
+
+const TransactionHistoryScreen = ({ onBack }: any) => {
+  const [histTab, setHistTab] = useState<"edits" | "deleted">("edits");
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [deletedExpenses, setDeletedExpenses] = useState<any[]>([]);
+
+  useEffect(() => {
+    try {
+      const es = localStorage.getItem('tripversal_expenses');
+      if (es) setExpenses(JSON.parse(es));
+      const ds = localStorage.getItem('tripversal_deleted_expenses');
+      if (ds) setDeletedExpenses(JSON.parse(ds));
+    } catch {}
+  }, []);
+
+  const editedExpenses = expenses.filter(e => e.editHistory && e.editHistory.length > 0);
+
+  return (
+    <div style={{ padding: "16px 20px 100px", overflowY: "auto" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+        <button onClick={onBack} style={{ background: C.card3, border: "none", borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: C.text, fontSize: 18 }}>←</button>
+        <span style={{ fontSize: 18, fontWeight: 700 }}>Transaction History</span>
+      </div>
+      <div style={{ background: C.card3, borderRadius: 14, padding: 4, display: "flex", marginBottom: 20 }}>
+        {(["edits", "deleted"] as const).map(t => (
+          <button key={t} onClick={() => setHistTab(t)} style={{ flex: 1, padding: "12px", borderRadius: 10, border: "none", cursor: "pointer", background: histTab === t ? C.cyan : "transparent", color: histTab === t ? "#000" : C.textMuted, fontWeight: histTab === t ? 700 : 400, fontSize: 13, fontFamily: "inherit", transition: "all 0.2s", letterSpacing: 1 }}>
+            {t === "edits" ? "EDITS" : "DELETED"}
+          </button>
+        ))}
+      </div>
+      {histTab === "edits" ? (
+        editedExpenses.length === 0 ? (
+          <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "40px 0" }}>No edited transactions yet.</div>
+        ) : (
+          editedExpenses.map(exp => (
+            <Card key={exp.id} style={{ marginBottom: 12 }}>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{exp.description}</div>
+              <div style={{ color: C.textMuted, fontSize: 12, marginBottom: 10 }}>{currSym(exp.localCurrency)}{fmtAmt(exp.localAmount)} • Current</div>
+              {exp.editHistory!.map((h, i) => (
+                <div key={i} style={{ background: C.card3, borderRadius: 10, padding: 10, marginBottom: 6 }}>
+                  <div style={{ color: C.textSub, fontSize: 11, marginBottom: 2 }}>{new Date(h.at).toLocaleString("en")}</div>
+                  <div style={{ color: C.textMuted, fontSize: 12 }}>Was: "{h.snapshot.description}" {currSym(h.snapshot.localCurrency)}{fmtAmt(h.snapshot.localAmount)}</div>
+                </div>
+              ))}
+            </Card>
+          ))
+        )
+      ) : (
+        deletedExpenses.length === 0 ? (
+          <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "40px 0" }}>No deleted transactions.</div>
+        ) : (
+          deletedExpenses.map((exp, i) => (
+            <Card key={i} style={{ marginBottom: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>{exp.description}</div>
+                  <div style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{currSym(exp.localCurrency)}{fmtAmt(exp.localAmount)}</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <Badge color={C.red} bg={C.redDim}>DELETED</Badge>
+                  <div style={{ color: C.textSub, fontSize: 10, marginTop: 4 }}>{new Date(exp.deletedAt).toLocaleDateString("en", { day: "numeric", month: "short", year: "numeric" })}</div>
+                </div>
+              </div>
+            </Card>
+          ))
+        )
+      )}
     </div>
   );
 };
@@ -1315,6 +1607,7 @@ function AppShell() {
   const [showSettings, setShowSettings] = useState(false);
   const [showCrew, setShowCrew] = useState(false);
   const [showAddExpense, setShowAddExpense] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem('tripversal_user');
@@ -1334,13 +1627,14 @@ function AppShell() {
   if (!user) return <LoginScreen onLogin={setUser} />;
 
   const handleNav = (t: string) => {
-    setShowSettings(false); setShowCrew(false); setShowAddExpense(false); setTab(t);
+    setShowSettings(false); setShowCrew(false); setShowAddExpense(false); setShowHistory(false); setTab(t);
   };
 
   let content;
   if (showAddExpense) content = <AddExpenseScreen onBack={() => setShowAddExpense(false)} />;
+  else if (showHistory) content = <TransactionHistoryScreen onBack={() => setShowHistory(false)} />;
   else if (showCrew) content = <ManageCrewScreen onBack={() => setShowCrew(false)} />;
-  else if (showSettings) content = <SettingsScreen onManageCrew={() => setShowCrew(true)} user={user} onLogout={handleLogout} />;
+  else if (showSettings) content = <SettingsScreen onManageCrew={() => setShowCrew(true)} user={user} onLogout={handleLogout} onHistory={() => setShowHistory(true)} />;
   else {
     switch (tab) {
       case "home": content = <HomeScreen onNav={handleNav} onAddExpense={() => setShowAddExpense(true)} />; break;
@@ -1352,10 +1646,11 @@ function AppShell() {
     }
   }
 
-  const activeTab = showSettings || showCrew || showAddExpense ? null : tab;
+  const activeTab = showSettings || showCrew || showAddExpense || showHistory ? null : tab;
 
   return (
     <div style={{ background: "#000", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <GlobalStyles />
       <div style={{ width: "100%", maxWidth: 430, minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", position: "relative", overflowX: "hidden", display: "flex", flexDirection: "column" }}>
         <Header onSettings={() => { setShowSettings(true); setShowCrew(false); setShowAddExpense(false); }} user={user} />
         <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
