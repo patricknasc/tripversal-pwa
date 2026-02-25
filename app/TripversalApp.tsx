@@ -33,6 +33,7 @@ interface Expense {
   splits?: Record<string, number>;
   city?: string;
   receiptDataUrl?: string;
+  tripId?: string;
   editHistory?: Array<{
     at: string;
     snapshot: {
@@ -46,6 +47,50 @@ interface TripBudget {
   baseCurrency: Currency;
   dailyLimit: number;
   sources: PaymentSource[];
+}
+
+interface TripMember {
+  id: string;
+  email: string;
+  name?: string;
+  avatarUrl?: string;
+  googleSub?: string;
+  role: "admin" | "member";
+  status: "pending" | "accepted";
+  invitedAt: string;
+  acceptedAt?: string;
+}
+
+interface TripSegment {
+  id: string;
+  name: string;
+  startDate?: string;
+  endDate?: string;
+  origin?: string;
+  destination?: string;
+  color: string;
+  assignedMemberIds: string[];
+}
+
+interface Trip {
+  id: string;
+  ownerId: string;
+  name: string;
+  destination?: string;
+  startDate: string;
+  endDate: string;
+  budget: TripBudget;
+  crew: TripMember[];
+  segments: TripSegment[];
+}
+
+interface InviteEvent {
+  id: string;
+  type: "invited" | "accepted";
+  email: string;
+  name?: string;
+  tripName: string;
+  at: string;
 }
 
 function calcSummary(budget: TripBudget, expenses: Expense[]) {
@@ -150,6 +195,58 @@ const C = {
   textMuted: "#8e8e93", textSub: "#636366", red: "#ff3b30", redDim: "#3d1a1a",
   green: "#30d158", yellow: "#ffd60a", purple: "#1a1333", purpleBorder: "#3d2d6e",
 };
+
+function rowToTrip(row: any): Trip {
+  return {
+    id: row.id,
+    ownerId: row.owner_id,
+    name: row.name,
+    destination: row.destination,
+    startDate: row.start_date,
+    endDate: row.end_date,
+    budget: row.budget && row.budget.baseCurrency ? row.budget : DEFAULT_BUDGET,
+    crew: (row.trip_members || []).map((m: any) => ({
+      id: m.id,
+      email: m.email,
+      name: m.name,
+      avatarUrl: m.avatar_url,
+      googleSub: m.google_sub,
+      role: m.role as "admin" | "member",
+      status: m.status as "pending" | "accepted",
+      invitedAt: m.invited_at,
+      acceptedAt: m.accepted_at,
+    })),
+    segments: (row.trip_segments || []).map((s: any) => ({
+      id: s.id,
+      name: s.name,
+      startDate: s.start_date,
+      endDate: s.end_date,
+      origin: s.origin,
+      destination: s.destination,
+      color: s.color || C.cyan,
+      assignedMemberIds: s.assigned_member_ids || [],
+    })),
+  };
+}
+
+function formatDateRange(start: string, end: string): string {
+  const s = new Date(start + 'T12:00:00');
+  const e = new Date(end + 'T12:00:00');
+  const sStr = s.toLocaleDateString("en", { month: "short", day: "numeric" });
+  const eStr = e.toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" });
+  return `${sStr} – ${eStr}`;
+}
+
+const INVITE_EVENTS_KEY = 'tripversal_invite_events';
+function pushInviteEvent(ev: InviteEvent) {
+  try {
+    const arr = getInviteEvents();
+    localStorage.setItem(INVITE_EVENTS_KEY, JSON.stringify([ev, ...arr].slice(0, 50)));
+  } catch {}
+}
+function getInviteEvents(): InviteEvent[] {
+  try { const s = localStorage.getItem(INVITE_EVENTS_KEY); return s ? JSON.parse(s) : []; } catch { return []; }
+}
 
 const Avatar = ({ name, src, size = 36, color = C.cyan }: any) => {
   const bg = color === C.cyan ? "#003d45" : "#2a2a2e";
@@ -314,11 +411,12 @@ const BottomNav = ({ active, onNav }: any) => {
   );
 };
 
-const HomeScreen = ({ onNav, onAddExpense }: any) => {
+const HomeScreen = ({ onNav, onAddExpense, activeTripId }: any) => {
   const [budget, setBudget] = useState<TripBudget>(DEFAULT_BUDGET);
   const [todaySpent, setTodaySpent] = useState(0);
   const [yesterdaySpent, setYesterdaySpent] = useState(0);
   const [allExpenses, setAllExpenses] = useState<Expense[]>([]);
+  const [inviteEvents, setInviteEvents] = useState<InviteEvent[]>([]);
   const [visibleCount, setVisibleCount] = useState(10);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [selectedActivityExp, setSelectedActivityExp] = useState<Expense | null>(null);
@@ -338,15 +436,19 @@ const HomeScreen = ({ onNav, onAddExpense }: any) => {
       const b: TripBudget = bs ? JSON.parse(bs) : DEFAULT_BUDGET;
       setBudget(b);
       const es = localStorage.getItem('tripversal_expenses');
-      const expenses: Expense[] = (es ? JSON.parse(es) : []).sort((a: Expense, b: Expense) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      const all: Expense[] = es ? JSON.parse(es) : [];
+      const expenses: Expense[] = all
+        .filter(e => !e.tripId || !activeTripId || e.tripId === activeTripId)
+        .sort((a: Expense, b: Expense) => new Date(b.date).getTime() - new Date(a.date).getTime());
       const todayKey = localDateKey(new Date());
       const yest = new Date(); yest.setDate(yest.getDate() - 1);
       const yesterdayKey = localDateKey(yest);
       setTodaySpent(expenses.filter(e => localDateKey(new Date(e.date)) === todayKey).reduce((s, e) => s + e.baseAmount, 0));
       setYesterdaySpent(expenses.filter(e => localDateKey(new Date(e.date)) === yesterdayKey).reduce((s, e) => s + e.baseAmount, 0));
       setAllExpenses(expenses);
+      setInviteEvents(getInviteEvents());
     } catch {}
-  }, []);
+  }, [activeTripId]);
 
   const sourceMap = Object.fromEntries(budget.sources.map(s => [s.id, s]));
 
@@ -465,12 +567,41 @@ const HomeScreen = ({ onNav, onAddExpense }: any) => {
       </div>
       <div style={{ margin: "20px 20px 0" }}>
         <SectionLabel>RECENT ACTIVITY</SectionLabel>
-        {allExpenses.length === 0 ? (
-          <Card>
-            <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "8px 0" }}>No expenses yet. Tap + to add one.</div>
-          </Card>
-        ) : (
-          allExpenses.slice(0, visibleCount).map(exp => {
+        {(() => {
+          const activityItems = [
+            ...allExpenses.map(e => ({ kind: 'expense' as const, at: e.date, data: e })),
+            ...inviteEvents.map(ev => ({ kind: 'event' as const, at: ev.at, data: ev })),
+          ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+
+          if (activityItems.length === 0) return (
+            <Card>
+              <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "8px 0" }}>No expenses yet. Tap + to add one.</div>
+            </Card>
+          );
+
+          return activityItems.slice(0, visibleCount).map(item => {
+            if (item.kind === 'event') {
+              const ev = item.data as InviteEvent;
+              return (
+                <Card key={`ev-${ev.id}`} style={{ marginBottom: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: C.card3, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 18 }}>
+                      {ev.type === 'invited' ? '✉️' : '✅'}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
+                        {ev.type === 'invited' ? `Invited ${ev.email}` : `${ev.name || ev.email} joined`}
+                      </div>
+                      <div style={{ color: C.textMuted, fontSize: 12 }}>{ev.tripName}</div>
+                    </div>
+                    <div style={{ color: C.textMuted, fontSize: 11, flexShrink: 0 }}>
+                      {new Date(ev.at).toLocaleDateString("en", { day: "numeric", month: "short" })}
+                    </div>
+                  </div>
+                </Card>
+              );
+            }
+            const exp = item.data as Expense;
             const catIcon = categories.find(c => c.id === exp.category)?.icon || icons.moreH;
             const timeStr = new Date(exp.date).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" });
             const dateStr = new Date(exp.date).toLocaleDateString("en", { day: "numeric", month: "short" });
@@ -497,8 +628,8 @@ const HomeScreen = ({ onNav, onAddExpense }: any) => {
                 </div>
               </Card>
             );
-          })
-        )}
+          });
+        })()}
         {visibleCount < allExpenses.length && (
           <div ref={sentinelRef} style={{ height: 40, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <div style={{ color: C.textSub, fontSize: 12 }}>Loading more...</div>
@@ -684,7 +815,7 @@ const ItineraryScreen = () => (
   </div>
 );
 
-const WalletScreen = ({ onAddExpense }: any) => {
+const WalletScreen = ({ onAddExpense, activeTripId }: any) => {
   const [budget, setBudgetState] = useState<TripBudget>(DEFAULT_BUDGET);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
@@ -705,9 +836,13 @@ const WalletScreen = ({ onAddExpense }: any) => {
       const bs = localStorage.getItem('tripversal_budget');
       if (bs) setBudgetState(JSON.parse(bs));
       const es = localStorage.getItem('tripversal_expenses');
-      if (es) setExpenses((JSON.parse(es) as Expense[]).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      if (es) {
+        const all = JSON.parse(es) as Expense[];
+        const filtered = all.filter(e => !e.tripId || !activeTripId || e.tripId === activeTripId);
+        setExpenses(filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      }
     } catch {}
-  }, []);
+  }, [activeTripId]);
 
   useEffect(() => {
     const el = txSentinelRef.current;
@@ -995,7 +1130,7 @@ function compressImage(file: File, maxPx = 800, quality = 0.7): Promise<string> 
   });
 }
 
-const AddExpenseScreen = ({ onBack }: any) => {
+const AddExpenseScreen = ({ onBack, activeTripId }: any) => {
   const [amount, setAmount] = useState("0");
   const [cat, setCat] = useState("food");
   const [expType, setExpType] = useState("group");
@@ -1284,6 +1419,7 @@ const AddExpenseScreen = ({ onBack }: any) => {
           splits: expType === "group" ? shares : undefined,
           receiptDataUrl: receiptDataUrl || undefined,
           city: city.trim() || undefined,
+          tripId: activeTripId ?? undefined,
         };
         try {
           const prev = localStorage.getItem('tripversal_expenses');
@@ -1377,11 +1513,10 @@ const SOSScreen = () => (
   </div>
 );
 
-const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory }: any) => {
+const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], activeTripId, onSwitchTrip, onTripCreate }: any) => {
   const [offlineSim, setOfflineSim] = useState(false);
   const [forcePending, setForcePending] = useState(false);
   const [showNewTrip, setShowNewTrip] = useState(false);
-  const [tripName, setTripName] = useState("");
   // Profile / language / budget states
   const [language, setLanguage] = useState("en");
   const [avatarFile, setAvatarFile] = useState<any>(null);
@@ -1465,10 +1600,14 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory }: any) => {
 
   const removeSource = (id: string) => saveBudget({ ...budget, sources: budget.sources.filter(s => s.id !== id) });
 
-  const [trips, setTrips] = useState<any[]>([
-    { name: "European Summer", code: "TRV-8821", members: 3, active: true }
-  ]);
-  const activeTrip = trips.find(t => t.active) || trips[0];
+  // New trip form states
+  const [newTripName, setNewTripName] = useState("");
+  const [newTripDest, setNewTripDest] = useState("");
+  const [newTripStart, setNewTripStart] = useState("");
+  const [newTripEnd, setNewTripEnd] = useState("");
+  const [creatingTrip, setCreatingTrip] = useState(false);
+
+  const activeTrip: Trip | null = trips.find((t: Trip) => t.id === activeTripId) ?? null;
 
   const onAvatarChange = (e: any) => {
     const f = e.target.files && e.target.files[0];
@@ -1656,38 +1795,79 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory }: any) => {
           <span style={{ color: C.textMuted, fontSize: 14 }}>{currSym(budget.baseCurrency)}/day</span>
         </div>
       </Card>
-      <SectionLabel icon="layers">MY TRIPVERSALS</SectionLabel>
-      {activeTrip && (
-        <Card style={{ marginBottom: 10, border: `1.5px solid ${C.cyan}30`, position: "relative", overflow: "visible" }}>
-          <div style={{ position: "absolute", top: -1, right: 0, background: C.cyan, color: "#000", fontSize: 12, fontWeight: 800, padding: "4px 14px", borderRadius: "0 14px 0 14px" }}>Active</div>
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 20, fontWeight: 800 }}>{activeTrip.name}</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-              <Badge color={C.textMuted} bg={C.card3}>{activeTrip.code}</Badge>
-              <span style={{ color: C.textMuted, fontSize: 13 }}>• {activeTrip.members} members</span>
+      <SectionLabel icon="layers" action={
+        <button onClick={() => setShowNewTrip(p => !p)} style={{ background: C.cyan, color: "#000", borderRadius: 20, padding: "5px 12px", border: "none", cursor: "pointer", fontSize: 11, fontWeight: 700, fontFamily: "inherit" }}>+ New</button>
+      }>MY TRIPVERSALS</SectionLabel>
+
+      {showNewTrip && (
+        <Card style={{ marginBottom: 12, border: `1px solid ${C.cyan}30` }}>
+          <div style={{ fontWeight: 700, marginBottom: 12 }}>New Tripversal</div>
+          <Input placeholder="Trip Name (e.g. Europe Summer)" value={newTripName} onChange={setNewTripName} style={{ marginBottom: 10 }} />
+          <Input placeholder="Destination (optional)" value={newTripDest} onChange={setNewTripDest} style={{ marginBottom: 10 }} />
+          <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>START DATE</div>
+              <Card style={{ padding: 10 }}>
+                <input type="date" value={newTripStart} onChange={e => setNewTripStart(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%" }} />
+              </Card>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>END DATE</div>
+              <Card style={{ padding: 10 }}>
+                <input type="date" value={newTripEnd} onChange={e => setNewTripEnd(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%" }} />
+              </Card>
             </div>
           </div>
-          <Btn style={{ width: "100%" }} variant="secondary" onClick={onManageCrew} icon={<Icon d={icons.users} size={16} stroke={C.text} />}>Manage Crew</Btn>
-        </Card>
-      )}
-      {!showNewTrip ? (
-        <Btn style={{ width: "100%", marginBottom: 20 }} variant="secondary" onClick={() => setShowNewTrip(true)} icon={<Icon d={icons.plane} size={16} stroke={C.textMuted} />}>Start New Tripversal</Btn>
-      ) : (
-        <Card style={{ marginBottom: 20 }}>
-          <div style={{ textAlign: "center", fontWeight: 600, marginBottom: 14 }}>Start a new trip? Current data will be archived.</div>
-          <Input placeholder="Trip Name" value={tripName} onChange={setTripName} style={{ marginBottom: 12 }} />
+          {trips.length > 0 && newTripStart && newTripEnd && (() => {
+            const overlaps = (trips as Trip[]).filter(t => t.startDate <= newTripEnd && t.endDate >= newTripStart);
+            return overlaps.length > 0 ? (
+              <div style={{ color: C.yellow, fontSize: 12, marginBottom: 10 }}>ℹ Dates overlap with {overlaps.map(t => t.name).join(', ')} — that's OK</div>
+            ) : null;
+          })()}
           <div style={{ display: "flex", gap: 10 }}>
-            <Btn style={{ flex: 1 }} variant="secondary" onClick={() => setShowNewTrip(false)}>Cancel</Btn>
-            <Btn style={{ flex: 1 }} onClick={() => {
-              if (!tripName.trim()) return;
-              // archive existing active trip(s) and create a new active trip
-              const code = `TRV-${Math.floor(1000 + Math.random() * 9000)}`;
-              setTrips(prev => prev.map(t => ({ ...t, active: false })).concat([{ name: tripName.trim(), code, members: 1, active: true }]));
-              setTripName("");
-              setShowNewTrip(false);
-            }}>Create</Btn>
+            <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setShowNewTrip(false)}>Cancel</Btn>
+            <Btn style={{ flex: 1 }} onClick={async () => {
+              if (!newTripName.trim() || !newTripStart || !newTripEnd) return;
+              setCreatingTrip(true);
+              try {
+                const res = await fetch('/api/trips', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ ownerId: user?.sub, ownerName: user?.name, ownerAvatarUrl: user?.picture, email: user?.email, name: newTripName.trim(), destination: newTripDest.trim() || undefined, startDate: newTripStart, endDate: newTripEnd, budget: DEFAULT_BUDGET }),
+                });
+                if (!res.ok) throw new Error();
+                const tripRow = await res.json();
+                const trip = rowToTrip(tripRow);
+                onTripCreate(trip);
+                setNewTripName(""); setNewTripDest(""); setNewTripStart(""); setNewTripEnd("");
+                setShowNewTrip(false);
+              } catch {}
+              setCreatingTrip(false);
+            }}>{creatingTrip ? "Creating…" : "Create Trip"}</Btn>
           </div>
         </Card>
+      )}
+
+      {(trips as Trip[]).map((trip: Trip) => {
+        const isActive = trip.id === activeTripId;
+        const acceptedCount = (trip.crew || []).filter((m: TripMember) => m.status === 'accepted').length;
+        return (
+          <Card key={trip.id} style={{ marginBottom: 10, border: isActive ? `1.5px solid ${C.cyan}30` : undefined, position: "relative", overflow: "visible" }}>
+            {isActive && <div style={{ position: "absolute", top: -1, right: 0, background: C.cyan, color: "#000", fontSize: 12, fontWeight: 800, padding: "4px 14px", borderRadius: "0 14px 0 14px" }}>Active</div>}
+            <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 2, paddingRight: isActive ? 60 : 0 }}>{trip.name}</div>
+            {trip.destination && <div style={{ color: C.textMuted, fontSize: 12 }}>{trip.destination}</div>}
+            <div style={{ color: C.textSub, fontSize: 11, marginTop: 2 }}>
+              {formatDateRange(trip.startDate, trip.endDate)} · {acceptedCount} member{acceptedCount !== 1 ? 's' : ''}
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              {!isActive && <Btn variant="ghost" style={{ flex: 1, padding: "10px" }} onClick={() => onSwitchTrip(trip.id)}>Set Active</Btn>}
+              {isActive && <Btn variant="secondary" style={{ flex: 1, padding: "10px" }} onClick={onManageCrew} icon={<Icon d={icons.users} size={16} />}>Manage Crew</Btn>}
+            </div>
+          </Card>
+        );
+      })}
+      {trips.length === 0 && !showNewTrip && (
+        <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", padding: "12px 0", textAlign: "center" }}>No trips yet. Create one above.</div>
       )}
       <SectionLabel icon="clock">TRANSACTION HISTORY</SectionLabel>
       <Btn style={{ width: "100%", marginBottom: 20 }} variant="secondary"
@@ -1789,142 +1969,401 @@ const TransactionHistoryScreen = ({ onBack }: any) => {
   );
 };
 
-const ManageCrewScreen = ({ onBack }: any) => {
-  const [showPass, setShowPass] = useState(false);
+const InviteAcceptScreen = ({ token, user, onDone, onDecline }: any) => {
+  const [state, setState] = useState<'loading' | 'valid' | 'invalid' | 'accepting'>('loading');
+  const [inviteInfo, setInviteInfo] = useState<any>(null);
+
+  useEffect(() => {
+    fetch(`/api/invites/${token}`)
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(data => { setInviteInfo(data); setState('valid'); })
+      .catch(() => setState('invalid'));
+  }, [token]);
+
+  const handleAccept = async () => {
+    setState('accepting');
+    try {
+      const res = await fetch(`/api/invites/${token}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ googleSub: user.sub, name: user.name, avatarUrl: user.picture }),
+      });
+      if (!res.ok) throw new Error();
+      const tripRow = await res.json();
+      const trip = rowToTrip(tripRow);
+      pushInviteEvent({ id: Date.now().toString(), type: 'accepted', email: user.email, name: user.name, tripName: trip.name, at: new Date().toISOString() });
+      onDone(trip);
+    } catch { setState('valid'); }
+  };
+
+  if (state === 'loading' || state === 'accepting') return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", gap: 16 }}>
+      <div style={{ width: 48, height: 48, border: `3px solid ${C.card3}`, borderTopColor: C.cyan, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+      <div style={{ color: C.textMuted, fontSize: 14 }}>{state === 'accepting' ? 'Joining crew…' : 'Loading invite…'}</div>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+
+  if (state === 'invalid') return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", gap: 20, padding: "0 40px" }}>
+      <div style={{ fontSize: 48 }}>🔗</div>
+      <div style={{ fontWeight: 800, fontSize: 20, color: C.text, textAlign: "center" }}>Invite no longer valid</div>
+      <div style={{ color: C.textMuted, fontSize: 14, textAlign: "center" }}>This link has expired, already been used, or doesn't exist.</div>
+      <Btn onClick={onDecline} variant="secondary" style={{ width: "100%", maxWidth: 280 }}>Go to App</Btn>
+    </div>
+  );
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", gap: 20, padding: "0 28px" }}>
+      <div style={{ background: `${C.cyan}20`, border: `1px solid ${C.cyan}40`, borderRadius: 20, padding: 28, width: "100%", textAlign: "center" }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>✈️</div>
+        <div style={{ fontWeight: 800, fontSize: 22, color: C.text, marginBottom: 6 }}>{inviteInfo?.tripName}</div>
+        {inviteInfo?.tripDestination && <div style={{ color: C.textMuted, fontSize: 14, marginBottom: 4 }}>{inviteInfo.tripDestination}</div>}
+        {inviteInfo?.startDate && inviteInfo?.endDate && (
+          <div style={{ color: C.textSub, fontSize: 13 }}>{formatDateRange(inviteInfo.startDate, inviteInfo.endDate)}</div>
+        )}
+      </div>
+      <div style={{ color: C.textMuted, fontSize: 14, textAlign: "center" }}>
+        You've been invited to join this trip's Travel Crew.
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
+        <Btn onClick={handleAccept} style={{ width: "100%" }}>Join Travel Crew</Btn>
+        <Btn onClick={onDecline} variant="ghost" style={{ width: "100%" }}>Decline</Btn>
+      </div>
+    </div>
+  );
+};
+
+const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
+  const [crewTab, setCrewTab] = useState<'crew' | 'segments'>('crew');
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviting, setInviting] = useState(false);
+  const [inviteToast, setInviteToast] = useState<string | null>(null);
+  const [menuMemberId, setMenuMemberId] = useState<string | null>(null);
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
+  // Segment form
   const [showAddSeg, setShowAddSeg] = useState(false);
   const [segName, setSegName] = useState("");
-  const [segColor, setSegColor] = useState("#e53935");
-  const [segments, setSegments] = useState([
-    { name: "Everyone", color: C.cyan, default: true }
-  ]);
-  const [whatsapp, setWhatsapp] = useState("");
-  const [crew, setCrew] = useState([
-    { name: "You", whatsapp: "your@whatsapp", status: "you" as const },
-    { name: "Patrick", whatsapp: "+55 11 98765-4321", status: "accepted" as const },
-    { name: "Sarah", whatsapp: "+33 6 12 34 56 78", status: "invited" as const }
-  ]);
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  const segColors = ["#e53935","#f57c00","#f9cf1e","#2e7d32","#00bcd4","#1565c0","#6a1b9a","#e91e8c"];
+  const [segOrigin, setSegOrigin] = useState("");
+  const [segDest, setSegDest] = useState("");
+  const [segStart, setSegStart] = useState("");
+  const [segEnd, setSegEnd] = useState("");
+  const [segColor, setSegColor] = useState("#00e5ff");
+  const [segAssigned, setSegAssigned] = useState<string[]>([]);
+  const [segSaving, setSegSaving] = useState(false);
+  const segColors = ["#00e5ff","#30d158","#ffd60a","#ff3b30","#f57c00","#6a1b9a","#1565c0","#e91e8c"];
+
+  if (!trip) return (
+    <div style={{ padding: "40px 20px", textAlign: "center", color: C.textMuted }}>No active trip selected.</div>
+  );
+
+  const crew: TripMember[] = trip.crew || [];
+  const segments: TripSegment[] = trip.segments || [];
+  const accepted = crew.filter((m: TripMember) => m.status === 'accepted');
+  const pending = crew.filter((m: TripMember) => m.status === 'pending');
+  const isAdmin = crew.some((m: TripMember) => m.googleSub === user?.sub && m.role === 'admin');
+
+  const showToast = (msg: string) => { setInviteToast(msg); setTimeout(() => setInviteToast(null), 3000); };
+
+  const handleInvite = async () => {
+    if (!inviteEmail.trim() || !inviteEmail.includes('@')) return;
+    setInviting(true);
+    try {
+      const res = await fetch(`/api/trips/${trip.id}/invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inviterSub: user.sub, inviterName: user.name, email: inviteEmail.trim() }),
+      });
+      if (!res.ok) throw new Error();
+      const { member } = await res.json();
+      pushInviteEvent({ id: Date.now().toString(), type: 'invited', email: inviteEmail.trim(), tripName: trip.name, at: new Date().toISOString() });
+      onTripUpdate({ ...trip, crew: [...crew.filter((m: TripMember) => m.email !== member.email), { id: member.id, email: member.email, role: 'member', status: 'pending', invitedAt: member.invited_at }] });
+      setInviteEmail("");
+      showToast("Invite sent!");
+    } catch { showToast("Failed to send invite."); }
+    setInviting(false);
+  };
+
+  const handleRoleChange = async (memberId: string, role: 'admin' | 'member') => {
+    setMenuMemberId(null);
+    try {
+      await fetch(`/api/trips/${trip.id}/members/${memberId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callerSub: user.sub, role }),
+      });
+      onTripUpdate({ ...trip, crew: crew.map((m: TripMember) => m.id === memberId ? { ...m, role } : m) });
+    } catch { showToast("Failed to update role."); }
+  };
+
+  const handleRemoveMember = async (memberId: string) => {
+    setConfirmRemoveId(null);
+    try {
+      await fetch(`/api/trips/${trip.id}/members/${memberId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callerSub: user.sub }),
+      });
+      onTripUpdate({ ...trip, crew: crew.filter((m: TripMember) => m.id !== memberId) });
+    } catch { showToast("Failed to remove member."); }
+  };
+
+  const handleAddSegment = async () => {
+    if (!segName.trim()) return;
+    setSegSaving(true);
+    try {
+      const res = await fetch(`/api/trips/${trip.id}/segments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callerSub: user.sub, name: segName.trim(), origin: segOrigin, destination: segDest, startDate: segStart || undefined, endDate: segEnd || undefined, color: segColor, assignedMemberIds: segAssigned }),
+      });
+      if (!res.ok) throw new Error();
+      const seg = await res.json();
+      const newSeg: TripSegment = { id: seg.id, name: seg.name, startDate: seg.start_date, endDate: seg.end_date, origin: seg.origin, destination: seg.destination, color: seg.color, assignedMemberIds: seg.assigned_member_ids || [] };
+      onTripUpdate({ ...trip, segments: [...segments, newSeg] });
+      setSegName(""); setSegOrigin(""); setSegDest(""); setSegStart(""); setSegEnd(""); setSegColor("#00e5ff"); setSegAssigned([]); setShowAddSeg(false);
+    } catch { showToast("Failed to add segment."); }
+    setSegSaving(false);
+  };
+
+  const handleDeleteSegment = async (segId: string) => {
+    try {
+      await fetch(`/api/trips/${trip.id}/segments/${segId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callerSub: user.sub }),
+      });
+      onTripUpdate({ ...trip, segments: segments.filter((s: TripSegment) => s.id !== segId) });
+    } catch { showToast("Failed to delete segment."); }
+  };
+
   return (
     <div style={{ padding: "16px 20px 100px", overflowY: "auto" }}>
+      {inviteToast && (
+        <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", background: C.card3, color: C.text, borderRadius: 12, padding: "12px 20px", fontSize: 14, fontWeight: 600, zIndex: 300, border: `1px solid ${C.border}` }}>
+          {inviteToast}
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
         <button onClick={onBack} style={{ background: C.card3, border: "none", borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: C.text, fontSize: 18 }}>←</button>
-        <span style={{ fontSize: 18, fontWeight: 700 }}>Manage Crew</span>
-      </div>
-      <div style={{ background: `linear-gradient(135deg, ${C.purple} 0%, #120d24 100%)`, borderRadius: 20, padding: 20, marginBottom: 20, border: `1px solid ${C.purpleBorder}` }}>
-        <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>Invite Family</div>
-        <div style={{ color: C.textMuted, fontSize: 13, marginBottom: 16 }}>Share this code with family members to join the Tripversal.</div>
-        <div style={{ background: "#ffffff10", borderRadius: 12, padding: 14, marginBottom: 10 }}>
-          <div style={{ color: C.textSub, fontSize: 10, letterSpacing: 1.5, marginBottom: 6 }}>TRIPVERSAL CODE</div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ color: C.cyan, fontSize: 24, fontWeight: 800, letterSpacing: 2 }}>TRV-8821</span>
-            <button style={{ width: 36, height: 36, borderRadius: 10, background: "#ffffff15", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: C.text }}><Icon d={icons.copy} size={16} /></button>
-          </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 18, fontWeight: 700 }}>Travel Crew</div>
+          <div style={{ color: C.textMuted, fontSize: 12 }}>{trip.name}</div>
         </div>
-        <div style={{ background: "#ffffff10", borderRadius: 12, padding: 14, marginBottom: 16 }}>
-          <div style={{ color: C.textSub, fontSize: 10, letterSpacing: 1.5, marginBottom: 6 }}>TRIPVERSAL PASSWORD</div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ letterSpacing: 4, fontSize: 14 }}>{showPass ? "pass123" : "● ● ● ● ● ● ●"}</span>
-              <button onClick={() => setShowPass((p: boolean) => !p)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted }}><Icon d={icons.eye} size={16} /></button>
-            </div>
-            <button style={{ width: 36, height: 36, borderRadius: 10, background: "#ffffff15", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: C.text }}><Icon d={icons.edit} size={16} /></button>
-          </div>
-        </div>
-        <Btn variant="white" style={{ width: "100%" }} icon={<Icon d={icons.share} size={16} />}>Share Invite</Btn>
       </div>
-      <Card style={{ marginBottom: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, color: C.textMuted, fontSize: 12, fontWeight: 700, letterSpacing: 1 }}>
-            <Icon d={icons.layers} size={14} /> TRIP SEGMENTS
-          </div>
-          <button onClick={() => setShowAddSeg((p: boolean) => !p)} style={{ background: C.cyan, color: "#000", borderRadius: 20, padding: "6px 14px", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}>
-            <Icon d={icons.plus} size={12} stroke="#000" strokeWidth={2.5} /> NEW SEGMENT
+
+      {/* Tab switcher */}
+      <div style={{ background: C.card3, borderRadius: 14, padding: 4, display: "flex", marginBottom: 20 }}>
+        {(['crew', 'segments'] as const).map(t => (
+          <button key={t} onClick={() => setCrewTab(t)} style={{ flex: 1, padding: "12px", borderRadius: 10, border: "none", cursor: "pointer", background: crewTab === t ? C.cyan : "transparent", color: crewTab === t ? "#000" : C.textMuted, fontWeight: crewTab === t ? 700 : 400, fontSize: 13, fontFamily: "inherit", transition: "all 0.2s", letterSpacing: 1 }}>
+            {t.toUpperCase()}
           </button>
-        </div>
-        {showAddSeg && (
-          <div style={{ background: C.card3, borderRadius: 14, padding: 16, marginBottom: 14 }}>
-            <div style={{ fontWeight: 700, marginBottom: 12 }}>Add Segment</div>
-            <Input placeholder="e.g. Europe Leg 1" value={segName} onChange={setSegName} style={{ marginBottom: 14 }} />
-            <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 10 }}>SEGMENT COLOR</div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, marginBottom: 16 }}>
-              {segColors.map(c => (
-                <button key={c} onClick={() => setSegColor(c)} style={{ width: 36, height: 36, borderRadius: "50%", background: c, border: segColor === c ? "3px solid #fff" : "3px solid transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  {segColor === c && <Icon d={icons.check} size={14} stroke="#fff" strokeWidth={3} />}
-                </button>
-              ))}
-            </div>
-            <Btn style={{ width: "100%" }} variant="secondary" onClick={() => {
-              if (segName.trim()) {
-                setSegments([...segments, { name: segName, color: segColor, default: false }]);
-                setSegName("");
-                setSegColor(segColors[0]);
-                setShowAddSeg(false);
-              }
-            }}>Create</Btn>
-          </div>
-        )}
-        {/* Lista de segmentos */}
-        {segments.map((seg, idx) => (
-          <div key={seg.name + idx} style={{ background: C.card3, borderRadius: 20, padding: "10px 16px", display: "flex", alignItems: "center", gap: 8, width: "fit-content", marginBottom: 6 }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: seg.color }} />
-            <span style={{ fontWeight: 600 }}>{seg.name}</span>
-            {seg.default && <span style={{ color: C.textMuted, fontSize: 13 }}>(Default)</span>}
-          </div>
         ))}
-      </Card>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-        <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#003d3a", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Icon d={icons.users} size={24} stroke={C.cyan} />
-        </div>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: 16 }}>Group Settings</div>
-          <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1 }}>TRAVEL CREW</div>
-        </div>
       </div>
-      <Card style={{ marginBottom: 12 }}>
-        <div style={{ display: "flex", gap: 10 }}>
-          <input placeholder="WhatsApp or Phone" value={whatsapp} onChange={(e: any) => setWhatsapp(e.target.value)} style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: C.text, fontSize: 15, fontFamily: "inherit" }} />
-          <button onClick={() => {
-            if (whatsapp.trim() && !crew.some(c => c.whatsapp === whatsapp.trim())) {
-              setCrew([...crew, { name: `User_${crew.length}`, whatsapp: whatsapp.trim(), status: "invited" as const }]);
-              setWhatsapp("");
-            }
-          }} style={{ background: C.card3, border: "none", borderRadius: 10, padding: "8px 16px", color: C.text, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Add</button>
-        </div>
-      </Card>
-      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 10 }}>FAMILY MEMBERS ({crew.length})</div>
-      {crew.map((m) => (
-        <Card key={m.whatsapp} style={{ marginBottom: 8 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ position: "relative" }}>
-              <Avatar name={m.name} size={42} color={m.status === "you" ? C.cyan : m.status === "invited" ? "#999" : C.cyan} />
-              <div style={{ position: "absolute", bottom: 0, left: 4, width: 8, height: 8, borderRadius: "50%", background: m.status === "you" ? C.cyan : m.status === "accepted" ? C.green : "#999", border: "2px solid #141414" }} />
+
+      {crewTab === 'crew' ? (
+        <>
+          {/* Accepted members */}
+          {accepted.length > 0 && (
+            <>
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>ACCEPTED ({accepted.length})</div>
+              {accepted.map((m: TripMember) => (
+                <Card key={m.id} style={{ marginBottom: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <Avatar name={m.name || m.email} src={m.avatarUrl} size={42} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{m.name || m.email}</div>
+                      <div style={{ color: C.textMuted, fontSize: 11 }}>{m.email}</div>
+                    </div>
+                    <Badge color={m.role === 'admin' ? C.cyan : C.textMuted} bg={m.role === 'admin' ? "#003d45" : C.card3}>{m.role.toUpperCase()}</Badge>
+                    {isAdmin && m.googleSub !== user?.sub && (
+                      <div style={{ position: "relative" }}>
+                        <button onClick={() => setMenuMemberId(menuMemberId === m.id ? null : m.id)} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer", color: C.textMuted }}>
+                          <Icon d={icons.moreH} size={16} stroke={C.textMuted} />
+                        </button>
+                        {menuMemberId === m.id && (
+                          <>
+                            <div onClick={() => setMenuMemberId(null)} style={{ position: "fixed", inset: 0, zIndex: 10 }} />
+                            <div style={{ position: "absolute", right: 0, top: 36, background: C.card2, border: `1px solid ${C.border}`, borderRadius: 12, padding: 8, zIndex: 20, minWidth: 160 }}>
+                              <button onClick={() => handleRoleChange(m.id, m.role === 'admin' ? 'member' : 'admin')} style={{ display: "block", width: "100%", background: "none", border: "none", cursor: "pointer", color: C.text, textAlign: "left", padding: "10px 12px", borderRadius: 8, fontSize: 14, fontFamily: "inherit" }}>
+                                {m.role === 'admin' ? 'Demote to Member' : 'Promote to Admin'}
+                              </button>
+                              <button onClick={() => { setMenuMemberId(null); setConfirmRemoveId(m.id); }} style={{ display: "block", width: "100%", background: "none", border: "none", cursor: "pointer", color: C.red, textAlign: "left", padding: "10px 12px", borderRadius: 8, fontSize: 14, fontFamily: "inherit" }}>
+                                Remove from Crew
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              ))}
+            </>
+          )}
+
+          {/* Pending members */}
+          {pending.length > 0 && (
+            <>
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8, marginTop: 16 }}>PENDING ({pending.length})</div>
+              {pending.map((m: TripMember) => (
+                <Card key={m.id} style={{ marginBottom: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 42, height: 42, borderRadius: "50%", background: C.card3, border: `2px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>✉️</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{m.email}</div>
+                      <div style={{ color: C.yellow, fontSize: 11 }}>Pending invite</div>
+                    </div>
+                    {isAdmin && (
+                      <button onClick={() => setConfirmRemoveId(m.id)} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "6px 10px", cursor: "pointer", color: C.red, fontSize: 12, fontFamily: "inherit" }}>Revoke</button>
+                    )}
+                  </div>
+                </Card>
+              ))}
+            </>
+          )}
+
+          {/* Invite form */}
+          {isAdmin && (
+            <div style={{ marginTop: 20 }}>
+              <SectionLabel icon="users">INVITE VIA EMAIL</SectionLabel>
+              <Card>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <input
+                    placeholder="email@example.com"
+                    value={inviteEmail}
+                    onChange={(e: any) => setInviteEmail(e.target.value)}
+                    onKeyDown={(e: any) => e.key === 'Enter' && handleInvite()}
+                    style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: C.text, fontSize: 15, fontFamily: "inherit" }}
+                  />
+                  <button onClick={handleInvite} disabled={inviting} style={{ background: C.cyan, color: "#000", border: "none", borderRadius: 10, padding: "8px 16px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 13 }}>
+                    {inviting ? "…" : "Invite"}
+                  </button>
+                </div>
+              </Card>
+              <Card style={{ marginTop: 10, opacity: 0.5 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 20 }}>📱</span>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: C.textMuted }}>WhatsApp</div>
+                    <div style={{ color: C.textSub, fontSize: 12 }}>Coming soon</div>
+                  </div>
+                </div>
+              </Card>
             </div>
-            <div style={{ flex: 1 }}>
-              <span style={{ fontWeight: 600 }}>{m.name}</span>
-              <span style={{ color: C.textMuted, fontSize: 12, marginLeft: 6 }}>({m.status === "you" ? "Me" : m.status === "invited" ? "Pending invite" : "Accepted"})</span>
+          )}
+
+          {confirmRemoveId && (
+            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+              <div style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "20px 20px 0 0", padding: "24px 20px 40px" }}>
+                <div style={{ textAlign: "center", marginBottom: 20 }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: C.red, marginBottom: 8 }}>Remove from Crew?</div>
+                  <div style={{ color: C.textMuted, fontSize: 13 }}>This will revoke their access to the trip.</div>
+                </div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setConfirmRemoveId(null)}>Cancel</Btn>
+                  <Btn style={{ flex: 1 }} variant="danger" onClick={() => handleRemoveMember(confirmRemoveId)}>Remove</Btn>
+                </div>
+              </div>
             </div>
-            {m.status === "you" ? <Icon d={icons.edit} size={16} stroke={C.textMuted} /> : (
-              <button onClick={() => setConfirmDelete(m.whatsapp)} style={{ background: "none", border: "none", cursor: "pointer", color: C.red, padding: 0 }}><Icon d={icons.trash} size={16} stroke={C.red} /></button>
-            )}
-          </div>
-        </Card>
-      ))}
-      {confirmDelete && (
-        <Card style={{ marginBottom: 16, background: `${C.redDim}80`, borderRadius: 16, padding: 20 }}>
-          <div style={{ textAlign: "center", marginBottom: 16 }}>
-            <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 8, color: C.red }}>Remove member?</div>
-            <div style={{ color: C.textMuted, fontSize: 14 }}>This member will be removed from the trip group.</div>
-          </div>
-          <div style={{ display: "flex", gap: 10 }}>
-            <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setConfirmDelete(null)}>Cancel</Btn>
-            <Btn style={{ flex: 1 }} variant="danger" onClick={() => {
-              setCrew(crew.filter(c => c.whatsapp !== confirmDelete));
-              setConfirmDelete(null);
-            }}>Remove</Btn>
-          </div>
-        </Card>
+          )}
+        </>
+      ) : (
+        <>
+          {/* Segments tab */}
+          {isAdmin && (
+            <button onClick={() => setShowAddSeg(p => !p)} style={{ display: "flex", alignItems: "center", gap: 6, background: C.cyan, color: "#000", border: "none", borderRadius: 12, padding: "10px 16px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 13, marginBottom: 16 }}>
+              <Icon d={icons.plus} size={14} stroke="#000" strokeWidth={2.5} /> Add Segment
+            </button>
+          )}
+
+          {showAddSeg && (
+            <Card style={{ marginBottom: 16, border: `1px solid ${C.cyan}30` }}>
+              <div style={{ fontWeight: 700, marginBottom: 12 }}>New Segment</div>
+              <Input placeholder="Segment name" value={segName} onChange={setSegName} style={{ marginBottom: 10 }} />
+              <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>FROM</div>
+                  <Input placeholder="Origin" value={segOrigin} onChange={setSegOrigin} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TO</div>
+                  <Input placeholder="Destination" value={segDest} onChange={setSegDest} />
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>START</div>
+                  <Card style={{ padding: 10 }}>
+                    <input type="date" value={segStart} onChange={e => setSegStart(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%" }} />
+                  </Card>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>END</div>
+                  <Card style={{ padding: 10 }}>
+                    <input type="date" value={segEnd} onChange={e => setSegEnd(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%" }} />
+                  </Card>
+                </div>
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>COLOR</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {segColors.map(c => (
+                    <button key={c} onClick={() => setSegColor(c)} style={{ width: 28, height: 28, borderRadius: "50%", background: c, border: segColor === c ? "3px solid #fff" : "3px solid transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {segColor === c && <Icon d={icons.check} size={12} stroke="#fff" strokeWidth={3} />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {accepted.length > 0 && (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>ASSIGN MEMBERS</div>
+                  {accepted.map((m: TripMember) => (
+                    <label key={m.id} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, cursor: "pointer" }}>
+                      <input type="checkbox" checked={segAssigned.includes(m.id)} onChange={e => setSegAssigned(prev => e.target.checked ? [...prev, m.id] : prev.filter(id => id !== m.id))} />
+                      <Avatar name={m.name || m.email} src={m.avatarUrl} size={28} />
+                      <span style={{ fontSize: 13 }}>{m.name || m.email}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 10 }}>
+                <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setShowAddSeg(false)}>Cancel</Btn>
+                <Btn style={{ flex: 1 }} onClick={handleAddSegment}>{segSaving ? "Saving…" : "Create"}</Btn>
+              </div>
+            </Card>
+          )}
+
+          {segments.length === 0 && !showAddSeg && (
+            <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "40px 0" }}>No segments yet. Add one above.</div>
+          )}
+          {segments.map((seg: TripSegment) => {
+            const assignedNames = seg.assignedMemberIds.length === 0 ? 'Everyone'
+              : seg.assignedMemberIds.map((id: string) => accepted.find((m: TripMember) => m.id === id)?.name || '?').join(', ');
+            return (
+              <Card key={seg.id} style={{ marginBottom: 10 }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: "50%", background: seg.color, marginTop: 5, flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: 15 }}>{seg.name}</div>
+                    {(seg.origin || seg.destination) && (
+                      <div style={{ color: C.textMuted, fontSize: 12 }}>{seg.origin} {seg.origin && seg.destination ? '→' : ''} {seg.destination}</div>
+                    )}
+                    {seg.startDate && seg.endDate && (
+                      <div style={{ color: C.textSub, fontSize: 12 }}>{formatDateRange(seg.startDate, seg.endDate)}</div>
+                    )}
+                    <div style={{ color: C.textSub, fontSize: 12, marginTop: 2 }}>{assignedNames}</div>
+                  </div>
+                  {isAdmin && (
+                    <button onClick={() => handleDeleteSegment(seg.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.red, padding: 4 }}>
+                      <Icon d={icons.trash} size={16} stroke={C.red} />
+                    </button>
+                  )}
+                </div>
+              </Card>
+            );
+          })}
+        </>
       )}
     </div>
   );
@@ -1974,10 +2413,23 @@ function AppShell() {
   const [user, setUser] = useState<any>(null);
   const [tab, setTab] = useState("home");
   const [showSettings, setShowSettings] = useState(false);
-  const [showCrew, setShowCrew] = useState(false);
+  const [showManageCrew, setShowManageCrew] = useState(false);
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [activeTripId, setActiveTripId] = useState<string | null>(null);
+  const [pendingInviteToken, setPendingInviteToken] = useState<string | null>(null);
 
+  const activeTrip = trips.find(t => t.id === activeTripId) ?? null;
+
+  const switchActiveTrip = (id: string) => {
+    setActiveTripId(id);
+    localStorage.setItem('tripversal_active_trip_id', id);
+    const t = trips.find(tr => tr.id === id);
+    if (t?.budget) localStorage.setItem('tripversal_budget', JSON.stringify(t.budget));
+  };
+
+  // Restore user from localStorage
   useEffect(() => {
     const stored = localStorage.getItem('tripversal_user');
     if (stored) {
@@ -1985,43 +2437,110 @@ function AppShell() {
     }
   }, []);
 
+  // On user login: check invite URL param, fetch trips, restore active trip
+  useEffect(() => {
+    if (!user) return;
+    const params = new URLSearchParams(window.location.search);
+    const invite = params.get('invite');
+    if (invite) setPendingInviteToken(invite);
+
+    fetch(`/api/trips?userId=${user.sub}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((rows: any[]) => {
+        const loaded = rows.map(rowToTrip);
+        setTrips(loaded);
+        const storedId = localStorage.getItem('tripversal_active_trip_id');
+        const initial = loaded.find(t => t.id === storedId) ?? loaded[0];
+        if (initial) {
+          setActiveTripId(initial.id);
+          localStorage.setItem('tripversal_budget', JSON.stringify(initial.budget));
+        }
+      })
+      .catch(() => {});
+  }, [user]);
+
+  // Sync activeTrip budget to localStorage whenever active trip changes
+  useEffect(() => {
+    if (activeTrip?.budget) localStorage.setItem('tripversal_budget', JSON.stringify(activeTrip.budget));
+  }, [activeTripId]);
+
   const handleLogout = () => {
     localStorage.removeItem('tripversal_user');
     localStorage.removeItem('tripversal_profile');
     localStorage.removeItem('tripversal_budget');
     localStorage.removeItem('tripversal_expenses');
-    setUser(null);
+    localStorage.removeItem('tripversal_active_trip_id');
+    setUser(null); setTrips([]); setActiveTripId(null);
   };
 
   if (!user) return <LoginScreen onLogin={setUser} />;
 
   const handleNav = (t: string) => {
-    setShowSettings(false); setShowCrew(false); setShowAddExpense(false); setShowHistory(false); setTab(t);
+    setShowSettings(false); setShowManageCrew(false); setShowAddExpense(false); setShowHistory(false); setTab(t);
   };
 
   let content;
-  if (showAddExpense) content = <AddExpenseScreen onBack={() => setShowAddExpense(false)} />;
-  else if (showHistory) content = <TransactionHistoryScreen onBack={() => setShowHistory(false)} />;
-  else if (showCrew) content = <ManageCrewScreen onBack={() => setShowCrew(false)} />;
-  else if (showSettings) content = <SettingsScreen onManageCrew={() => setShowCrew(true)} user={user} onLogout={handleLogout} onHistory={() => setShowHistory(true)} />;
-  else {
+  if (pendingInviteToken) {
+    content = (
+      <InviteAcceptScreen
+        token={pendingInviteToken}
+        user={user}
+        onDone={(trip: Trip) => {
+          setTrips(p => [...p, trip]);
+          switchActiveTrip(trip.id);
+          setPendingInviteToken(null);
+          window.history.replaceState({}, '', '/');
+        }}
+        onDecline={() => {
+          setPendingInviteToken(null);
+          window.history.replaceState({}, '', '/');
+        }}
+      />
+    );
+  } else if (showAddExpense) {
+    content = <AddExpenseScreen onBack={() => setShowAddExpense(false)} activeTripId={activeTripId} />;
+  } else if (showHistory) {
+    content = <TransactionHistoryScreen onBack={() => setShowHistory(false)} />;
+  } else if (showManageCrew) {
+    content = (
+      <ManageCrewScreen
+        trip={activeTrip}
+        user={user}
+        onBack={() => setShowManageCrew(false)}
+        onTripUpdate={(updated: Trip) => setTrips(p => p.map(t => t.id === updated.id ? updated : t))}
+      />
+    );
+  } else if (showSettings) {
+    content = (
+      <SettingsScreen
+        user={user}
+        onLogout={handleLogout}
+        onHistory={() => setShowHistory(true)}
+        onManageCrew={() => { setShowSettings(false); setShowManageCrew(true); }}
+        trips={trips}
+        activeTripId={activeTripId}
+        onSwitchTrip={(id: string) => { switchActiveTrip(id); setShowSettings(false); }}
+        onTripCreate={(trip: Trip) => { setTrips(p => [...p, trip]); switchActiveTrip(trip.id); }}
+      />
+    );
+  } else {
     switch (tab) {
-      case "home": content = <HomeScreen onNav={handleNav} onAddExpense={() => setShowAddExpense(true)} />; break;
+      case "home": content = <HomeScreen onNav={handleNav} onAddExpense={() => setShowAddExpense(true)} activeTripId={activeTripId} />; break;
       case "itinerary": content = <ItineraryScreen />; break;
-      case "wallet": content = <WalletScreen onAddExpense={() => setShowAddExpense(true)} />; break;
+      case "wallet": content = <WalletScreen onAddExpense={() => setShowAddExpense(true)} activeTripId={activeTripId} />; break;
       case "photos": content = <PhotosScreen />; break;
       case "sos": content = <SOSScreen />; break;
       default: content = null;
     }
   }
 
-  const activeTab = showSettings || showCrew || showAddExpense || showHistory ? null : tab;
+  const activeTab = showSettings || showManageCrew || showAddExpense || showHistory || pendingInviteToken ? null : tab;
 
   return (
     <div style={{ background: "#000", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <GlobalStyles />
       <div style={{ width: "100%", maxWidth: 430, minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", position: "relative", overflowX: "hidden", display: "flex", flexDirection: "column" }}>
-        <Header onSettings={() => { setShowSettings(true); setShowCrew(false); setShowAddExpense(false); }} user={user} />
+        <Header onSettings={() => { setShowSettings(true); setShowManageCrew(false); setShowAddExpense(false); }} user={user} />
         <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
           {content}
         </div>
