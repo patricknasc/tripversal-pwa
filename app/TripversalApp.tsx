@@ -634,6 +634,16 @@ const SettingsScreen = ({ onManageCrew, user, onLogout }: any) => {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [budgetEdit, setBudgetEdit] = useState(false);
+  const [profileSaved, setProfileSaved] = useState(false);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+
+  const saveProfile = () => {
+    localStorage.setItem('tripversal_profile', JSON.stringify({ username, email, phone, avatarUrl }));
+    const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    setSavedAt(time);
+    setProfileSaved(true);
+    setTimeout(() => setProfileSaved(false), 2000);
+  };
 
   useEffect(() => {
     const stored = localStorage.getItem('tripversal_profile');
@@ -710,9 +720,22 @@ const SettingsScreen = ({ onManageCrew, user, onLogout }: any) => {
             </div>
           </div>
         </div>
-        <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
-          <Btn onClick={() => { localStorage.setItem('tripversal_profile', JSON.stringify({ username, email, phone, avatarUrl })); }} variant="primary">Save Profile</Btn>
+        <div style={{ marginTop: 12, display: "flex", gap: 10, alignItems: "center" }}>
+          <Btn
+            onClick={saveProfile}
+            variant="primary"
+            icon={profileSaved ? <Icon d={icons.check} size={16} stroke="#000" /> : undefined}
+            style={profileSaved ? { background: C.green, transition: "background 0.2s" } : { transition: "background 0.2s" }}
+          >
+            {profileSaved ? "Saved!" : "Save Profile"}
+          </Btn>
           <Btn onClick={() => { setUsername(user?.name || ""); setEmail(user?.email || ""); setPhone(""); setAvatarUrl(user?.picture || null); }} variant="ghost">Reset</Btn>
+          {savedAt && (
+            <span style={{ color: C.textSub, fontSize: 11, marginLeft: 4 }}>
+              <Icon d={icons.check} size={11} stroke={C.green} style={{ display: "inline", verticalAlign: "middle", marginRight: 3 }} />
+              Synced {savedAt}
+            </span>
+          )}
         </div>
       </Card>
       <SectionLabel icon="wallet">BUDGET SETTINGS</SectionLabel>
