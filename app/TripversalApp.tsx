@@ -329,6 +329,7 @@ const HomeScreen = ({ onNav, onAddExpense }: any) => {
   const [homeEditDate, setHomeEditDate] = useState("");
   const [homeEditSourceId, setHomeEditSourceId] = useState("");
   const [homeEditCurrency, setHomeEditCurrency] = useState<Currency>("EUR");
+  const [homeEditCity, setHomeEditCity] = useState("");
   const [homeConfirmDelete, setHomeConfirmDelete] = useState(false);
 
   useEffect(() => {
@@ -337,7 +338,7 @@ const HomeScreen = ({ onNav, onAddExpense }: any) => {
       const b: TripBudget = bs ? JSON.parse(bs) : DEFAULT_BUDGET;
       setBudget(b);
       const es = localStorage.getItem('tripversal_expenses');
-      const expenses: Expense[] = es ? JSON.parse(es) : [];
+      const expenses: Expense[] = (es ? JSON.parse(es) : []).sort((a: Expense, b: Expense) => new Date(b.date).getTime() - new Date(a.date).getTime());
       const todayKey = localDateKey(new Date());
       const yest = new Date(); yest.setDate(yest.getDate() - 1);
       const yesterdayKey = localDateKey(yest);
@@ -350,8 +351,9 @@ const HomeScreen = ({ onNav, onAddExpense }: any) => {
   const sourceMap = Object.fromEntries(budget.sources.map(s => [s.id, s]));
 
   const saveHomeExpenses = (arr: Expense[]) => {
-    setAllExpenses(arr);
-    localStorage.setItem('tripversal_expenses', JSON.stringify(arr));
+    const sorted = [...arr].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    setAllExpenses(sorted);
+    localStorage.setItem('tripversal_expenses', JSON.stringify(sorted));
   };
   const handleHomeDelete = (id: string) => {
     const exp = allExpenses.find(e => e.id === id);
@@ -371,8 +373,8 @@ const HomeScreen = ({ onNav, onAddExpense }: any) => {
       if (e.id !== id) return e;
       const snap = { description: e.description, localAmount: e.localAmount, category: e.category, date: e.date, sourceId: e.sourceId, localCurrency: e.localCurrency };
       return { ...e, description: homeEditDesc, localAmount: parseFloat(homeEditAmount) || e.localAmount,
-        category: homeEditCat, date: homeEditDate ? new Date(homeEditDate).toISOString() : e.date,
-        sourceId: homeEditSourceId || e.sourceId, localCurrency: homeEditCurrency,
+        category: homeEditCat, date: homeEditDate ? new Date(`${homeEditDate}T12:00:00`).toISOString() : e.date,
+        sourceId: homeEditSourceId || e.sourceId, localCurrency: homeEditCurrency, city: homeEditCity || e.city,
         editHistory: [...(e.editHistory || []), { at: new Date().toISOString(), snapshot: snap }] };
     });
     saveHomeExpenses(next);
@@ -552,7 +554,7 @@ const HomeScreen = ({ onNav, onAddExpense }: any) => {
                   )}
                   <div style={{ display: "flex", gap: 10 }}>
                     <Btn style={{ flex: 1 }} variant="secondary" icon={<Icon d={icons.edit} size={16} />}
-                      onClick={() => { setHomeEditDesc(exp.description); setHomeEditAmount(String(exp.localAmount)); setHomeEditCat(exp.category); setHomeEditDate(exp.date.slice(0, 10)); setHomeEditSourceId(exp.sourceId); setHomeEditCurrency(exp.localCurrency); setHomeEditMode(true); }}>
+                      onClick={() => { setHomeEditDesc(exp.description); setHomeEditAmount(String(exp.localAmount)); setHomeEditCat(exp.category); setHomeEditDate(exp.date.slice(0, 10)); setHomeEditSourceId(exp.sourceId); setHomeEditCurrency(exp.localCurrency); setHomeEditCity(exp.city || ""); setHomeEditMode(true); }}>
                       Edit
                     </Btn>
                     <Btn style={{ flex: 1 }} variant="danger" icon={<Icon d={icons.trash} size={16} stroke={C.red} />}
@@ -586,6 +588,13 @@ const HomeScreen = ({ onNav, onAddExpense }: any) => {
                     <Card style={{ display: "flex", alignItems: "center", gap: 10, padding: 12 }}>
                       <input type="date" value={homeEditDate} onChange={e => setHomeEditDate(e.target.value)}
                         style={{ background: "transparent", border: "none", color: C.text, flex: 1, outline: "none", fontFamily: "inherit", colorScheme: "dark" }} />
+                    </Card>
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>LOCATION</div>
+                    <Card style={{ display: "flex", alignItems: "center", gap: 10, padding: 12 }}>
+                      <input value={homeEditCity} onChange={e => setHomeEditCity(e.target.value)} placeholder="City"
+                        style={{ background: "transparent", border: "none", color: C.text, flex: 1, outline: "none", fontFamily: "inherit", fontSize: 14 }} />
                     </Card>
                   </div>
                   <div style={{ marginBottom: 10 }}>
@@ -686,6 +695,7 @@ const WalletScreen = ({ onAddExpense }: any) => {
   const [editDate, setEditDate] = useState("");
   const [editSourceId, setEditSourceId] = useState("");
   const [editCurrency, setEditCurrency] = useState<Currency>("EUR");
+  const [editCity, setEditCity] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [visibleTxCount, setVisibleTxCount] = useState(10);
   const txSentinelRef = useRef<HTMLDivElement>(null);
@@ -695,7 +705,7 @@ const WalletScreen = ({ onAddExpense }: any) => {
       const bs = localStorage.getItem('tripversal_budget');
       if (bs) setBudgetState(JSON.parse(bs));
       const es = localStorage.getItem('tripversal_expenses');
-      if (es) setExpenses(JSON.parse(es));
+      if (es) setExpenses((JSON.parse(es) as Expense[]).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
     } catch {}
   }, []);
 
@@ -711,8 +721,9 @@ const WalletScreen = ({ onAddExpense }: any) => {
   }, [expenses.length]);
 
   const saveExpenses = (arr: Expense[]) => {
-    setExpenses(arr);
-    localStorage.setItem('tripversal_expenses', JSON.stringify(arr));
+    const sorted = [...arr].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    setExpenses(sorted);
+    localStorage.setItem('tripversal_expenses', JSON.stringify(sorted));
   };
   const handleDelete = (id: string) => {
     const exp = expenses.find(e => e.id === id);
@@ -733,8 +744,8 @@ const WalletScreen = ({ onAddExpense }: any) => {
       const snap = { description: e.description, localAmount: e.localAmount,
         category: e.category, date: e.date, sourceId: e.sourceId, localCurrency: e.localCurrency };
       return { ...e, description: editDesc, localAmount: parseFloat(editAmount) || e.localAmount,
-        category: editCat, date: editDate ? new Date(editDate).toISOString() : e.date,
-        sourceId: editSourceId || e.sourceId, localCurrency: editCurrency,
+        category: editCat, date: editDate ? new Date(`${editDate}T12:00:00`).toISOString() : e.date,
+        sourceId: editSourceId || e.sourceId, localCurrency: editCurrency, city: editCity || e.city,
         editHistory: [...(e.editHistory || []), { at: new Date().toISOString(), snapshot: snap }] };
     });
     saveExpenses(next);
@@ -797,7 +808,8 @@ const WalletScreen = ({ onAddExpense }: any) => {
       {expenses.slice(0, visibleTxCount).map(exp => {
         const src = sourceMap[exp.sourceId];
         const catIcon = categories.find(c => c.id === exp.category)?.icon || icons.moreH;
-        const dateStr = new Date(exp.date).toLocaleDateString("en", { day: "numeric", month: "short" }).toUpperCase();
+        const d = new Date(exp.date);
+        const dateStr = d.toLocaleDateString("en", { day: "numeric", month: "short" }).toUpperCase() + " · " + d.toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" });
         return (
           <Card key={exp.id} style={{ marginBottom: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -845,9 +857,10 @@ const WalletScreen = ({ onAddExpense }: any) => {
               {!editMode && !confirmDelete ? (
                 <>
                   {exp.receiptDataUrl && <img src={exp.receiptDataUrl} style={{ width: "100%", borderRadius: 12, marginBottom: 16, maxHeight: 180, objectFit: "cover" }} />}
-                  <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 4 }}>{exp.description}</div>
+                  <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 2 }}>{exp.description}</div>
+                  {exp.city && <div style={{ color: C.cyan, fontSize: 12, marginBottom: 4 }}>📍 {exp.city}</div>}
                   <div style={{ color: C.textMuted, fontSize: 13, marginBottom: 16 }}>
-                    {new Date(exp.date).toLocaleDateString("en", { day: "numeric", month: "long", year: "numeric" })}
+                    {new Date(exp.date).toLocaleDateString("en", { day: "numeric", month: "long", year: "numeric" })} · {new Date(exp.date).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}
                   </div>
                   <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
                     <div style={{ background: C.card3, borderRadius: 12, padding: 12, flex: 1 }}>
@@ -871,7 +884,7 @@ const WalletScreen = ({ onAddExpense }: any) => {
                   )}
                   <div style={{ display: "flex", gap: 10 }}>
                     <Btn style={{ flex: 1 }} variant="secondary" icon={<Icon d={icons.edit} size={16} />}
-                      onClick={() => { setEditDesc(exp.description); setEditAmount(String(exp.localAmount)); setEditCat(exp.category); setEditDate(exp.date.slice(0, 10)); setEditSourceId(exp.sourceId); setEditCurrency(exp.localCurrency); setEditMode(true); }}>
+                      onClick={() => { setEditDesc(exp.description); setEditAmount(String(exp.localAmount)); setEditCat(exp.category); setEditDate(exp.date.slice(0, 10)); setEditSourceId(exp.sourceId); setEditCurrency(exp.localCurrency); setEditCity(exp.city || ""); setEditMode(true); }}>
                       Edit
                     </Btn>
                     <Btn style={{ flex: 1 }} variant="danger" icon={<Icon d={icons.trash} size={16} stroke={C.red} />}
@@ -907,6 +920,13 @@ const WalletScreen = ({ onAddExpense }: any) => {
                     <Card style={{ display: "flex", alignItems: "center", gap: 10, padding: 12 }}>
                       <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
                         style={{ background: "transparent", border: "none", color: C.text, flex: 1, outline: "none", fontFamily: "inherit", colorScheme: "dark" }} />
+                    </Card>
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>LOCATION</div>
+                    <Card style={{ display: "flex", alignItems: "center", gap: 10, padding: 12 }}>
+                      <input value={editCity} onChange={e => setEditCity(e.target.value)} placeholder="City"
+                        style={{ background: "transparent", border: "none", color: C.text, flex: 1, outline: "none", fontFamily: "inherit", fontSize: 14 }} />
                     </Card>
                   </div>
                   <div style={{ marginBottom: 10 }}>
@@ -999,6 +1019,10 @@ const AddExpenseScreen = ({ onBack }: any) => {
   });
   const [saving, setSaving] = useState(false);
   const [expDate, setExpDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [expTime, setExpTime] = useState<string>(() => {
+    const n = new Date();
+    return `${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}`;
+  });
   const [receiptDataUrl, setReceiptDataUrl] = useState<string | null>(null);
   const [allExpenses, setAllExpenses] = useState<Expense[]>([]);
   const [displayRate, setDisplayRate] = useState(1);
@@ -1034,6 +1058,13 @@ const AddExpenseScreen = ({ onBack }: any) => {
   const totalSpentAllBase = allExpenses.reduce((s, e) => s + e.baseAmount, 0);
   const remainingBase = accumulatedDays * budget.dailyLimit - totalSpentAllBase;
   const remainingLocal = displayRate > 0 ? remainingBase / displayRate : remainingBase;
+
+  // Credit vs balance distinction
+  const selectedSource = budget.sources.find(s => s.id === selectedSourceId);
+  const isCredit = selectedSource?.type === "credit";
+  const creditSpentOnSource = allExpenses.filter(e => e.sourceId === selectedSourceId).reduce((s, e) => s + e.baseAmount, 0);
+  const creditAvailable = (selectedSource?.limitInBase ?? selectedSource?.limit ?? 0) - creditSpentOnSource;
+  const balanceValue = isCredit ? creditAvailable : remainingBase;
 
   const handleKey = (k: string) => {
     setAmount(prev => {
@@ -1105,12 +1136,15 @@ const AddExpenseScreen = ({ onBack }: any) => {
         </div>
       </div>
       <div style={{ marginTop: 20 }}>
-        <SectionLabel>DATE</SectionLabel>
+        <SectionLabel>DATE & TIME</SectionLabel>
         <Card style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Icon d={icons.calendar} size={16} stroke={C.textMuted} />
           <input type="date" value={expDate} onChange={e => setExpDate(e.target.value)}
             style={{ background: "transparent", border: "none", color: C.text, fontSize: 15,
               flex: 1, outline: "none", fontFamily: "inherit", colorScheme: "dark" }} />
+          <input type="time" value={expTime} onChange={e => setExpTime(e.target.value)}
+            style={{ background: "transparent", border: "none", color: C.textMuted, fontSize: 14,
+              outline: "none", fontFamily: "inherit", colorScheme: "dark", width: 80 }} />
         </Card>
       </div>
       <div style={{ marginTop: 20 }}>
@@ -1120,6 +1154,19 @@ const AddExpenseScreen = ({ onBack }: any) => {
           <input value={city} onChange={e => setCity(e.target.value)} placeholder="City (auto-detected)"
             style={{ background: "transparent", border: "none", color: C.text, fontSize: 15, flex: 1, outline: "none", fontFamily: "inherit" }} />
         </Card>
+      </div>
+      <div style={{ marginTop: 20, background: C.card3, borderRadius: 14, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div>
+          <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 4 }}>
+            {isCredit ? "CREDIT AVAILABLE TODAY" : "DAILY BALANCE"}
+          </div>
+          <div style={{ color: balanceValue >= 0 ? C.green : C.red, fontSize: 16, fontWeight: 800 }}>
+            {isCredit
+              ? `${currSym(budget.baseCurrency)}${fmtAmt(creditAvailable)}`
+              : `${currSym(budget.baseCurrency)}${fmtAmt(remainingBase)}${localCurrency !== budget.baseCurrency ? ` / ${currSym(localCurrency)}${fmtAmt(remainingLocal)}` : ""}`}
+          </div>
+        </div>
+        {isCredit && <div style={{ color: C.textSub, fontSize: 11, maxWidth: 120, textAlign: "right", lineHeight: 1.4 }}>For debit & cash only</div>}
       </div>
       <div style={{ marginTop: 20 }}>
         <SectionLabel>EXPENSE TYPE</SectionLabel>
@@ -1133,14 +1180,8 @@ const AddExpenseScreen = ({ onBack }: any) => {
       </div>
       {expType === "group" && (
         <div style={{ marginTop: 20 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+          <div style={{ marginBottom: 10 }}>
             <span style={{ color: C.textMuted, fontSize: 12, fontWeight: 700, letterSpacing: 1 }}>SPLIT</span>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ color: C.textMuted, fontSize: 9, letterSpacing: 1 }}>SALDO DISPONÍVEL HOJE</div>
-              <div style={{ color: remainingBase >= 0 ? C.green : C.red, fontSize: 12, fontWeight: 700 }}>
-                {currSym(budget.baseCurrency)}{fmtAmt(remainingBase)}{localCurrency !== budget.baseCurrency ? ` / ${currSym(localCurrency)}${fmtAmt(remainingLocal)}` : ""}
-              </div>
-            </div>
           </div>
           {members.map(m => {
             const toPay = totalShares > 0 ? (total * shares[m] / totalShares).toFixed(2) : "0.00";
@@ -1223,7 +1264,7 @@ const AddExpenseScreen = ({ onBack }: any) => {
           id: Date.now().toString(),
           description: desc || categories.find(c => c.id === cat)?.label || cat,
           category: cat,
-          date: expDate ? new Date(expDate).toISOString() : new Date().toISOString(),
+          date: new Date(`${expDate || localDateKey(new Date())}T${expTime || '12:00'}:00`).toISOString(),
           sourceId: selectedSourceId,
           type: expType as "personal" | "group",
           localAmount,
@@ -1239,7 +1280,8 @@ const AddExpenseScreen = ({ onBack }: any) => {
         try {
           const prev = localStorage.getItem('tripversal_expenses');
           const arr: Expense[] = prev ? JSON.parse(prev) : [];
-          localStorage.setItem('tripversal_expenses', JSON.stringify([expense, ...arr]));
+          const merged = [expense, ...arr].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          localStorage.setItem('tripversal_expenses', JSON.stringify(merged));
         } catch {}
         setSaving(false);
         onBack();
