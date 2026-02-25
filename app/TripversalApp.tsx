@@ -809,6 +809,28 @@ const AddExpenseScreen = ({ onBack }: any) => {
   const [saving, setSaving] = useState(false);
   const [expDate, setExpDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [receiptDataUrl, setReceiptDataUrl] = useState<string | null>(null);
+  const [allExpenses, setAllExpenses] = useState<Expense[]>([]);
+  const [displayRate, setDisplayRate] = useState(1);
+
+  useEffect(() => {
+    try {
+      const es = localStorage.getItem('tripversal_expenses');
+      if (es) setAllExpenses(JSON.parse(es));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (localCurrency === budget.baseCurrency) { setDisplayRate(1); return; }
+    fetchRate(localCurrency, budget.baseCurrency).then(r => setDisplayRate(r)).catch(() => setDisplayRate(1));
+  }, [localCurrency, budget.baseCurrency]);
+
+  // Remaining budget today (with carryover from previous days)
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const pastDates = new Set(allExpenses.filter(e => e.date.slice(0, 10) !== todayKey).map(e => e.date.slice(0, 10)));
+  const accumulatedDays = pastDates.size + 1;
+  const totalSpentAllBase = allExpenses.reduce((s, e) => s + e.baseAmount, 0);
+  const remainingBase = accumulatedDays * budget.dailyLimit - totalSpentAllBase;
+  const remainingLocal = displayRate > 0 ? remainingBase / displayRate : remainingBase;
 
   const handleKey = (k: string) => {
     setAmount(prev => {
@@ -824,7 +846,7 @@ const AddExpenseScreen = ({ onBack }: any) => {
       <div style={{ textAlign: "center", padding: "24px 0 16px", borderBottom: `1px solid ${C.border}` }}>
         <div style={{ color: C.textMuted, fontSize: 12, letterSpacing: 1.5, marginBottom: 12 }}>AMOUNT</div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-          <span style={{ fontSize: 32, color: C.textMuted }}>€</span>
+          <span style={{ fontSize: 32, color: C.textMuted }}>{currSym(localCurrency)}</span>
           <span style={{ fontSize: amount.length > 6 ? 32 : 44, fontWeight: 800, color: C.text, letterSpacing: -2 }}>{amount}</span>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginTop: 16, maxWidth: 280, margin: "16px auto 0" }}>
@@ -902,7 +924,9 @@ const AddExpenseScreen = ({ onBack }: any) => {
         <div style={{ marginTop: 20 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
             <span style={{ color: C.textMuted, fontSize: 12, fontWeight: 700, letterSpacing: 1 }}>SPLIT</span>
-            <span style={{ color: C.cyan, fontSize: 12, fontWeight: 600 }}>remaining: €{total.toFixed(2)}</span>
+            <span style={{ color: remainingBase >= 0 ? C.green : C.red, fontSize: 12, fontWeight: 600 }}>
+              {currSym(budget.baseCurrency)}{fmtAmt(remainingBase)}{localCurrency !== budget.baseCurrency ? ` / ${currSym(localCurrency)}${fmtAmt(remainingLocal)}` : ""}
+            </span>
           </div>
           {members.map(m => {
             const toPay = totalShares > 0 ? (total * shares[m] / totalShares).toFixed(2) : "0.00";
@@ -912,7 +936,7 @@ const AddExpenseScreen = ({ onBack }: any) => {
                   <Avatar name={m} />
                   <div>
                     <div style={{ fontWeight: 600 }}>{m}</div>
-                    <div style={{ color: C.cyan, fontSize: 12 }}>€{toPay}</div>
+                    <div style={{ color: C.cyan, fontSize: 12 }}>{currSym(localCurrency)}{toPay}</div>
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
@@ -925,7 +949,7 @@ const AddExpenseScreen = ({ onBack }: any) => {
                     </div>
                   </div>
                   <div style={{ flex: 1, background: C.card3, borderRadius: 10, padding: 12 }}>
-                    <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 8 }}>FIXED €</div>
+                    <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 8 }}>FIXED {currSym(localCurrency)}</div>
                     <input placeholder="0.00" style={{ background: "transparent", border: "none", outline: "none", color: C.text, fontSize: 15, fontFamily: "inherit", width: "100%" }} />
                   </div>
                 </div>
