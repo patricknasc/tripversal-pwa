@@ -410,7 +410,7 @@ const categories = [
 const members = ["You", "Patrick", "Sarah"];
 
 const AddExpenseScreen = ({ onBack }: any) => {
-  const [amount, setAmount] = useState("0.00");
+  const [amount, setAmount] = useState("0");
   const [cat, setCat] = useState("food");
   const [expType, setExpType] = useState("group");
   const [whoPaid, setWhoPaid] = useState("You");
@@ -422,6 +422,7 @@ const AddExpenseScreen = ({ onBack }: any) => {
     setAmount(prev => {
       if (k === "⌫") return prev.length > 1 ? prev.slice(0, -1) : "0";
       if (k === ".") return prev.includes(".") ? prev : prev + ".";
+      if (prev.includes(".") && prev.split(".")[1].length >= 2) return prev;
       if (prev === "0") return k;
       return prev + k;
     });
