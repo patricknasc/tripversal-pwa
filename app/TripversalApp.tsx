@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { GoogleOAuthProvider, useGoogleLogin } from "@react-oauth/google";
 
 // ─── Types + Helpers ────────────────────────────────────────────────────────
@@ -305,74 +305,154 @@ const BottomNav = ({ active, onNav }: any) => {
   );
 };
 
-const HomeScreen = ({ onNav, onAddExpense }: any) => (
-  <div style={{ padding: "0 0 100px" }}>
-    <div style={{ padding: "16px 20px 0" }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-          <span style={{ fontSize: 40, fontWeight: 800, color: C.text, letterSpacing: -1 }}>€126</span>
-          <span style={{ color: C.textMuted, fontSize: 18 }}>/ €400</span>
-        </div>
-        <div style={{ background: "#1a2a1a", color: C.green, borderRadius: 20, padding: "4px 10px", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
-          <span>↗</span> 32%
-        </div>
-      </div>
-      <div style={{ height: 6, background: C.card3, borderRadius: 4, overflow: "hidden" }}>
-        <div style={{ width: "32%", height: "100%", background: C.cyan, borderRadius: 4 }} />
-      </div>
-    </div>
-    <div style={{ margin: "16px 20px 0", background: "linear-gradient(135deg, #0d2526 0%, #0a1a1a 100%)", borderRadius: 20, padding: 20, border: `1px solid ${C.cyan}20` }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <div style={{ background: "#003d4520", border: `1px solid ${C.cyan}40`, borderRadius: 20, padding: "5px 12px", display: "flex", alignItems: "center", gap: 6, color: C.cyan, fontSize: 12, fontWeight: 700 }}>
-          <Icon d={icons.clock} size={12} stroke={C.cyan} /> IN 45M
-        </div>
-        <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#ffffff15", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Icon d={icons.plane} size={20} stroke={C.text} />
-        </div>
-      </div>
-      <div style={{ fontSize: 26, fontWeight: 800, color: C.text, marginBottom: 4 }}>Flight to Rome</div>
-      <div style={{ color: C.textMuted, fontSize: 14, marginBottom: 18 }}>Boarding in 45m</div>
-      <div style={{ display: "flex", gap: 10 }}>
-        <Btn style={{ flex: 1, borderRadius: 12 }} variant="white" icon={<Icon d={icons.fileText} size={16} />}>Tickets</Btn>
-        <Btn style={{ flex: 1, borderRadius: 12 }} variant="secondary" icon={<Icon d={icons.navigation} size={16} />}>Directions</Btn>
-      </div>
-    </div>
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, margin: "16px 20px 0" }}>
-      {[
-        { label: "EXPENSE", icon: icons.plus, action: onAddExpense },
-        { label: "PHOTO", icon: icons.camera, action: () => onNav("photos") },
-        { label: "GROUP", icon: icons.users, action: () => onNav("settings") },
-        { label: "SOS", icon: icons.phone, variant: "red" },
-      ].map(({ label, icon, variant, action }: any) => (
-        <button key={label} onClick={action} style={{ background: variant === "red" ? C.redDim : C.card2, borderRadius: 16, padding: "16px 8px", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-          <Icon d={icon} size={22} stroke={variant === "red" ? C.red : C.cyan} />
-          <span style={{ color: variant === "red" ? C.red : C.textMuted, fontSize: 10, fontWeight: 700, letterSpacing: 1 }}>{label}</span>
-        </button>
-      ))}
-    </div>
-    <div style={{ margin: "20px 20px 0" }}>
-      <SectionLabel>RECENT ACTIVITY</SectionLabel>
-      <Card>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ position: "relative" }}>
-            <Avatar name="P" size={40} color="#aaa" />
-            <div style={{ position: "absolute", bottom: -2, right: -2, background: "#f5a623", borderRadius: 4, padding: "1px 3px" }}>
-              <Icon d={icons.wallet} size={8} stroke="#fff" fill="none" />
-            </div>
+const HomeScreen = ({ onNav, onAddExpense }: any) => {
+  const [budget, setBudget] = useState<TripBudget>(DEFAULT_BUDGET);
+  const [todaySpent, setTodaySpent] = useState(0);
+  const [yesterdaySpent, setYesterdaySpent] = useState(0);
+  const [allExpenses, setAllExpenses] = useState<Expense[]>([]);
+  const [visibleCount, setVisibleCount] = useState(10);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    try {
+      const bs = localStorage.getItem('tripversal_budget');
+      const b: TripBudget = bs ? JSON.parse(bs) : DEFAULT_BUDGET;
+      setBudget(b);
+      const es = localStorage.getItem('tripversal_expenses');
+      const expenses: Expense[] = es ? JSON.parse(es) : [];
+      const todayKey = new Date().toISOString().slice(0, 10);
+      const yest = new Date(); yest.setDate(yest.getDate() - 1);
+      const yesterdayKey = yest.toISOString().slice(0, 10);
+      setTodaySpent(expenses.filter(e => e.date.slice(0, 10) === todayKey).reduce((s, e) => s + e.baseAmount, 0));
+      setYesterdaySpent(expenses.filter(e => e.date.slice(0, 10) === yesterdayKey).reduce((s, e) => s + e.baseAmount, 0));
+      setAllExpenses(expenses);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      entries => { if (entries[0].isIntersecting) setVisibleCount(c => c + 10); },
+      { threshold: 0.1 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [allExpenses.length]);
+
+  const pct = budget.dailyLimit > 0 ? Math.min(todaySpent / budget.dailyLimit, 1) : 0;
+  const barColor = pct > 0.85 ? C.red : pct > 0.6 ? C.yellow : C.cyan;
+
+  // Badge: compare today vs yesterday
+  let badgeArrow = "—";
+  let badgeLabel = "—";
+  let badgeBg = C.card3;
+  let badgeColor = C.textMuted;
+  if (yesterdaySpent > 0) {
+    const diff = ((todaySpent - yesterdaySpent) / yesterdaySpent) * 100;
+    badgeLabel = `${Math.abs(diff).toFixed(0)}%`;
+    if (todaySpent <= yesterdaySpent) {
+      badgeArrow = "↘"; badgeBg = "#1a2a1a"; badgeColor = C.green;
+    } else {
+      badgeArrow = "↗"; badgeBg = "#2a1400"; badgeColor = C.yellow;
+    }
+  } else if (todaySpent > 0) {
+    badgeArrow = "↗"; badgeLabel = `${(pct * 100).toFixed(0)}%`;
+    badgeBg = "#1a2a1a"; badgeColor = C.green;
+  }
+
+  return (
+    <div style={{ padding: "0 0 100px" }}>
+      <div style={{ padding: "16px 20px 0" }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+            <span style={{ fontSize: 40, fontWeight: 800, color: C.text, letterSpacing: -1 }}>{currSym(budget.baseCurrency)}{fmtAmt(todaySpent)}</span>
+            <span style={{ color: C.textMuted, fontSize: 18 }}>/ {currSym(budget.baseCurrency)}{fmtAmt(budget.dailyLimit, 0)}</span>
           </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 14 }}><span style={{ color: C.text, fontWeight: 600 }}>Patrick</span> <span style={{ color: C.textMuted }}>paid</span></div>
-            <div style={{ color: C.textMuted, fontSize: 12 }}>Paid for Lunch at Le Bistro</div>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ color: C.textMuted, fontSize: 11 }}>07:04 PM</div>
-            <div style={{ color: C.text, fontWeight: 700, fontSize: 14 }}>€126.00</div>
+          <div style={{ background: badgeBg, color: badgeColor, borderRadius: 20, padding: "4px 10px", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
+            <span>{badgeArrow}</span> {badgeLabel}
           </div>
         </div>
-      </Card>
+        <div style={{ height: 6, background: C.card3, borderRadius: 4, overflow: "hidden" }}>
+          <div style={{ width: `${pct * 100}%`, height: "100%", background: barColor, borderRadius: 4, transition: "width 0.3s" }} />
+        </div>
+        {yesterdaySpent > 0 && (
+          <div style={{ color: C.textSub, fontSize: 11, marginTop: 6, textAlign: "right" }}>
+            vs yesterday {currSym(budget.baseCurrency)}{fmtAmt(yesterdaySpent)}
+          </div>
+        )}
+      </div>
+      <div style={{ margin: "16px 20px 0", background: "linear-gradient(135deg, #0d2526 0%, #0a1a1a 100%)", borderRadius: 20, padding: 20, border: `1px solid ${C.cyan}20` }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <div style={{ background: "#003d4520", border: `1px solid ${C.cyan}40`, borderRadius: 20, padding: "5px 12px", display: "flex", alignItems: "center", gap: 6, color: C.cyan, fontSize: 12, fontWeight: 700 }}>
+            <Icon d={icons.clock} size={12} stroke={C.cyan} /> IN 45M
+          </div>
+          <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#ffffff15", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon d={icons.plane} size={20} stroke={C.text} />
+          </div>
+        </div>
+        <div style={{ fontSize: 26, fontWeight: 800, color: C.text, marginBottom: 4 }}>Flight to Rome</div>
+        <div style={{ color: C.textMuted, fontSize: 14, marginBottom: 18 }}>Boarding in 45m</div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <Btn style={{ flex: 1, borderRadius: 12 }} variant="white" icon={<Icon d={icons.fileText} size={16} />}>Tickets</Btn>
+          <Btn style={{ flex: 1, borderRadius: 12 }} variant="secondary" icon={<Icon d={icons.navigation} size={16} />}>Directions</Btn>
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, margin: "16px 20px 0" }}>
+        {[
+          { label: "EXPENSE", icon: icons.plus, action: onAddExpense },
+          { label: "PHOTO", icon: icons.camera, action: () => onNav("photos") },
+          { label: "GROUP", icon: icons.users, action: () => onNav("settings") },
+          { label: "SOS", icon: icons.phone, variant: "red" },
+        ].map(({ label, icon, variant, action }: any) => (
+          <button key={label} onClick={action} style={{ background: variant === "red" ? C.redDim : C.card2, borderRadius: 16, padding: "16px 8px", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+            <Icon d={icon} size={22} stroke={variant === "red" ? C.red : C.cyan} />
+            <span style={{ color: variant === "red" ? C.red : C.textMuted, fontSize: 10, fontWeight: 700, letterSpacing: 1 }}>{label}</span>
+          </button>
+        ))}
+      </div>
+      <div style={{ margin: "20px 20px 0" }}>
+        <SectionLabel>RECENT ACTIVITY</SectionLabel>
+        {allExpenses.length === 0 ? (
+          <Card>
+            <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "8px 0" }}>No expenses yet. Tap + to add one.</div>
+          </Card>
+        ) : (
+          allExpenses.slice(0, visibleCount).map(exp => {
+            const catIcon = categories.find(c => c.id === exp.category)?.icon || icons.moreH;
+            const timeStr = new Date(exp.date).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" });
+            const dateStr = new Date(exp.date).toLocaleDateString("en", { day: "numeric", month: "short" });
+            return (
+              <Card key={exp.id} style={{ marginBottom: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: C.card3, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Icon d={catIcon} size={18} stroke={C.cyan} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{exp.description}</div>
+                    <div style={{ color: C.textMuted, fontSize: 12 }}>{exp.category.toUpperCase()} • {dateStr}</div>
+                  </div>
+                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    <div style={{ color: C.textMuted, fontSize: 11 }}>{timeStr}</div>
+                    <div style={{ color: C.text, fontWeight: 700, fontSize: 14 }}>{currSym(exp.localCurrency)}{fmtAmt(exp.localAmount)}</div>
+                  </div>
+                </div>
+              </Card>
+            );
+          })
+        )}
+        {visibleCount < allExpenses.length && (
+          <div ref={sentinelRef} style={{ height: 40, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ color: C.textSub, fontSize: 12 }}>Loading more...</div>
+          </div>
+        )}
+        {visibleCount >= allExpenses.length && allExpenses.length > 10 && (
+          <div style={{ color: C.textSub, fontSize: 11, textAlign: "center", padding: "12px 0" }}>All {allExpenses.length} transactions shown</div>
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const itineraryData = [
   { time: "08:00", type: "plane", title: "Flight CDG → FCO", sub: "Air France AF1234 • Gate 2B", status: "done", icon: icons.plane },
