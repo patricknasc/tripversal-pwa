@@ -923,11 +923,19 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
   return (
     <div style={{ paddingBottom: 100 }}>
       {/* Header */}
-      <div style={{ padding: "16px 20px 0" }}>
-        <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>Itinerary</div>
-        <div style={{ color: C.textMuted, fontSize: 13, marginBottom: 16 }}>
-          {formatDisplayDate(selectedDay)}{activeTrip?.destination ? ` · ${activeTrip.destination}` : ""}
+      <div style={{ padding: "16px 20px 0", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>Itinerary</div>
+          <div style={{ color: C.textMuted, fontSize: 13, marginBottom: 16 }}>
+            {formatDisplayDate(selectedDay)}{activeTrip?.destination ? ` · ${activeTrip.destination}` : ""}
+          </div>
         </div>
+        {activeTripId && (
+          <a href={`/api/trips/${activeTripId}/ics`} download
+            style={{ color: C.cyan, fontSize: 12, display: "flex", alignItems: "center", gap: 4, textDecoration: "none", marginTop: 4, flexShrink: 0 }}>
+            <Icon d={icons.calendar} size={13} stroke={C.cyan} /> Export full trip
+          </a>
+        )}
       </div>
 
       {/* Day selector */}
@@ -953,16 +961,6 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
           })}
         </div>
       </div>
-
-      {/* ICS export */}
-      {activeTripId && (
-        <div style={{ padding: "0 20px 12px", display: "flex", justifyContent: "flex-end" }}>
-          <a href={`/api/trips/${activeTripId}/ics`} download
-            style={{ color: C.cyan, fontSize: 12, display: "flex", alignItems: "center", gap: 4, textDecoration: "none" }}>
-            <Icon d={icons.calendar} size={13} stroke={C.cyan} /> Export to Calendar
-          </a>
-        </div>
-      )}
 
       {/* Conflict banner */}
       {dayConflicts.length > 0 && (
