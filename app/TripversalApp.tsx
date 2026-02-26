@@ -97,7 +97,14 @@ interface ItineraryEvent {
   location?: { address?: string; lat?: number; lng?: number };
   docUrls?: string[];
   durationMin?: number;
+  segmentId?: string;  // source trip_segment.id — used for conflict cross-referencing
 }
+
+interface ConflictSegment {
+  id: string; trip_id: string; trip_name: string;
+  name: string; start_date: string; end_date: string;
+}
+interface SegmentConflict { a: ConflictSegment; b: ConflictSegment; }
 
 interface InviteEvent {
   id: string;
@@ -175,20 +182,20 @@ function segmentsToEvents(segments: TripSegment[]): ItineraryEvent[] {
       events.push({
         id: `${seg.id}-travel`, date: seg.startDate, time: "09:00", category: "flight",
         title: `${seg.origin} → ${seg.destination}`, subtitle: seg.name,
-        location: { address: seg.destination },
+        location: { address: seg.destination }, segmentId: seg.id,
       });
     }
     if (seg.startDate) {
       events.push({
         id: `${seg.id}-checkin`, date: seg.startDate, time: "14:00", category: "checkin",
         title: `Check-in: ${seg.name}`, subtitle: seg.destination,
-        location: seg.destination ? { address: seg.destination } : undefined,
+        location: seg.destination ? { address: seg.destination } : undefined, segmentId: seg.id,
       });
     }
     if (seg.endDate && seg.endDate !== seg.startDate) {
       events.push({
         id: `${seg.id}-checkout`, date: seg.endDate, time: "11:00", category: "hotel",
-        title: `Check-out: ${seg.name}`, subtitle: seg.destination,
+        title: `Check-out: ${seg.name}`, subtitle: seg.destination, segmentId: seg.id,
       });
     }
   });
@@ -838,16 +845,26 @@ const HomeScreen = ({ onNav, onAddExpense, activeTripId }: any) => {
   );
 };
 
-const ItineraryScreen = ({ activeTripId, activeTrip }: { activeTripId: string | null; activeTrip?: Trip | null }) => {
+const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: string | null; activeTrip?: Trip | null; userSub?: string }) => {
   const [now, setNow] = useState(() => new Date());
   const todayKey = localDateKey(now);
   const [selectedDay, setSelectedDay] = useState<string>(todayKey);
+  const [conflicts, setConflicts] = useState<SegmentConflict[]>([]);
 
   // Tick every 60 s to update NOW marker
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(t);
   }, []);
+
+  // Fetch cross-trip conflicts for this user
+  useEffect(() => {
+    if (!userSub) return;
+    fetch(`/api/users/${encodeURIComponent(userSub)}/segment-conflicts`)
+      .then(r => r.ok ? r.json() : { conflicts: [] })
+      .then(d => setConflicts(d.conflicts ?? []))
+      .catch(() => {});
+  }, [userSub]);
 
   // When active trip changes, snap selected day to today (if within trip) or trip start
   useEffect(() => {
@@ -882,6 +899,26 @@ const ItineraryScreen = ({ activeTripId, activeTrip }: { activeTripId: string | 
     const el = daySelectorRef.current?.querySelector<HTMLElement>("[data-selected=true]");
     el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
   }, [selectedDay]);
+
+  // Conflicts that touch the selected day
+  const dayConflicts = conflicts.filter(c =>
+    (c.a.start_date <= selectedDay && c.a.end_date >= selectedDay) ||
+    (c.b.start_date <= selectedDay && c.b.end_date >= selectedDay)
+  );
+
+  // Segment IDs from THIS trip that are in a conflict
+  const conflictingSegIds = new Set(
+    conflicts.flatMap(c => [c.a, c.b])
+      .filter(s => s.trip_id === activeTripId)
+      .map(s => s.id)
+  );
+
+  // The OTHER trips' names that conflict on the selected day
+  const conflictingTripNames = Array.from(new Set(
+    dayConflicts.flatMap(c => [c.a, c.b])
+      .filter(s => s.trip_id !== activeTripId)
+      .map(s => s.trip_name)
+  ));
 
   return (
     <div style={{ paddingBottom: 100 }}>
@@ -927,6 +964,22 @@ const ItineraryScreen = ({ activeTripId, activeTrip }: { activeTripId: string | 
         </div>
       )}
 
+      {/* Conflict banner */}
+      {dayConflicts.length > 0 && (
+        <div style={{ margin: "0 20px 12px", background: `${C.yellow}18`, border: `1px solid ${C.yellow}50`, borderRadius: 12, padding: "10px 14px", display: "flex", gap: 10, alignItems: "flex-start" }}>
+          <span style={{ fontSize: 16, flexShrink: 0 }}>⚠️</span>
+          <div>
+            <div style={{ color: C.yellow, fontSize: 13, fontWeight: 700, marginBottom: 2 }}>Scheduling conflict</div>
+            <div style={{ color: C.textMuted, fontSize: 12 }}>
+              You are assigned to overlapping segments in{" "}
+              {conflictingTripNames.map((n, i) => (
+                <span key={n}><strong style={{ color: C.text }}>{n}</strong>{i < conflictingTripNames.length - 1 ? " and " : ""}</span>
+              ))}.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Timeline */}
       <div style={{ padding: "0 20px", position: "relative" }}>
         {dayEvents.length === 0 ? (
@@ -943,6 +996,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip }: { activeTripId: string | 
               const status = getStatus(event);
               const isNow = status === "now";
               const isDone = status === "done";
+              const isConflict = !!event.segmentId && conflictingSegIds.has(event.segmentId);
               const catIcon = CATEGORY_ICONS[event.category] ?? icons.tag;
               const hasMap = event.location && (event.location.address || (event.location.lat != null));
               const hasDocs = event.docUrls && event.docUrls.length > 0;
@@ -950,20 +1004,23 @@ const ItineraryScreen = ({ activeTripId, activeTrip }: { activeTripId: string | 
                 <div key={event.id} style={{ display: "flex", gap: 16, marginBottom: 16, position: "relative" }}>
                   <div style={{ width: 40, height: 40, borderRadius: "50%", flexShrink: 0, zIndex: 1,
                     background: isNow ? C.cyan : isDone ? "#1a2a1a" : C.card3,
-                    border: `2px solid ${isNow ? C.cyan : isDone ? C.green : C.border}`,
+                    border: `2px solid ${isNow ? C.cyan : isDone ? C.green : isConflict ? C.yellow : C.border}`,
                     display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Icon d={catIcon} size={16} stroke={isNow ? "#000" : isDone ? C.green : C.textMuted} />
+                    <Icon d={catIcon} size={16} stroke={isNow ? "#000" : isDone ? C.green : isConflict ? C.yellow : C.textMuted} />
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ background: isNow ? `${C.cyan}15` : C.card, borderRadius: 14, padding: 14,
-                      border: isNow ? `1px solid ${C.cyan}30` : "none" }}>
+                      border: isNow ? `1px solid ${C.cyan}30` : isConflict ? `1px solid ${C.yellow}40` : "none" }}>
                       {isNow && <div style={{ color: C.cyan, fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 4 }}>● NOW</div>}
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                         <div>
                           <div style={{ fontWeight: 700, fontSize: 15, color: isDone ? C.textMuted : C.text }}>{event.title}</div>
                           {event.subtitle && <div style={{ color: C.textSub, fontSize: 12, marginTop: 2 }}>{event.subtitle}</div>}
                         </div>
-                        <div style={{ color: C.textSub, fontSize: 12, flexShrink: 0, marginLeft: 8 }}>{event.time}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, marginLeft: 8 }}>
+                          {isConflict && <span style={{ fontSize: 12 }} title="Scheduling conflict">⚠️</span>}
+                          <span style={{ color: C.textSub, fontSize: 12 }}>{event.time}</span>
+                        </div>
                       </div>
                       {!isDone && (hasMap || hasDocs) && (
                         <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
@@ -2898,7 +2955,7 @@ function AppShell() {
   } else {
     switch (tab) {
       case "home": content = <HomeScreen onNav={handleNav} onAddExpense={() => setShowAddExpense(true)} activeTripId={activeTripId} />; break;
-      case "itinerary": content = <ItineraryScreen activeTripId={activeTripId} activeTrip={activeTrip} />; break;
+      case "itinerary": content = <ItineraryScreen activeTripId={activeTripId} activeTrip={activeTrip} userSub={user?.sub} />; break;
       case "wallet": content = <WalletScreen onAddExpense={() => setShowAddExpense(true)} activeTripId={activeTripId} />; break;
       case "photos": content = <PhotosScreen />; break;
       case "sos": content = <SOSScreen />; break;
