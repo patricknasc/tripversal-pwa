@@ -1513,7 +1513,7 @@ const SOSScreen = () => (
   </div>
 );
 
-const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], activeTripId, onSwitchTrip, onTripCreate }: any) => {
+const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], activeTripId, onSwitchTrip, onTripCreate, onTripUpdate, onTripDelete }: any) => {
   const [offlineSim, setOfflineSim] = useState(false);
   const [forcePending, setForcePending] = useState(false);
   const [showNewTrip, setShowNewTrip] = useState(false);
@@ -1606,6 +1606,110 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
   const [newTripStart, setNewTripStart] = useState("");
   const [newTripEnd, setNewTripEnd] = useState("");
   const [creatingTrip, setCreatingTrip] = useState(false);
+  const [tripError, setTripError] = useState("");
+  const [editingTripId, setEditingTripId] = useState<string | null>(null);
+  const [editTripName, setEditTripName] = useState("");
+  const [editTripDest, setEditTripDest] = useState("");
+  const [editTripStart, setEditTripStart] = useState("");
+  const [editTripEnd, setEditTripEnd] = useState("");
+  const [savingTrip, setSavingTrip] = useState(false);
+  const [confirmDeleteTripId, setConfirmDeleteTripId] = useState<string | null>(null);
+  const [deletingTripId, setDeletingTripId] = useState<string | null>(null);
+
+  const handleCreateTrip = async () => {
+    setTripError("");
+    if (!newTripName.trim()) { setTripError("Trip name is required."); return; }
+    if (!newTripStart) { setTripError("Start date is required."); return; }
+    if (!newTripEnd) { setTripError("End date is required."); return; }
+    if (newTripStart > newTripEnd) { setTripError("End date must be on or after start date."); return; }
+    setCreatingTrip(true);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    try {
+      const res = await fetch('/api/trips', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ownerId: user?.sub, ownerName: user?.name, ownerAvatarUrl: user?.picture, email: user?.email, name: newTripName.trim(), destination: newTripDest.trim() || undefined, startDate: newTripStart, endDate: newTripEnd, budget: DEFAULT_BUDGET }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Server error (${res.status})`);
+      }
+      const tripRow = await res.json();
+      const trip = rowToTrip(tripRow);
+      onTripCreate(trip);
+      setNewTripName(""); setNewTripDest(""); setNewTripStart(""); setNewTripEnd("");
+      setShowNewTrip(false);
+      setTripError("");
+    } catch (e: any) {
+      clearTimeout(timeout);
+      setTripError(e.name === 'AbortError' ? "Request timed out. Check your connection." : (e.message || "Failed to create trip."));
+    } finally {
+      setCreatingTrip(false);
+    }
+  };
+
+  const handleSaveTrip = async (tripId: string) => {
+    setTripError("");
+    if (!editTripName.trim()) { setTripError("Trip name is required."); return; }
+    if (!editTripStart) { setTripError("Start date is required."); return; }
+    if (!editTripEnd) { setTripError("End date is required."); return; }
+    if (editTripStart > editTripEnd) { setTripError("End date must be on or after start date."); return; }
+    setSavingTrip(true);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    try {
+      const res = await fetch(`/api/trips/${tripId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callerSub: user?.sub, name: editTripName.trim(), destination: editTripDest.trim() || undefined, startDate: editTripStart, endDate: editTripEnd }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Server error (${res.status})`);
+      }
+      const updated = await res.json();
+      onTripUpdate?.(rowToTrip(updated));
+      setEditingTripId(null);
+      setTripError("");
+    } catch (e: any) {
+      clearTimeout(timeout);
+      setTripError(e.name === 'AbortError' ? "Request timed out. Check your connection." : (e.message || "Failed to save trip."));
+    } finally {
+      setSavingTrip(false);
+    }
+  };
+
+  const handleDeleteTrip = async (tripId: string) => {
+    setDeletingTripId(tripId);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    try {
+      const res = await fetch(`/api/trips/${tripId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callerSub: user?.sub }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (!res.ok && res.status !== 204) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Server error (${res.status})`);
+      }
+      onTripDelete?.(tripId);
+      setConfirmDeleteTripId(null);
+    } catch (e: any) {
+      clearTimeout(timeout);
+      setTripError(e.name === 'AbortError' ? "Request timed out." : (e.message || "Failed to delete trip."));
+      setConfirmDeleteTripId(null);
+    } finally {
+      setDeletingTripId(null);
+    }
+  };
 
   const activeTrip: Trip | null = trips.find((t: Trip) => t.id === activeTripId) ?? null;
 
@@ -1824,26 +1928,12 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
               <div style={{ color: C.yellow, fontSize: 12, marginBottom: 10 }}>ℹ Dates overlap with {overlaps.map(t => t.name).join(', ')} — that's OK</div>
             ) : null;
           })()}
+          {tripError && showNewTrip && (
+            <div style={{ color: C.red, fontSize: 12, marginBottom: 10, padding: "8px 12px", background: C.redDim, borderRadius: 10 }}>{tripError}</div>
+          )}
           <div style={{ display: "flex", gap: 10 }}>
-            <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setShowNewTrip(false)}>Cancel</Btn>
-            <Btn style={{ flex: 1 }} onClick={async () => {
-              if (!newTripName.trim() || !newTripStart || !newTripEnd) return;
-              setCreatingTrip(true);
-              try {
-                const res = await fetch('/api/trips', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ ownerId: user?.sub, ownerName: user?.name, ownerAvatarUrl: user?.picture, email: user?.email, name: newTripName.trim(), destination: newTripDest.trim() || undefined, startDate: newTripStart, endDate: newTripEnd, budget: DEFAULT_BUDGET }),
-                });
-                if (!res.ok) throw new Error();
-                const tripRow = await res.json();
-                const trip = rowToTrip(tripRow);
-                onTripCreate(trip);
-                setNewTripName(""); setNewTripDest(""); setNewTripStart(""); setNewTripEnd("");
-                setShowNewTrip(false);
-              } catch {}
-              setCreatingTrip(false);
-            }}>{creatingTrip ? "Creating…" : "Create Trip"}</Btn>
+            <Btn style={{ flex: 1 }} variant="ghost" onClick={() => { setShowNewTrip(false); setTripError(""); }}>Cancel</Btn>
+            <Btn style={{ flex: 1 }} onClick={handleCreateTrip}>{creatingTrip ? "Creating…" : "Create Trip"}</Btn>
           </div>
         </Card>
       )}
@@ -1851,24 +1941,100 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
       {(trips as Trip[]).map((trip: Trip) => {
         const isActive = trip.id === activeTripId;
         const acceptedCount = (trip.crew || []).filter((m: TripMember) => m.status === 'accepted').length;
+        const isEditing = editingTripId === trip.id;
         return (
           <Card key={trip.id} style={{ marginBottom: 10, border: isActive ? `1.5px solid ${C.cyan}30` : undefined, position: "relative", overflow: "visible" }}>
-            {isActive && <div style={{ position: "absolute", top: -1, right: 0, background: C.cyan, color: "#000", fontSize: 12, fontWeight: 800, padding: "4px 14px", borderRadius: "0 14px 0 14px" }}>Active</div>}
-            <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 2, paddingRight: isActive ? 60 : 0 }}>{trip.name}</div>
-            {trip.destination && <div style={{ color: C.textMuted, fontSize: 12 }}>{trip.destination}</div>}
-            <div style={{ color: C.textSub, fontSize: 11, marginTop: 2 }}>
-              {formatDateRange(trip.startDate, trip.endDate)} · {acceptedCount} member{acceptedCount !== 1 ? 's' : ''}
-            </div>
-            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-              {!isActive && <Btn variant="ghost" style={{ flex: 1, padding: "10px" }} onClick={() => onSwitchTrip(trip.id)}>Set Active</Btn>}
-              {isActive && <Btn variant="secondary" style={{ flex: 1, padding: "10px" }} onClick={onManageCrew} icon={<Icon d={icons.users} size={16} />}>Manage Crew</Btn>}
-            </div>
+            {isEditing ? (
+              <>
+                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>Edit Trip</div>
+                <Input placeholder="Trip Name" value={editTripName} onChange={setEditTripName} style={{ marginBottom: 10 }} />
+                <Input placeholder="Destination (optional)" value={editTripDest} onChange={setEditTripDest} style={{ marginBottom: 10 }} />
+                <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>START DATE</div>
+                    <Card style={{ padding: 10 }}>
+                      <input type="date" value={editTripStart} onChange={e => setEditTripStart(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%" }} />
+                    </Card>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>END DATE</div>
+                    <Card style={{ padding: 10 }}>
+                      <input type="date" value={editTripEnd} onChange={e => setEditTripEnd(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%" }} />
+                    </Card>
+                  </div>
+                </div>
+                {tripError && isEditing && (
+                  <div style={{ color: C.red, fontSize: 12, marginBottom: 10, padding: "8px 12px", background: C.redDim, borderRadius: 10 }}>{tripError}</div>
+                )}
+                <div style={{ display: "flex", gap: 10 }}>
+                  <Btn style={{ flex: 1 }} variant="ghost" onClick={() => { setEditingTripId(null); setTripError(""); }}>Cancel</Btn>
+                  <Btn style={{ flex: 1 }} onClick={() => handleSaveTrip(trip.id)}>{savingTrip ? "Saving…" : "Save"}</Btn>
+                </div>
+              </>
+            ) : (
+              <>
+                {isActive && <div style={{ position: "absolute", top: -1, right: 0, background: C.cyan, color: "#000", fontSize: 12, fontWeight: 800, padding: "4px 14px", borderRadius: "0 14px 0 14px" }}>Active</div>}
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+                  <div style={{ flex: 1, paddingRight: isActive ? 60 : 0 }}>
+                    <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 2 }}>{trip.name}</div>
+                    {trip.destination && <div style={{ color: C.textMuted, fontSize: 12 }}>{trip.destination}</div>}
+                    <div style={{ color: C.textSub, fontSize: 11, marginTop: 2 }}>
+                      {formatDateRange(trip.startDate, trip.endDate)} · {acceptedCount} member{acceptedCount !== 1 ? 's' : ''}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 4, flexShrink: 0, marginTop: 2 }}>
+                    <button
+                      onClick={() => { setEditingTripId(trip.id); setEditTripName(trip.name); setEditTripDest(trip.destination || ""); setEditTripStart(trip.startDate); setEditTripEnd(trip.endDate); setTripError(""); }}
+                      style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}
+                    >
+                      <Icon d={icons.edit} size={15} stroke={C.textMuted} />
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteTripId(trip.id)}
+                      style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}
+                    >
+                      <Icon d={icons.trash} size={15} stroke={C.red} />
+                    </button>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                  {!isActive && <Btn variant="ghost" style={{ flex: 1, padding: "10px" }} onClick={() => onSwitchTrip(trip.id)}>Set Active</Btn>}
+                  {isActive && <Btn variant="secondary" style={{ flex: 1, padding: "10px" }} onClick={onManageCrew} icon={<Icon d={icons.users} size={16} />}>Manage Crew</Btn>}
+                </div>
+              </>
+            )}
           </Card>
         );
       })}
       {trips.length === 0 && !showNewTrip && (
         <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", padding: "12px 0", textAlign: "center" }}>No trips yet. Create one above.</div>
       )}
+
+      {/* ── Confirm Delete Trip — bottom-sheet modal ── */}
+      {confirmDeleteTripId && (() => {
+        const trip = (trips as Trip[]).find(t => t.id === confirmDeleteTripId);
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 300, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+            <div style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "20px 20px 0 0", padding: "28px 20px 44px" }}>
+              <div style={{ textAlign: "center", marginBottom: 24 }}>
+                <div style={{ width: 48, height: 48, borderRadius: "50%", background: C.redDim, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
+                  <Icon d={icons.trash} size={22} stroke={C.red} />
+                </div>
+                <div style={{ fontSize: 17, fontWeight: 800, color: C.text, marginBottom: 6 }}>Delete "{trip?.name}"?</div>
+                <div style={{ color: C.textMuted, fontSize: 13, lineHeight: 1.5 }}>
+                  This will permanently delete the trip and all its data.<br />This action cannot be undone.
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setConfirmDeleteTripId(null)}>Cancel</Btn>
+                <Btn style={{ flex: 1 }} variant="danger" onClick={() => handleDeleteTrip(confirmDeleteTripId)}>
+                  {deletingTripId === confirmDeleteTripId ? "Deleting…" : "Delete Trip"}
+                </Btn>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       <SectionLabel icon="clock">TRANSACTION HISTORY</SectionLabel>
       <Btn style={{ width: "100%", marginBottom: 20 }} variant="secondary"
         icon={<Icon d={icons.receipt} size={16} stroke={C.textMuted} />}
@@ -2521,6 +2687,15 @@ function AppShell() {
         activeTripId={activeTripId}
         onSwitchTrip={(id: string) => { switchActiveTrip(id); setShowSettings(false); }}
         onTripCreate={(trip: Trip) => { setTrips(p => [...p, trip]); switchActiveTrip(trip.id); }}
+        onTripUpdate={(updated: Trip) => setTrips(p => p.map(t => t.id === updated.id ? updated : t))}
+        onTripDelete={(id: string) => {
+          setTrips(p => p.filter(t => t.id !== id));
+          if (activeTripId === id) {
+            const remaining = trips.filter(t => t.id !== id);
+            if (remaining.length > 0) switchActiveTrip(remaining[0].id);
+            else { setActiveTripId(null); localStorage.removeItem('tripversal_active_trip_id'); }
+          }
+        }}
       />
     );
   } else {
