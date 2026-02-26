@@ -28,12 +28,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .single();
   if (tokenErr) return NextResponse.json({ error: tokenErr.message }, { status: 500 });
 
-  await resend().emails.send({
-    from: process.env.RESEND_FROM!,
+  const { error: emailErr } = await resend().emails.send({
+    from: process.env.RESEND_FROM ?? 'Tripversal <onboarding@resend.dev>',
     to: email,
     subject: `${inviterName} invited you to join ${trip.name} on Tripversal`,
     html: buildInviteEmail(inviterName, trip.name, tokenRow.token),
   });
+
+  if (emailErr) {
+    console.error('[invite] Resend error:', emailErr);
+    return NextResponse.json({ error: `Email failed: ${emailErr.message}` }, { status: 500 });
+  }
 
   return NextResponse.json({ member, token: tokenRow.token }, { status: 201 });
 }
