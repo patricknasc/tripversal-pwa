@@ -309,6 +309,53 @@ function rowToTrip(row: any): Trip {
   };
 }
 
+function rowToExpense(row: any): Expense {
+  return {
+    id: row.id,
+    description: row.description,
+    category: row.category,
+    date: row.date,
+    sourceId: row.source_id,
+    type: row.type as "personal" | "group",
+    localAmount: Number(row.local_amount),
+    localCurrency: row.local_currency as Currency,
+    baseAmount: Number(row.base_amount),
+    baseCurrency: row.base_currency as Currency,
+    localToBaseRate: Number(row.local_to_base_rate),
+    whoPaid: row.who_paid ?? undefined,
+    splits: row.splits ?? undefined,
+    city: row.city ?? undefined,
+    editHistory: row.edit_history ?? undefined,
+    tripId: row.trip_id,
+  };
+}
+
+function expenseToRow(e: Expense): Record<string, unknown> {
+  return {
+    id: e.id,
+    description: e.description,
+    category: e.category,
+    date: e.date,
+    source_id: e.sourceId,
+    type: e.type,
+    local_amount: e.localAmount,
+    local_currency: e.localCurrency,
+    base_amount: e.baseAmount,
+    base_currency: e.baseCurrency,
+    local_to_base_rate: e.localToBaseRate,
+    who_paid: e.whoPaid ?? null,
+    splits: e.splits ?? null,
+    city: e.city ?? null,
+    edit_history: e.editHistory ?? null,
+    // receiptDataUrl intentionally excluded
+  };
+}
+
+function mergeServerExpenses(stored: Expense[], server: Expense[], tripId: string): Expense[] {
+  const others = stored.filter(e => e.tripId !== tripId);
+  return [...others, ...server].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+}
+
 function formatDateRange(start: string, end: string): string {
   const s = new Date(start + 'T12:00:00');
   const e = new Date(end + 'T12:00:00');
@@ -492,7 +539,7 @@ const BottomNav = ({ active, onNav }: any) => {
   );
 };
 
-const HomeScreen = ({ onNav, onAddExpense, activeTripId }: any) => {
+const HomeScreen = ({ onNav, onAddExpense, activeTripId, user }: any) => {
   const [budget, setBudget] = useState<TripBudget>(DEFAULT_BUDGET);
   const [todaySpent, setTodaySpent] = useState(0);
   const [yesterdaySpent, setYesterdaySpent] = useState(0);
@@ -529,6 +576,25 @@ const HomeScreen = ({ onNav, onAddExpense, activeTripId }: any) => {
       setAllExpenses(expenses);
       setInviteEvents(getInviteEvents());
     } catch {}
+    // Background hydration from server
+    if (activeTripId && user?.sub) {
+      fetch(`/api/trips/${activeTripId}/expenses?callerSub=${user.sub}`)
+        .then(r => r.ok ? r.json() : null)
+        .then((rows: any[] | null) => {
+          if (!rows) return;
+          const stored: Expense[] = (() => { try { const s = localStorage.getItem('tripversal_expenses'); return s ? JSON.parse(s) : []; } catch { return []; } })();
+          const merged = mergeServerExpenses(stored, rows.map(rowToExpense), activeTripId);
+          localStorage.setItem('tripversal_expenses', JSON.stringify(merged));
+          const forTrip = merged.filter(e => e.tripId === activeTripId);
+          const todayKey = localDateKey(new Date());
+          const yest = new Date(); yest.setDate(yest.getDate() - 1);
+          const yesterdayKey = localDateKey(yest);
+          setTodaySpent(forTrip.filter(e => localDateKey(new Date(e.date)) === todayKey).reduce((s, e) => s + e.baseAmount, 0));
+          setYesterdaySpent(forTrip.filter(e => localDateKey(new Date(e.date)) === yesterdayKey).reduce((s, e) => s + e.baseAmount, 0));
+          setAllExpenses(forTrip);
+        })
+        .catch(() => {});
+    }
   }, [activeTripId]);
 
   const sourceMap = Object.fromEntries(budget.sources.map(s => [s.id, s]));
@@ -550,6 +616,14 @@ const HomeScreen = ({ onNav, onAddExpense, activeTripId }: any) => {
     }
     saveHomeExpenses(allExpenses.filter(e => e.id !== id));
     setSelectedActivityExp(null); setHomeConfirmDelete(false);
+    // Background soft-delete on server
+    if (exp?.tripId && user?.sub) {
+      fetch(`/api/trips/${exp.tripId}/expenses/${id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callerSub: user.sub }),
+      }).catch(() => {});
+    }
   };
   const handleHomeEdit = (id: string) => {
     const next = allExpenses.map(e => {
@@ -562,6 +636,15 @@ const HomeScreen = ({ onNav, onAddExpense, activeTripId }: any) => {
     });
     saveHomeExpenses(next);
     setHomeEditMode(false); setSelectedActivityExp(null);
+    // Background update on server
+    const updated = next.find(e => e.id === id);
+    if (updated?.tripId && user?.sub) {
+      fetch(`/api/trips/${updated.tripId}/expenses/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callerSub: user.sub, ...expenseToRow(updated) }),
+      }).catch(() => {});
+    }
   };
 
   useEffect(() => {
@@ -1049,7 +1132,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
   );
 };
 
-const WalletScreen = ({ onAddExpense, activeTripId }: any) => {
+const WalletScreen = ({ onAddExpense, activeTripId, user }: any) => {
   const [budget, setBudgetState] = useState<TripBudget>(DEFAULT_BUDGET);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
@@ -1076,6 +1159,19 @@ const WalletScreen = ({ onAddExpense, activeTripId }: any) => {
         setExpenses(filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
       }
     } catch {}
+    // Background hydration from server
+    if (activeTripId && user?.sub) {
+      fetch(`/api/trips/${activeTripId}/expenses?callerSub=${user.sub}`)
+        .then(r => r.ok ? r.json() : null)
+        .then((rows: any[] | null) => {
+          if (!rows) return;
+          const stored: Expense[] = (() => { try { const s = localStorage.getItem('tripversal_expenses'); return s ? JSON.parse(s) : []; } catch { return []; } })();
+          const merged = mergeServerExpenses(stored, rows.map(rowToExpense), activeTripId);
+          localStorage.setItem('tripversal_expenses', JSON.stringify(merged));
+          setExpenses(merged.filter(e => e.tripId === activeTripId));
+        })
+        .catch(() => {});
+    }
   }, [activeTripId]);
 
   useEffect(() => {
@@ -1106,6 +1202,14 @@ const WalletScreen = ({ onAddExpense, activeTripId }: any) => {
     }
     saveExpenses(expenses.filter(e => e.id !== id));
     setSelectedExpenseId(null); setConfirmDelete(false);
+    // Background soft-delete on server
+    if (exp?.tripId && user?.sub) {
+      fetch(`/api/trips/${exp.tripId}/expenses/${id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callerSub: user.sub }),
+      }).catch(() => {});
+    }
   };
   const handleEdit = (id: string) => {
     const next = expenses.map(e => {
@@ -1119,6 +1223,15 @@ const WalletScreen = ({ onAddExpense, activeTripId }: any) => {
     });
     saveExpenses(next);
     setEditMode(false); setSelectedExpenseId(null);
+    // Background update on server
+    const updated = next.find(e => e.id === id);
+    if (updated?.tripId && user?.sub) {
+      fetch(`/api/trips/${updated.tripId}/expenses/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callerSub: user.sub, ...expenseToRow(updated) }),
+      }).catch(() => {});
+    }
   };
 
   const { totalBudgetInBase, totalSpent, remaining } = calcSummary(budget, expenses);
@@ -1364,7 +1477,7 @@ function compressImage(file: File, maxPx = 800, quality = 0.7): Promise<string> 
   });
 }
 
-const AddExpenseScreen = ({ onBack, activeTripId }: any) => {
+const AddExpenseScreen = ({ onBack, activeTripId, user }: any) => {
   const [amount, setAmount] = useState("0");
   const [cat, setCat] = useState("food");
   const [expType, setExpType] = useState("group");
@@ -1663,6 +1776,14 @@ const AddExpenseScreen = ({ onBack, activeTripId }: any) => {
         } catch {}
         setSaving(false);
         onBack();
+        // Background write to server (fire-and-forget)
+        if (activeTripId && user?.sub) {
+          fetch(`/api/trips/${activeTripId}/expenses`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ callerSub: user.sub, ...expenseToRow(expense) }),
+          }).catch(() => {});
+        }
       }}>{saving ? "Saving..." : "Save Expense"}</Btn>
     </div>
   );
@@ -1793,7 +1914,18 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
     try { const s = localStorage.getItem('tripversal_expenses'); if (s) return JSON.parse(s); } catch {}
     return [];
   });
-  const saveBudget = (next: TripBudget) => { setBudget(next); localStorage.setItem('tripversal_budget', JSON.stringify(next)); };
+  const saveBudget = (next: TripBudget) => {
+    setBudget(next);
+    localStorage.setItem('tripversal_budget', JSON.stringify(next));
+    // Background write-back to trips.budget in Supabase
+    if (activeTripId && user?.sub) {
+      fetch(`/api/trips/${activeTripId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callerSub: user.sub, budget: next }),
+      }).catch(() => {});
+    }
+  };
 
   // Add source form states
   const [showAddSource, setShowAddSource] = useState(false);
@@ -2823,14 +2955,23 @@ function AppShell() {
 
   const activeTrip = trips.find(t => t.id === activeTripId) ?? null;
 
-  // Re-fetch trips from Supabase when connectivity is restored
+  // Re-fetch trips and expenses from Supabase when connectivity is restored
   const handleReconnect = useCallback(async () => {
     if (!user) return;
     const rows = await fetch(`/api/trips?userId=${user.sub}`)
       .then(r => r.ok ? r.json() : [])
       .catch(() => []);
     if (rows.length > 0) setTrips(rows.map(rowToTrip));
-  }, [user]);
+    if (!activeTripId) return;
+    const expRows = await fetch(`/api/trips/${activeTripId}/expenses?callerSub=${user.sub}`)
+      .then(r => r.ok ? r.json() : null)
+      .catch(() => null);
+    if (expRows) {
+      const stored: Expense[] = (() => { try { const s = localStorage.getItem('tripversal_expenses'); return s ? JSON.parse(s) : []; } catch { return []; } })();
+      const merged = mergeServerExpenses(stored, expRows.map(rowToExpense), activeTripId);
+      localStorage.setItem('tripversal_expenses', JSON.stringify(merged));
+    }
+  }, [user, activeTripId]);
 
   const { isOnline, isSyncing } = useNetworkSync({ onReconnect: handleReconnect, debounceMs: 1500 });
 
@@ -2913,7 +3054,7 @@ function AppShell() {
       />
     );
   } else if (showAddExpense) {
-    content = <AddExpenseScreen onBack={() => setShowAddExpense(false)} activeTripId={activeTripId} />;
+    content = <AddExpenseScreen onBack={() => setShowAddExpense(false)} activeTripId={activeTripId} user={user} />;
   } else if (showHistory) {
     content = <TransactionHistoryScreen onBack={() => setShowHistory(false)} />;
   } else if (showManageCrew) {
@@ -2952,9 +3093,9 @@ function AppShell() {
     );
   } else {
     switch (tab) {
-      case "home": content = <HomeScreen onNav={handleNav} onAddExpense={() => setShowAddExpense(true)} activeTripId={activeTripId} />; break;
+      case "home": content = <HomeScreen onNav={handleNav} onAddExpense={() => setShowAddExpense(true)} activeTripId={activeTripId} user={user} />; break;
       case "itinerary": content = <ItineraryScreen activeTripId={activeTripId} activeTrip={activeTrip} userSub={user?.sub} />; break;
-      case "wallet": content = <WalletScreen onAddExpense={() => setShowAddExpense(true)} activeTripId={activeTripId} />; break;
+      case "wallet": content = <WalletScreen onAddExpense={() => setShowAddExpense(true)} activeTripId={activeTripId} user={user} />; break;
       case "photos": content = <PhotosScreen />; break;
       case "sos": content = <SOSScreen />; break;
       default: content = null;

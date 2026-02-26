@@ -1,6 +1,6 @@
 # Tripversal — Arquitetura do Sistema
 
-> **Versão:** 2.3
+> **Versão:** 2.4
 > **Atualizado:** 2026-02-26
 > **Stack:** Next.js 14 (App Router) · Supabase (PostgreSQL) · React 18
 > **Convenção de nomes:** tabelas e colunas em `snake_case`; tipos TypeScript em `camelCase/PascalCase`
@@ -15,9 +15,10 @@
 4. [Regras de Negócio](#4-regras-de-negócio) ← 4.4 Sobreposição de segmentos cross-trip
 5. [Algoritmos](#5-algoritmos) ← 5.3 detectSegmentConflicts (implementado)
 6. [Componentes de UI](#6-componentes-de-ui) ← 6.4 ItineraryScreen + ICS export
-6. [Componentes de UI](#6-componentes-de-ui)
 7. [Hooks](#7-hooks)
-8. [Decisões de Arquitetura (ADRs)](#8-decisões-de-arquitetura-adrs)
+8. [API Routes](#8-api-routes) ← 8.2 Expenses (novo)
+9. [Estratégia de Sync localStorage ↔ Supabase](#9-estratégia-de-sync-localstorage--supabase) ← novo
+10. [Decisões de Arquitetura (ADRs)](#10-decisões-de-arquitetura-adrs) ← ADR-05 novo
 
 ---
 
@@ -269,6 +270,40 @@ disponível (balance) = initial_balance - Σ(gastos nesta fonte em sua moeda)
 ---
 
 ### `expenses`
+
+> **Nota:** existem duas versões desta tabela.
+> - **v1 (produção atual):** schema simplificado, alinhado com a interface `Expense` do cliente. Implantado em 2026-02-26.
+> - **v2 (planejada):** schema normalizado com `payer_id → trip_participants` e dois campos de taxa. Ainda não migrado.
+
+#### `expenses` — v1 (produção)
+
+Migrado de `localStorage` para Supabase. `id` é o `Date.now().toString()` gerado no cliente, o que garante idempotência nos `upsert` de retry offline.
+
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `id` | TEXT PK | `Date.now().toString()` gerado no cliente |
+| `trip_id` | UUID FK → `trips` | Viagem |
+| `description` | TEXT | Descrição da despesa |
+| `category` | TEXT | Categoria (food, transport, accommodation…) |
+| `type` | TEXT | `'personal'` ou `'group'` |
+| `date` | TIMESTAMPTZ | Data e hora da transação |
+| `source_id` | TEXT | ID da fonte de pagamento (referência lógica ao JSONB `trips.budget`) |
+| `local_amount` | NUMERIC | Valor como aparece no recibo, na moeda local |
+| `local_currency` | TEXT | Moeda do recibo |
+| `base_amount` | NUMERIC | Valor convertido para a moeda base pessoal |
+| `base_currency` | TEXT | Moeda base do usuário no momento do registro |
+| `local_to_base_rate` | NUMERIC | Taxa congelada `local_currency → base_currency` |
+| `who_paid` | TEXT | Nome de quem pagou (despesas de grupo) |
+| `splits` | JSONB | Mapa `{ [nome]: cotas }` para divisão de grupo |
+| `city` | TEXT | Cidade onde ocorreu |
+| `edit_history` | JSONB | Array de snapshots anteriores (imutável) |
+| `deleted_at` | TIMESTAMPTZ | `NULL` = ativa; preenchido = soft-deleted |
+| `created_at` | TIMESTAMPTZ | Timestamp de criação |
+| `updated_at` | TIMESTAMPTZ | Timestamp da última atualização |
+
+> `receiptDataUrl` (base64) é intencionalmente **excluído** do banco — permanece apenas no `localStorage`.
+
+#### `expenses` — v2 (planejada)
 
 Cada registro é uma transação financeira realizada por um participante durante a viagem.
 
@@ -830,10 +865,20 @@ t=3500ms→ onReconnect resolve → isSyncingRef = false, isSyncing = false
 ```typescript
 const handleReconnect = useCallback(async () => {
   if (!user) return;
+  // 1. Re-fetch trips
   const rows = await fetch(`/api/trips?userId=${user.sub}`)
     .then(r => r.ok ? r.json() : []).catch(() => []);
   if (rows.length > 0) setTrips(rows.map(rowToTrip));
-}, [user]);
+  // 2. Re-sync expenses do trip ativo
+  if (!activeTripId) return;
+  const expRows = await fetch(`/api/trips/${activeTripId}/expenses?callerSub=${user.sub}`)
+    .then(r => r.ok ? r.json() : null).catch(() => null);
+  if (expRows) {
+    const stored = JSON.parse(localStorage.getItem('tripversal_expenses') ?? '[]');
+    const merged = mergeServerExpenses(stored, expRows.map(rowToExpense), activeTripId);
+    localStorage.setItem('tripversal_expenses', JSON.stringify(merged));
+  }
+}, [user, activeTripId]); // activeTripId nas deps
 
 const { isOnline, isSyncing } = useNetworkSync({
   onReconnect: handleReconnect,
@@ -854,7 +899,120 @@ const effectiveIsOnline = isOnline && !offlineSim;
 
 ---
 
-## 8. Decisões de Arquitetura (ADRs)
+## 8. API Routes
+
+### 8.1 Trips
+
+| Método | Rota | Auth | Descrição |
+|---|---|---|---|
+| GET | `/api/trips?userId=SUB` | — | Lista viagens do usuário (com members e segments) |
+| GET | `/api/trips/[id]` | — | Detalhes de uma viagem |
+| PUT | `/api/trips/[id]` | admin | Atualiza campos (name, destination, dates, budget) |
+| DELETE | `/api/trips/[id]` | owner | Deleta a viagem |
+| GET | `/api/trips/[id]/ics` | — | Feed iCalendar dos segments |
+
+### 8.2 Expenses
+
+**Arquivo:** `app/api/trips/[id]/expenses/route.ts`
+
+| Método | Rota | Auth | Descrição |
+|---|---|---|---|
+| GET | `/api/trips/[id]/expenses?callerSub=SUB` | member | Retorna despesas ativas (`deleted_at IS NULL`), ordem decrescente por data |
+| POST | `/api/trips/[id]/expenses` | member | Cria ou atualiza uma despesa (`upsert` por `id` — idempotente para retries offline) |
+| PUT | `/api/trips/[id]/expenses/[expenseId]` | member | Atualiza campos específicos + `updated_at` |
+| DELETE | `/api/trips/[id]/expenses/[expenseId]` | member | Soft-delete: seta `deleted_at = NOW()` |
+
+**Auth:** verifica `trip_members WHERE google_sub = callerSub AND trip_id = id`. Qualquer membro (não só admin) pode operar despesas.
+
+**Payload do POST/PUT (camelCase → o servidor converte para snake_case):**
+
+```typescript
+{
+  callerSub: string;       // obrigatório em todos os métodos
+  id: string;              // Date.now().toString()
+  description: string;
+  category: string;
+  date: string;            // ISO 8601
+  sourceId: string;
+  type: "personal" | "group";
+  localAmount: number;
+  localCurrency: string;
+  baseAmount: number;
+  baseCurrency: string;
+  localToBaseRate: number;
+  whoPaid?: string;
+  splits?: Record<string, number>;
+  city?: string;
+  editHistory?: Array<{ at: string; snapshot: object }>;
+}
+```
+
+> `receiptDataUrl` é intencionalmente omitido — não vai ao servidor.
+
+### 8.3 Users
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/api/users/[sub]/segment-conflicts` | Conflitos cross-trip de segmentos para o usuário |
+
+---
+
+## 9. Estratégia de Sync localStorage ↔ Supabase
+
+### 9.1 Princípio: localStorage-first + write-through
+
+O `localStorage` é a fonte de verdade imediata para a UI. O Supabase é o espelho durável. Nunca bloqueamos a UX esperando resposta do servidor.
+
+```
+Escrita:
+  1. Salva em localStorage  → render instantâneo
+  2. Fire-and-forget → POST/PUT/DELETE no Supabase em background
+  3. Se offline: ignora o erro. localStorage continua válido.
+
+Leitura:
+  1. Lê localStorage → render instantâneo (dados "stale" mas imediatos)
+  2. Fetch background → GET /expenses
+  3. Se OK: mergeServerExpenses → salva em localStorage → atualiza state
+  4. Se offline: ignora. O render do passo 1 persiste.
+```
+
+### 9.2 Mappers
+
+```typescript
+// DB snake_case → client camelCase
+function rowToExpense(row: any): Expense
+
+// client camelCase → DB snake_case (sem receiptDataUrl)
+function expenseToRow(e: Expense): Record<string, unknown>
+
+// Substitui a fatia do tripId pelos dados do servidor; preserva outras viagens e ordem
+function mergeServerExpenses(stored: Expense[], server: Expense[], tripId: string): Expense[]
+```
+
+### 9.3 Cobertura por operação
+
+| Operação | localStorage | Supabase | Quando |
+|---|---|---|---|
+| Criar despesa | ✅ síncrono | ✅ POST em background | AddExpenseScreen.handleSave, após `onBack()` |
+| Editar despesa | ✅ síncrono | ✅ PUT em background | HomeScreen.handleHomeEdit, WalletScreen.handleEdit |
+| Deletar despesa | ✅ síncrono | ✅ soft-delete em background | HomeScreen.handleHomeDelete, WalletScreen.handleDelete |
+| Editar orçamento | ✅ síncrono | ✅ PUT /trips/[id] em background | SettingsScreen.saveBudget |
+| Hydrate ao montar | — | ✅ GET + mergeServerExpenses | HomeScreen/WalletScreen useEffect |
+| Reconexão | — | ✅ GET + mergeServerExpenses | handleReconnect (useNetworkSync) |
+
+### 9.4 Dados intencionalmente sem espelho
+
+| Key localStorage | Motivo |
+|---|---|
+| `tripversal_active_trip_id` | UI state — local por design |
+| `tripversal_user` | Sessão Google — renovada pelo OAuth |
+| `tripversal_profile` | Out of scope desta PR |
+| `INVITE_EVENTS_KEY` | Notificação efêmera local |
+| `tripversal_deleted_expenses` | Log de auditoria local; o soft-delete no server é suficiente |
+
+---
+
+## 10. Decisões de Arquitetura (ADRs)
 
 ### ADR-01: `trip_participants` em vez de estender `trip_members`
 
@@ -938,3 +1096,33 @@ Se recalculássemos com a taxa atual, o histórico da viagem mudaria com a flutu
 - A validação deve existir **em ambas as camadas** (client e server) para que o usuário receba feedback cedo, mas sem bloquear.
 - A Itinerary Screen deve destacar visualmente eventos de viagens diferentes que se sobrepõem no mesmo dia, com ícone ⚠️ e label da viagem conflitante.
 - A resolução do conflito é responsabilidade do usuário: remover-se de um segmento, ajustar as datas, ou simplesmente ignorar o aviso se a sobreposição for intencional.
+
+---
+
+### ADR-05: localStorage-first com write-through para expenses
+
+**Contexto:** Despesas viviam exclusivamente em `localStorage`. Trocar de dispositivo ou limpar o cache significava perda de dados.
+
+**Decisão:** Adotar o padrão **localStorage-first + write-through assíncrono**, sem nunca bloquear a UX por latência de rede.
+
+**Por que não esperar o servidor antes de fazer `onBack()`?**
+
+O P99 de uma chamada ao Supabase em rede móvel pode chegar a 2-3 segundos. Bloquear o usuário nesse tempo depois de clicar "Save Expense" destruiria a percepção de performance do app. O `localStorage` é síncrono e suficiente para garantir que os dados não se percam no device atual.
+
+**Por que `upsert` e não `insert`?**
+
+Se a conexão cair após o `localStorage.setItem` mas antes do `fetch` concluir, o retry ao reconectar enviaria o mesmo `id`. `upsert` com `onConflict: 'id'` é idempotente — submeter a mesma despesa duas vezes não cria duplicatas.
+
+**Por que `id = Date.now().toString()` e não UUID v4?**
+
+UUID v4 requer `crypto.randomUUID()` que em alguns browsers mais antigos não está disponível sem polyfill. `Date.now()` é universal. A colisão é teoricamente possível (dois dispositivos no mesmo milissegundo), mas improvável em escopo de viagem individual.
+
+**Por que `receiptDataUrl` é excluído do banco?**
+
+Uma imagem comprimida ainda tem ~60-80 KB. Com dezenas de despesas por viagem e múltiplas viagens por usuário, isso somaria rapidamente. A coluna `receipt_url` na v2 do schema aponta para Supabase Storage — pipeline separado, fora do escopo desta PR.
+
+**Consequências:**
+
+- O Supabase nunca é a fonte de verdade primária em tempo de escrita — é o backup durável.
+- Ao reconectar (`handleReconnect`), o app refaz o GET de expenses e mescla com `mergeServerExpenses`, que prioriza os dados do servidor para o `tripId` ativo e preserva dados de outras viagens já no localStorage.
+- Dados criados offline chegam ao servidor apenas no próximo `handleReconnect`. O máximo de perda de dados é o intervalo offline.

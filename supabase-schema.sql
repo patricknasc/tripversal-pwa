@@ -66,3 +66,31 @@ CREATE POLICY "service_role_all_trips"    ON trips         FOR ALL USING (true);
 CREATE POLICY "service_role_all_members"  ON trip_members  FOR ALL USING (true);
 CREATE POLICY "service_role_all_segments" ON trip_segments FOR ALL USING (true);
 CREATE POLICY "service_role_all_invites"  ON invite_tokens FOR ALL USING (true);
+
+-- ─── Expenses ───────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS expenses (
+  id                 TEXT        PRIMARY KEY,  -- Date.now().toString() from client
+  trip_id            UUID        NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  description        TEXT        NOT NULL,
+  category           TEXT        NOT NULL,
+  date               TIMESTAMPTZ NOT NULL,
+  source_id          TEXT        NOT NULL,
+  type               TEXT        NOT NULL DEFAULT 'personal',
+  local_amount       NUMERIC     NOT NULL,
+  local_currency     TEXT        NOT NULL,
+  base_amount        NUMERIC     NOT NULL,
+  base_currency      TEXT        NOT NULL,
+  local_to_base_rate NUMERIC     NOT NULL DEFAULT 1,
+  who_paid           TEXT,
+  splits             JSONB,
+  city               TEXT,
+  edit_history       JSONB,
+  deleted_at         TIMESTAMPTZ,   -- NULL = active; set = soft-deleted
+  created_at         TIMESTAMPTZ DEFAULT NOW(),
+  updated_at         TIMESTAMPTZ DEFAULT NOW()
+  -- receiptDataUrl (base64) intentionally excluded
+);
+
+CREATE INDEX IF NOT EXISTS expenses_trip_active ON expenses(trip_id) WHERE deleted_at IS NULL;
+ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role_all_expenses" ON expenses FOR ALL USING (true);
