@@ -1,7 +1,7 @@
-# Tripversal — Arquitetura do Sistema de Orçamento Flexível
+# Tripversal — Arquitetura do Sistema
 
-> **Versão:** 2.0
-> **Data:** 2026-02-25
+> **Versão:** 2.1
+> **Atualizado:** 2026-02-26
 > **Stack:** Next.js 14 (App Router) · Supabase (PostgreSQL) · React 18
 > **Convenção de nomes:** tabelas e colunas em `snake_case`; tipos TypeScript em `camelCase/PascalCase`
 
@@ -15,7 +15,8 @@
 4. [Regras de Negócio](#4-regras-de-negócio)
 5. [Algoritmos](#5-algoritmos)
 6. [Componentes de UI](#6-componentes-de-ui)
-7. [Decisões de Arquitetura (ADRs)](#7-decisões-de-arquitetura-adrs)
+7. [Hooks](#7-hooks)
+8. [Decisões de Arquitetura (ADRs)](#8-decisões-de-arquitetura-adrs)
 
 ---
 
@@ -516,7 +517,81 @@ Positivo (verde) = você recebe. Negativo (amarelo) = você deve.
 
 ---
 
-## 7. Decisões de Arquitetura (ADRs)
+## 7. Hooks
+
+### 7.1 `useNetworkSync`
+
+**Arquivo:** `lib/hooks/use_network_sync.ts`
+
+**Propósito:** Monitorar conectividade do dispositivo e disparar sincronização automática com o Supabase assim que a rede é restabelecida.
+
+**Assinatura:**
+
+```typescript
+function useNetworkSync(options?: {
+  onReconnect?: () => Promise<void>; // callback async executado ao voltar online
+  debounceMs?: number;               // padrão: 1500ms
+}): {
+  isOnline: boolean;   // estado real da rede
+  isSyncing: boolean;  // true enquanto onReconnect estiver rodando
+}
+```
+
+**Requisitos atendidos:**
+
+| Requisito | Implementação |
+|---|---|
+| Monitorar rede | `window.addEventListener('online' / 'offline')` |
+| Compatibilidade SSR | `useEffect` + guard `typeof window !== 'undefined'`; `useState(true)` no servidor, hidrata com `navigator.onLine` no client |
+| Trigger de sync | `onReconnect()` chamado após debounce quando evento `'online'` dispara |
+| Lock anti-race condition | `isSyncingRef` (useRef) — garante no máximo uma execução simultânea; refs não causam re-render extra |
+| Debounce | `setTimeout` de `debounceMs` (padrão 1500ms) cancelado em novo evento `'offline'` — absorve oscilações de rede móvel |
+
+**Por que `useRef` para o lock e não `useState`?**
+
+`useState` causaria um re-render ao setar `true`, o que poderia disparar o `useCallback` de `runSync` antes do lock estar efetivamente aplicado (race no próprio React). `useRef` é síncrono e não agenda re-renders — o lock é imediato.
+
+**Fluxo em sinal oscilante (exemplo: metrô de Madri):**
+
+```
+t=0ms   → evento 'online' #1  → debounce timer A inicia (1500ms)
+t=200ms → evento 'offline'   → timer A cancelado, isSyncing permanece false
+t=400ms → evento 'online' #2  → debounce timer B inicia (1500ms)
+t=1900ms→ timer B dispara     → isSyncingRef = true, onReconnect() executa
+t=2100ms→ evento 'online' #3  → isSyncingRef já é true → runSync retorna sem fazer nada
+t=3500ms→ onReconnect resolve → isSyncingRef = false, isSyncing = false
+```
+
+**Integração no AppShell:**
+
+```typescript
+const handleReconnect = useCallback(async () => {
+  if (!user) return;
+  const rows = await fetch(`/api/trips?userId=${user.sub}`)
+    .then(r => r.ok ? r.json() : []).catch(() => []);
+  if (rows.length > 0) setTrips(rows.map(rowToTrip));
+}, [user]);
+
+const { isOnline, isSyncing } = useNetworkSync({
+  onReconnect: handleReconnect,
+  debounceMs: 1500,
+});
+
+// offlineSim (Dev Controls) sobrepõe o estado real para testes
+const effectiveIsOnline = isOnline && !offlineSim;
+```
+
+**Indicador visual no Header:**
+
+- 🟢 Verde: online e idle
+- 🟡 Amarelo pulsando + label "SYNC": sincronizando
+- 🔴 Vermelho: offline
+
+**`offlineSim` (Dev Controls):** estado levantado para `AppShell` e sobreposto via `effectiveIsOnline = isOnline && !offlineSim`. Permite simular offline sem desativar a rede real do dispositivo — útil para testar o comportamento de UI sem perder a conexão com o servidor de desenvolvimento.
+
+---
+
+## 8. Decisões de Arquitetura (ADRs)
 
 ### ADR-01: `trip_participants` em vez de estender `trip_members`
 
