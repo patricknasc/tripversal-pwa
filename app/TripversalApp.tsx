@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { GoogleOAuthProvider, useGoogleLogin } from "@react-oauth/google";
+import { useNetworkSync } from "@/lib/hooks/use_network_sync";
 
 // ─── Types + Helpers ────────────────────────────────────────────────────────
 type Currency = "BRL" | "EUR" | "USD" | "GBP" | "COP";
@@ -116,7 +117,7 @@ function fmtAmt(n: number, decimals = 2): string {
 }
 
 const GlobalStyles = () => (
-  <style>{`.no-scrollbar::-webkit-scrollbar{display:none}`}</style>
+  <style>{`.no-scrollbar::-webkit-scrollbar{display:none}@keyframes net-pulse{0%,100%{opacity:1}50%{opacity:0.35}}`}</style>
 );
 
 // Use local date to avoid UTC-shift bugs when comparing expense dates
@@ -311,7 +312,7 @@ const Card = ({ children, style = {}, onClick }: any) => (
   </div>
 );
 
-const Header = ({ onSettings, isOnline = true, user }: any) => {
+const Header = ({ onSettings, isOnline = true, isSyncing = false, user }: any) => {
   const [weather, setWeather] = useState<{ temp: number; code: number; isDay: boolean } | null>(null);
   const [cityName, setCityName] = useState("Localizando...");
   const [localTime, setLocalTime] = useState("");
@@ -370,7 +371,8 @@ const Header = ({ onSettings, isOnline = true, user }: any) => {
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <div style={{ background: "#1c1c1e", borderRadius: 20, padding: "6px 12px", display: "flex", alignItems: "center", gap: 6 }}>
-          <div style={{ width: 7, height: 7, borderRadius: "50%", background: isOnline ? C.green : C.red }} />
+          <div style={{ width: 7, height: 7, borderRadius: "50%", background: isSyncing ? C.yellow : isOnline ? C.green : C.red, animation: isSyncing ? 'net-pulse 1s ease-in-out infinite' : 'none' }} />
+          {isSyncing && <span style={{ color: C.yellow, fontSize: 9, fontWeight: 700, letterSpacing: 0.5 }}>SYNC</span>}
           {localTime && <span style={{ color: C.textMuted, fontSize: 12 }}>{localTime}</span>}
           <Icon d={getWeatherIcon()} size={14} stroke={C.textMuted} />
           <span style={{ color: C.text, fontSize: 13, fontWeight: 500 }}>{weather ? `${weather.temp}°C` : "—"}</span>
@@ -1513,8 +1515,7 @@ const SOSScreen = () => (
   </div>
 );
 
-const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], activeTripId, onSwitchTrip, onTripCreate, onTripUpdate, onTripDelete }: any) => {
-  const [offlineSim, setOfflineSim] = useState(false);
+const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], activeTripId, onSwitchTrip, onTripCreate, onTripUpdate, onTripDelete, offlineSim = false, setOfflineSim, isSyncing = false }: any) => {
   const [forcePending, setForcePending] = useState(false);
   const [showNewTrip, setShowNewTrip] = useState(false);
   // Profile / language / budget states
@@ -2042,7 +2043,7 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
       <SectionLabel icon="bug">DEV CONTROLS</SectionLabel>
       <Card>
         {[
-          { label: "Offline Simulation", sub: offlineSim ? "NETWORK OFFLINE" : "NETWORK ONLINE", icon: icons.wifi, val: offlineSim, set: setOfflineSim, iconBg: "#003d10", iconColor: C.green },
+          { label: "Offline Simulation", sub: offlineSim ? "SIMULATING OFFLINE" : isSyncing ? "SYNCING…" : "NETWORK ONLINE", icon: icons.wifi, val: offlineSim, set: setOfflineSim, iconBg: offlineSim ? "#2a1400" : "#003d10", iconColor: offlineSim ? C.yellow : C.green },
           { label: "Force Pending State", sub: "Simulate data waiting to sync.", icon: icons.refreshCw, val: forcePending, set: setForcePending, iconBg: "#1a1a00", iconColor: C.yellow },
         ].map(item => (
           <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
@@ -2585,8 +2586,24 @@ function AppShell() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [activeTripId, setActiveTripId] = useState<string | null>(null);
   const [pendingInviteToken, setPendingInviteToken] = useState<string | null>(null);
+  // Lifted from SettingsScreen so it actually affects the real isOnline indicator
+  const [offlineSim, setOfflineSim] = useState(false);
 
   const activeTrip = trips.find(t => t.id === activeTripId) ?? null;
+
+  // Re-fetch trips from Supabase when connectivity is restored
+  const handleReconnect = useCallback(async () => {
+    if (!user) return;
+    const rows = await fetch(`/api/trips?userId=${user.sub}`)
+      .then(r => r.ok ? r.json() : [])
+      .catch(() => []);
+    if (rows.length > 0) setTrips(rows.map(rowToTrip));
+  }, [user]);
+
+  const { isOnline, isSyncing } = useNetworkSync({ onReconnect: handleReconnect, debounceMs: 1500 });
+
+  // offlineSim overlays the real network state (Dev Controls toggle)
+  const effectiveIsOnline = isOnline && !offlineSim;
 
   const switchActiveTrip = (id: string) => {
     setActiveTripId(id);
@@ -2696,6 +2713,9 @@ function AppShell() {
             else { setActiveTripId(null); localStorage.removeItem('tripversal_active_trip_id'); }
           }
         }}
+        offlineSim={offlineSim}
+        setOfflineSim={setOfflineSim}
+        isSyncing={isSyncing}
       />
     );
   } else {
@@ -2715,7 +2735,7 @@ function AppShell() {
     <div style={{ background: "#000", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <GlobalStyles />
       <div style={{ width: "100%", maxWidth: 430, minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", position: "relative", overflowX: "hidden", display: "flex", flexDirection: "column" }}>
-        <Header onSettings={() => { setShowSettings(true); setShowManageCrew(false); setShowAddExpense(false); }} user={user} />
+        <Header onSettings={() => { setShowSettings(true); setShowManageCrew(false); setShowAddExpense(false); }} user={user} isOnline={effectiveIsOnline} isSyncing={isSyncing} />
         <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
           {content}
         </div>
