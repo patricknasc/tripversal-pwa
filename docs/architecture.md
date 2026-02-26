@@ -1,6 +1,6 @@
 # Tripversal — Arquitetura do Sistema
 
-> **Versão:** 2.2
+> **Versão:** 2.3
 > **Atualizado:** 2026-02-26
 > **Stack:** Next.js 14 (App Router) · Supabase (PostgreSQL) · React 18
 > **Convenção de nomes:** tabelas e colunas em `snake_case`; tipos TypeScript em `camelCase/PascalCase`
@@ -12,8 +12,9 @@
 1. [Visão Geral](#1-visão-geral)
 2. [Schema do Banco de Dados](#2-schema-do-banco-de-dados)
 3. [Dicionário de Dados](#3-dicionário-de-dados)
-4. [Regras de Negócio](#4-regras-de-negócio) ← 4.4 Sobreposição de segmentos
-5. [Algoritmos](#5-algoritmos) ← 5.3 detectSegmentConflicts
+4. [Regras de Negócio](#4-regras-de-negócio) ← 4.4 Sobreposição de segmentos cross-trip
+5. [Algoritmos](#5-algoritmos) ← 5.3 detectSegmentConflicts (implementado)
+6. [Componentes de UI](#6-componentes-de-ui) ← 6.4 ItineraryScreen + ICS export
 6. [Componentes de UI](#6-componentes-de-ui)
 7. [Hooks](#7-hooks)
 8. [Decisões de Arquitetura (ADRs)](#8-decisões-de-arquitetura-adrs)
@@ -411,13 +412,13 @@ A sobreposição é sinalizada como **warning** (não bloqueia o save). Motivo: 
 
 #### Identity cross-trip
 
-Como cada `trip_participant` é um registro diferente por viagem, a identidade cross-trip de um usuário é rastreada pelo campo `google_sub`:
+Como cada `trip_members` é um registro diferente por viagem, a identidade cross-trip de um usuário é rastreada pelo campo `google_sub`:
 
 ```
-Usuário X  →  trip_participants.google_sub = "google|abc123"
-               ├── participant_id_1  (Viagem A)  → segmento S1 (Jan 10–15)
-               └── participant_id_2  (Viagem B)  → segmento S2 (Jan 13–18)
-               ↑ mesmos google_sub → conflict detectável
+Usuário X  →  trip_members.google_sub = "google|abc123"
+               ├── member_id_1  (Viagem A)  → segmento S1 (Jan 10–15)
+               └── member_id_2  (Viagem B)  → segmento S2 (Jan 13–18)
+               ↑ mesmo google_sub → conflito detectável
 ```
 
 ---
@@ -508,21 +509,21 @@ Para cada moeda distinta:
 
 ### 5.3 `detectSegmentConflicts` — Detecção de sobreposição cross-trip
 
-**Arquivo proposto:** `lib/algorithms/segment_conflicts.ts`
+**Arquivo:** `lib/algorithms/segment_conflicts.ts`
 
-#### Inputs
+#### Tipos exportados
 
 ```typescript
-interface AssignedSegment {
+export interface AssignedSegment {
   id:         string;
   trip_id:    string;
   trip_name:  string;
   name:       string;
-  start_date: string;   // "YYYY-MM-DD"
-  end_date:   string;   // "YYYY-MM-DD"
+  start_date: string; // "YYYY-MM-DD"
+  end_date:   string; // "YYYY-MM-DD"
 }
 
-interface ConflictPair {
+export interface ConflictPair {
   a: AssignedSegment;
   b: AssignedSegment;
 }
@@ -530,23 +531,22 @@ interface ConflictPair {
 
 #### Output
 
-`ConflictPair[]` — cada par de segmentos de viagens diferentes que se sobrepõem para o usuário. Lista vazia = sem conflitos.
+`ConflictPair[]` — cada par de segmentos de viagens diferentes que se sobrepõem para o usuário. Lista vazia = nenhum conflito.
 
-#### Pseudocódigo
+#### Algoritmo
 
 ```
-1. Recebe todos os segmentos onde o usuário está atribuído, de todas as suas viagens
-
+1. Filtra segmentos sem start_date ou end_date
 2. Ordena por start_date asc
-
 3. Para cada par (i, j) com j > i:
-     se sorted[j].start_date > sorted[i].end_date → break (j e qualquer j+n nunca vão sobrepor com i)
-     se sorted[i].trip_id ≠ sorted[j].trip_id     → emite ConflictPair { a: i, b: j }
-
-4. Retorna lista de pares conflitantes
+     sorted[j].start_date > sorted[i].end_date → break   (early exit: j e todos posteriores não sobrepõem i)
+     sorted[i].trip_id ≠ sorted[j].trip_id     → emite ConflictPair { a: i, b: j }
+4. Retorna lista de pares
 ```
 
-#### Implementação TypeScript
+**Complexidade:** O(n log n) sort + O(n) inner scan na média (o `break` corta cedo). O(n²) apenas no pior caso teórico de total sobreposição. Volume esperado < 50 segmentos por usuário — custo desprezível.
+
+#### Implementação
 
 ```typescript
 export function detectSegmentConflicts(segments: AssignedSegment[]): ConflictPair[] {
@@ -558,10 +558,8 @@ export function detectSegmentConflicts(segments: AssignedSegment[]): ConflictPai
 
   for (let i = 0; i < sorted.length - 1; i++) {
     for (let j = i + 1; j < sorted.length; j++) {
-      // sorted[j].start_date > sorted[i].end_date → todos os j futuros também não vão sobrepor
-      if (sorted[j].start_date > sorted[i].end_date) break;
-      // só conflitos cross-trip são relevantes
-      if (sorted[i].trip_id !== sorted[j].trip_id) {
+      if (sorted[j].start_date > sorted[i].end_date) break;  // early exit
+      if (sorted[i].trip_id !== sorted[j].trip_id) {         // cross-trip only
         conflicts.push({ a: sorted[i], b: sorted[j] });
       }
     }
@@ -571,46 +569,72 @@ export function detectSegmentConflicts(segments: AssignedSegment[]): ConflictPai
 }
 ```
 
-**Complexidade:** O(n²) no pior caso, O(n log n) na média (o `break` corta a iteração interna cedo quando os segmentos não se sobrepõem). Para o volume esperado (< 50 segmentos por usuário), o custo é desprezível.
+#### API Route — `GET /api/users/[sub]/segment-conflicts`
 
-#### Query SQL para buscar os segmentos atribuídos ao usuário
+**Arquivo:** `app/api/users/[sub]/segment-conflicts/route.ts`
 
-```sql
-SELECT
-  ts.id,
-  ts.trip_id,
-  t.name   AS trip_name,
-  ts.name,
-  ts.start_date,
-  ts.end_date
-FROM trip_segments ts
-JOIN trips t ON t.id = ts.trip_id
-JOIN trip_participants tp
-  ON tp.trip_id = ts.trip_id
- AND tp.google_sub = $1                          -- google_sub do usuário logado
-WHERE ts.assigned_member_ids @> ARRAY[tp.id]     -- participante atribuído ao segmento
-  AND ts.start_date IS NOT NULL
-  AND ts.end_date   IS NOT NULL
-ORDER BY ts.start_date;
+**Estratégia de query:** duas etapas em aplicação (sem raw SQL), usando o operador `contains` do Supabase JS:
+
+```typescript
+// Etapa 1 — memberships aceitas do usuário
+const { data: memberships } = await sb
+  .from('trip_members')
+  .select('id, trip_id, trips(id, name)')
+  .eq('google_sub', params.sub)
+  .eq('status', 'accepted');
+
+// Etapa 2 — para cada membership, segmentos onde este membro está atribuído
+const buckets = await Promise.all(
+  memberships.map(m =>
+    sb.from('trip_segments')
+      .select('id, trip_id, name, start_date, end_date')
+      .eq('trip_id', m.trip_id)
+      .contains('assigned_member_ids', [m.id])  // @> [m.id] no Supabase JS
+      .not('start_date', 'is', null)
+      .not('end_date', 'is', null)
+  )
+);
+
+const allSegments = buckets.flat();
+const conflicts = detectSegmentConflicts(allSegments);
+// response: { conflicts: ConflictPair[], segments: AssignedSegment[] }
 ```
 
-#### Pontos de validação
+> **Por que duas etapas e não um JOIN?** O Supabase JS v2 não expõe o operador `@>` com bind de parâmetro dinâmico por coluna de join. Uma chamada por membership é segura para o volume esperado (< 10 viagens por usuário).
 
-| Camada | Quando | Ação |
-|---|---|---|
-| **Client (UI)** | Ao atribuir um membro a um segmento | Exibir banner de aviso amarelo com as viagens em conflito |
-| **Server (API)** | `PUT /api/trips/[id]/segments/[segId]` | Rodar `detectSegmentConflicts` e incluir `warnings: ConflictPair[]` na resposta — não rejeitar o save |
-| **Itinerary screen** | Ao carregar a tela | Marcar visualmente eventos conflitantes com ícone ⚠️ |
+**Resposta:**
 
-#### Exemplo de conflito visualizado
-
+```json
+{
+  "conflicts": [
+    {
+      "a": { "id": "...", "trip_id": "...", "trip_name": "Europa 2026", "name": "Roma Leg", "start_date": "2026-03-10", "end_date": "2026-03-15" },
+      "b": { "id": "...", "trip_id": "...", "trip_name": "Negócios Paris", "name": "Paris Stay", "start_date": "2026-03-13", "end_date": "2026-03-18" }
+    }
+  ],
+  "segments": [ ... ]
+}
 ```
-⚠️  Conflito de agenda detectado
 
-   [Trip A] Barcelona Leg 1       Jan 10 – Jan 15
-   [Trip B] Paris Weekend         Jan 13 – Jan 16   ← sobrepõe 3 dias
+#### Pontos de validação implementados
 
-   Você está atribuído a ambos os segmentos.
+| Camada | Arquivo | Quando dispara | Ação |
+|---|---|---|---|
+| **API (leitura)** | `GET /api/users/[sub]/segment-conflicts` | Ao carregar `ItineraryScreen` | Retorna `ConflictPair[]` para o client |
+| **Itinerary screen** | `app/TripversalApp.tsx` | Ao montar o componente / trocar `userSub` | 3 sinais visuais (ver seção 6.4) |
+| **API (escrita)** | `PUT /api/trips/[id]/segments/[segId]` *(futuro)* | Ao atribuir membro a segmento | Rodar `detectSegmentConflicts` e retornar `warnings` — não bloquear save |
+
+#### Tipos mirror no client
+
+`ItineraryEvent` recebe campo `segmentId?: string` — populado por `segmentsToEvents()` — para cruzar com os `ConflictPair` sem precisar reprocessar IDs compostos.
+
+```typescript
+// Em TripversalApp.tsx
+interface ConflictSegment {
+  id: string; trip_id: string; trip_name: string;
+  name: string; start_date: string; end_date: string;
+}
+interface SegmentConflict { a: ConflictSegment; b: ConflictSegment; }
 ```
 
 ---
@@ -658,6 +682,101 @@ Balances
 ```
 
 Positivo (verde) = você recebe. Negativo (amarelo) = você deve.
+
+### 6.4 `ItineraryScreen`
+
+**Arquivo:** `app/TripversalApp.tsx` (componente inline)
+
+#### Props
+
+```typescript
+{
+  activeTripId: string | null;
+  activeTrip:   Trip | null;
+  userSub?:     string;        // google_sub do usuário logado — aciona detecção de conflitos
+}
+```
+
+#### Estado interno
+
+| State | Tipo | Descrição |
+|---|---|---|
+| `now` | `Date` | Atualizado a cada 60 s via `setInterval` — base para o marcador NOW |
+| `selectedDay` | `string` | Dia selecionado no seletor horizontal (`"YYYY-MM-DD"`) |
+| `conflicts` | `SegmentConflict[]` | Pares conflitantes retornados pela API |
+
+#### Fluxo de dados
+
+```
+activeTrip.segments
+    │
+    └── segmentsToEvents()   → ItineraryEvent[]   (inclui segmentId)
+            │
+            └── filter(e.date === selectedDay)     → dayEvents[]
+                    │
+                    ├── getStatus(event, now)       → "done" | "now" | "upcoming"
+                    └── conflictingSegIds.has(e.segmentId) → isConflict: boolean
+
+GET /api/users/[sub]/segment-conflicts
+    │
+    └── conflicts[]
+            │
+            ├── dayConflicts          (filtro: cobre selectedDay)
+            ├── conflictingSegIds     (Set<segmentId> da activeTrip)
+            └── conflictingTripNames  (nomes das outras viagens)
+```
+
+#### Derivações computadas (sem estado extra)
+
+```typescript
+// Conflitos que tocam o dia selecionado
+const dayConflicts = conflicts.filter(c =>
+  (c.a.start_date <= selectedDay && c.a.end_date >= selectedDay) ||
+  (c.b.start_date <= selectedDay && c.b.end_date >= selectedDay)
+);
+
+// IDs de segmentos DESTA viagem que estão em algum conflito
+const conflictingSegIds = new Set(
+  conflicts.flatMap(c => [c.a, c.b])
+    .filter(s => s.trip_id === activeTripId)
+    .map(s => s.id)
+);
+
+// Nomes deduplcados das outras viagens conflitantes (para o banner)
+const conflictingTripNames = Array.from(new Set(
+  dayConflicts.flatMap(c => [c.a, c.b])
+    .filter(s => s.trip_id !== activeTripId)
+    .map(s => s.trip_name)
+));
+```
+
+#### 3 camadas de sinalização de conflito
+
+| Camada | Elemento | Condição |
+|---|---|---|
+| **Banner** | Tarja amarela acima da timeline com ⚠️ e nomes das viagens | `dayConflicts.length > 0` |
+| **Círculo do evento** | Borda + ícone amarelos (em vez de cinza/verde/cyan) | `isConflict === true` |
+| **Badge no horário** | Emoji ⚠️ ao lado do timestamp | `isConflict === true` |
+
+Os 3 sinais são independentes: um dia sem conflito não renderiza nenhum elemento extra.
+
+#### ICS Export
+
+`<a href="/api/trips/[activeTripId]/ics" download>` — link direto para o endpoint ICS. Não depende de estado. Ver seção da API abaixo.
+
+#### API Route ICS — `GET /api/trips/[id]/ics`
+
+**Arquivo:** `app/api/trips/[id]/ics/route.ts`
+
+Gera um feed `.ics` (iCalendar RFC 5545) a partir dos `trip_segments` da viagem:
+
+| Segmento | VEVENTs gerados |
+|---|---|
+| `origin → destination` + `start_date` | 1 evento de viagem (todo-dia) |
+| `start_date` | 1 evento check-in 14h–15h |
+| `end_date ≠ start_date` | 1 evento check-out 11h–12h |
+
+Headers da resposta: `Content-Type: text/calendar`, `Content-Disposition: attachment; filename="<TripName>.ics"`, `Cache-Control: no-store`.
 
 ---
 
