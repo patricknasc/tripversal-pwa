@@ -1,6 +1,6 @@
 # Tripversal — Arquitetura do Sistema
 
-> **Versão:** 2.1
+> **Versão:** 2.2
 > **Atualizado:** 2026-02-26
 > **Stack:** Next.js 14 (App Router) · Supabase (PostgreSQL) · React 18
 > **Convenção de nomes:** tabelas e colunas em `snake_case`; tipos TypeScript em `camelCase/PascalCase`
@@ -12,8 +12,8 @@
 1. [Visão Geral](#1-visão-geral)
 2. [Schema do Banco de Dados](#2-schema-do-banco-de-dados)
 3. [Dicionário de Dados](#3-dicionário-de-dados)
-4. [Regras de Negócio](#4-regras-de-negócio)
-5. [Algoritmos](#5-algoritmos)
+4. [Regras de Negócio](#4-regras-de-negócio) ← 4.4 Sobreposição de segmentos
+5. [Algoritmos](#5-algoritmos) ← 5.3 detectSegmentConflicts
 6. [Componentes de UI](#6-componentes-de-ui)
 7. [Hooks](#7-hooks)
 8. [Decisões de Arquitetura (ADRs)](#8-decisões-de-arquitetura-adrs)
@@ -385,6 +385,41 @@ Ao registrar uma despesa, o app deve:
 - `Σ(expense_shares.share_amount) = expenses.local_amount`
 - Todas as cotas usam a mesma moeda da despesa (`local_currency`)
 
+### 4.4 Restrição de sobreposição de segmentos entre viagens
+
+#### Motivação
+
+Um usuário pode ser membro de múltiplas viagens cujos intervalos de datas se sobrepõem — isso é permitido e esperado (ex.: uma viagem de negócios e uma viagem de lazer planejadas para o mesmo mês). Porém, **um participante não pode estar fisicamente em dois lugares ao mesmo tempo**. Se ele está atribuído ao Segmento A da Viagem 1 e ao Segmento B da Viagem 2, e esses segmentos se sobrepõem em datas, há um conflito logístico real.
+
+#### Definição formal
+
+Dois segmentos `A` e `B` **conflitam para um membro** se:
+
+1. O membro está atribuído a ambos (`A.assigned_member_ids @> [member.id]` e `B.assigned_member_ids @> [member.id]`)
+2. Os segmentos pertencem a **viagens diferentes** (`A.trip_id ≠ B.trip_id`)
+3. Os intervalos de data se sobrepõem:
+
+```
+A.start_date <= B.end_date  AND  B.start_date <= A.end_date
+```
+
+> **Nota:** sobreposições de segmentos *dentro da mesma viagem* não são capturadas por esta regra — um hotel e um voo no mesmo dia são segmentos irmãos legítimos na mesma Trip.
+
+#### Severidade: Aviso, não erro fatal
+
+A sobreposição é sinalizada como **warning** (não bloqueia o save). Motivo: o app não tem contexto suficiente para saber se o conflito é real (ex.: o usuário pode ter sido convidado para uma viagem mas ainda não confirmou presença num segmento específico). A decisão final é do viajante.
+
+#### Identity cross-trip
+
+Como cada `trip_participant` é um registro diferente por viagem, a identidade cross-trip de um usuário é rastreada pelo campo `google_sub`:
+
+```
+Usuário X  →  trip_participants.google_sub = "google|abc123"
+               ├── participant_id_1  (Viagem A)  → segmento S1 (Jan 10–15)
+               └── participant_id_2  (Viagem B)  → segmento S2 (Jan 13–18)
+               ↑ mesmos google_sub → conflict detectável
+```
+
 ---
 
 ## 5. Algoritmos
@@ -468,6 +503,115 @@ Para cada moeda distinta:
 **Propriedade garantida:** O algoritmo produz no máximo `N-1` transferências para `N` participantes por moeda (ótimo para grafos completos).
 
 **Restrição fundamental:** dívidas nunca são convertidas entre moedas. Um SettleUp em EUR é sempre quitado em EUR, independente da `personal_base_currency` de cada parte.
+
+---
+
+### 5.3 `detectSegmentConflicts` — Detecção de sobreposição cross-trip
+
+**Arquivo proposto:** `lib/algorithms/segment_conflicts.ts`
+
+#### Inputs
+
+```typescript
+interface AssignedSegment {
+  id:         string;
+  trip_id:    string;
+  trip_name:  string;
+  name:       string;
+  start_date: string;   // "YYYY-MM-DD"
+  end_date:   string;   // "YYYY-MM-DD"
+}
+
+interface ConflictPair {
+  a: AssignedSegment;
+  b: AssignedSegment;
+}
+```
+
+#### Output
+
+`ConflictPair[]` — cada par de segmentos de viagens diferentes que se sobrepõem para o usuário. Lista vazia = sem conflitos.
+
+#### Pseudocódigo
+
+```
+1. Recebe todos os segmentos onde o usuário está atribuído, de todas as suas viagens
+
+2. Ordena por start_date asc
+
+3. Para cada par (i, j) com j > i:
+     se sorted[j].start_date > sorted[i].end_date → break (j e qualquer j+n nunca vão sobrepor com i)
+     se sorted[i].trip_id ≠ sorted[j].trip_id     → emite ConflictPair { a: i, b: j }
+
+4. Retorna lista de pares conflitantes
+```
+
+#### Implementação TypeScript
+
+```typescript
+export function detectSegmentConflicts(segments: AssignedSegment[]): ConflictPair[] {
+  const sorted = [...segments]
+    .filter(s => s.start_date && s.end_date)
+    .sort((a, b) => a.start_date.localeCompare(b.start_date));
+
+  const conflicts: ConflictPair[] = [];
+
+  for (let i = 0; i < sorted.length - 1; i++) {
+    for (let j = i + 1; j < sorted.length; j++) {
+      // sorted[j].start_date > sorted[i].end_date → todos os j futuros também não vão sobrepor
+      if (sorted[j].start_date > sorted[i].end_date) break;
+      // só conflitos cross-trip são relevantes
+      if (sorted[i].trip_id !== sorted[j].trip_id) {
+        conflicts.push({ a: sorted[i], b: sorted[j] });
+      }
+    }
+  }
+
+  return conflicts;
+}
+```
+
+**Complexidade:** O(n²) no pior caso, O(n log n) na média (o `break` corta a iteração interna cedo quando os segmentos não se sobrepõem). Para o volume esperado (< 50 segmentos por usuário), o custo é desprezível.
+
+#### Query SQL para buscar os segmentos atribuídos ao usuário
+
+```sql
+SELECT
+  ts.id,
+  ts.trip_id,
+  t.name   AS trip_name,
+  ts.name,
+  ts.start_date,
+  ts.end_date
+FROM trip_segments ts
+JOIN trips t ON t.id = ts.trip_id
+JOIN trip_participants tp
+  ON tp.trip_id = ts.trip_id
+ AND tp.google_sub = $1                          -- google_sub do usuário logado
+WHERE ts.assigned_member_ids @> ARRAY[tp.id]     -- participante atribuído ao segmento
+  AND ts.start_date IS NOT NULL
+  AND ts.end_date   IS NOT NULL
+ORDER BY ts.start_date;
+```
+
+#### Pontos de validação
+
+| Camada | Quando | Ação |
+|---|---|---|
+| **Client (UI)** | Ao atribuir um membro a um segmento | Exibir banner de aviso amarelo com as viagens em conflito |
+| **Server (API)** | `PUT /api/trips/[id]/segments/[segId]` | Rodar `detectSegmentConflicts` e incluir `warnings: ConflictPair[]` na resposta — não rejeitar o save |
+| **Itinerary screen** | Ao carregar a tela | Marcar visualmente eventos conflitantes com ícone ⚠️ |
+
+#### Exemplo de conflito visualizado
+
+```
+⚠️  Conflito de agenda detectado
+
+   [Trip A] Barcelona Leg 1       Jan 10 – Jan 15
+   [Trip B] Paris Weekend         Jan 13 – Jan 16   ← sobrepõe 3 dias
+
+   Você está atribuído a ambos os segmentos.
+```
 
 ---
 
@@ -655,3 +799,23 @@ Se recalculássemos com a taxa atual, o histórico da viagem mudaria com a flutu
 **Justificativa:** Converter uma dívida de EUR para BRL para simplificar cria uma exposição cambial implícita. Se João deve €10 a Maria e Maria deve R$60 a João, não podemos cancelar essas dívidas — elas precisam ser quitadas nas moedas originais. Forçar conversão arbitrária penaliza o devedor ou o credor dependendo de quando a transferência é feita.
 
 **Consequência:** O app pode exibir múltiplos "Settle Ups" para o mesmo par de participantes, um por moeda envolvida.
+
+---
+
+### ADR-04: Sobreposição de segmentos cross-trip como aviso, não erro fatal
+
+**Contexto:** Um usuário pode participar de múltiplas viagens com datas sobrepostas. Os segmentos dessas viagens onde ele está atribuído podem conflitar — alguém não pode estar fisicamente em dois lugares ao mesmo tempo.
+
+**Decisão:** Tratar o conflito como **warning não-bloqueante**. O save do segmento ocorre normalmente; a API retorna `warnings: ConflictPair[]` junto da resposta de sucesso. A UI exibe um banner amarelo informativo.
+
+**Por que não bloquear?**
+
+- O app não tem contexto suficiente para determinar se o conflito é real. Um usuário pode ter sido adicionado a uma viagem como organizador sem pretender participar fisicamente de todos os segmentos.
+- Forçar erro criaria fricção para casos válidos (ex.: overlap parcial onde o usuário saiu de um segmento cedo para embarcar em outro).
+- O convite a um trip e a atribuição a um segmento são ações independentes — o grupo pode querer planejar e ajustar depois.
+
+**Consequências:**
+
+- A validação deve existir **em ambas as camadas** (client e server) para que o usuário receba feedback cedo, mas sem bloquear.
+- A Itinerary Screen deve destacar visualmente eventos de viagens diferentes que se sobrepõem no mesmo dia, com ícone ⚠️ e label da viagem conflitante.
+- A resolução do conflito é responsabilidade do usuário: remover-se de um segmento, ajustar as datas, ou simplesmente ignorar o aviso se a sobreposição for intencional.

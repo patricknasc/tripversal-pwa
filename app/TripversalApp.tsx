@@ -85,6 +85,20 @@ interface Trip {
   segments: TripSegment[];
 }
 
+type EventCategory = "flight" | "transit" | "checkin" | "hotel" | "activity" | "food" | "car" | "other";
+
+interface ItineraryEvent {
+  id: string;
+  date: string;           // "YYYY-MM-DD"
+  time: string;           // "HH:MM"
+  category: EventCategory;
+  title: string;
+  subtitle?: string;
+  location?: { address?: string; lat?: number; lng?: number };
+  docUrls?: string[];
+  durationMin?: number;
+}
+
 interface InviteEvent {
   id: string;
   type: "invited" | "accepted";
@@ -127,6 +141,59 @@ const localDateKey = (d: Date): string => {
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 };
+
+function openMapLink(address?: string, lat?: number, lng?: number) {
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const query = lat != null && lng != null ? `${lat},${lng}` : encodeURIComponent(address ?? "");
+  const url = isIOS
+    ? `maps://maps.apple.com/?q=${query}`
+    : `https://www.google.com/maps/dir/?api=1&destination=${query}`;
+  window.open(url, "_blank");
+}
+
+function getDatesRange(startDate: string, endDate: string): string[] {
+  const dates: string[] = [];
+  const cur = new Date(startDate + "T12:00:00");
+  const end = new Date(endDate + "T12:00:00");
+  while (cur <= end) {
+    dates.push(localDateKey(cur));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return dates;
+}
+
+function formatDisplayDate(dateStr: string): string {
+  return new Date(dateStr + "T12:00:00").toLocaleDateString("en", {
+    weekday: "long", day: "numeric", month: "short", year: "numeric",
+  });
+}
+
+function segmentsToEvents(segments: TripSegment[]): ItineraryEvent[] {
+  const events: ItineraryEvent[] = [];
+  segments.forEach(seg => {
+    if (seg.startDate && seg.origin && seg.destination) {
+      events.push({
+        id: `${seg.id}-travel`, date: seg.startDate, time: "09:00", category: "flight",
+        title: `${seg.origin} → ${seg.destination}`, subtitle: seg.name,
+        location: { address: seg.destination },
+      });
+    }
+    if (seg.startDate) {
+      events.push({
+        id: `${seg.id}-checkin`, date: seg.startDate, time: "14:00", category: "checkin",
+        title: `Check-in: ${seg.name}`, subtitle: seg.destination,
+        location: seg.destination ? { address: seg.destination } : undefined,
+      });
+    }
+    if (seg.endDate && seg.endDate !== seg.startDate) {
+      events.push({
+        id: `${seg.id}-checkout`, date: seg.endDate, time: "11:00", category: "hotel",
+        title: `Check-out: ${seg.name}`, subtitle: seg.destination,
+      });
+    }
+  });
+  return events.sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+}
 
 async function fetchRate(from: Currency, to: Currency): Promise<number> {
   const res = await fetch(`https://open.er-api.com/v6/latest/${from}`);
@@ -188,6 +255,11 @@ const icons: Record<string, any> = {
   arrowRight: "M5 12h14M12 5l7 7-7 7",
   clock: ["M12 22a10 10 0 100-20 10 10 0 000 20z", "M12 6v6l4 2"],
   calendar: ["M3 9h18", "M8 3v3", "M16 3v3", "M3 5a2 2 0 012-2h14a2 2 0 012 2v15a2 2 0 01-2 2H5a2 2 0 01-2-2V5z"],
+};
+
+const CATEGORY_ICONS: Record<EventCategory, string> = {
+  flight: icons.plane, transit: icons.car, checkin: icons.building, hotel: icons.building,
+  activity: icons.tag, food: icons.food, car: icons.car, other: icons.calendar,
 };
 
 const C = {
@@ -766,56 +838,161 @@ const HomeScreen = ({ onNav, onAddExpense, activeTripId }: any) => {
   );
 };
 
-const itineraryData = [
-  { time: "08:00", type: "plane", title: "Flight CDG → FCO", sub: "Air France AF1234 • Gate 2B", status: "done", icon: icons.plane },
-  { time: "11:30", type: "transit", title: "Leonardo Express", sub: "Fiumicino → Termini • 32 min", status: "done", icon: icons.car },
-  { time: "13:00", type: "checkin", title: "Check-in Airbnb Roma", sub: "Via del Corso 18 • Host: Marco", status: "now", icon: icons.building },
-  { time: "15:30", type: "activity", title: "Colosseum Tour", sub: "Booked • 4 adults + 3 kids", status: "upcoming", icon: icons.tag },
-  { time: "20:00", type: "food", title: "Dinner reservation", sub: "Trattoria da Mario • 7 pax", status: "upcoming", icon: icons.food },
-];
+const ItineraryScreen = ({ activeTripId, activeTrip }: { activeTripId: string | null; activeTrip?: Trip | null }) => {
+  const [now, setNow] = useState(() => new Date());
+  const todayKey = localDateKey(now);
+  const [selectedDay, setSelectedDay] = useState<string>(todayKey);
 
-const ItineraryScreen = () => (
-  <div style={{ padding: "16px 20px 100px" }}>
-    <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>{"Today's Itinerary"}</div>
-    <div style={{ color: C.textMuted, fontSize: 13, marginBottom: 20 }}>Tuesday, 18 Feb 2026 · Rome, Italy</div>
-    <div style={{ position: "relative" }}>
-      <div style={{ position: "absolute", left: 19, top: 0, bottom: 0, width: 2, background: `linear-gradient(to bottom, ${C.cyan}40, ${C.cyan}10)` }} />
-      {itineraryData.map((item, i) => {
-        const isNow = item.status === "now";
-        const isDone = item.status === "done";
-        return (
-          <div key={i} style={{ display: "flex", gap: 16, marginBottom: 16, position: "relative" }}>
-            <div style={{ width: 40, height: 40, borderRadius: "50%", background: isNow ? C.cyan : isDone ? "#1a2a1a" : C.card3, border: `2px solid ${isNow ? C.cyan : isDone ? C.green : C.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, zIndex: 1 }}>
-              <Icon d={item.icon} size={16} stroke={isNow ? "#000" : isDone ? C.green : C.textMuted} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ background: isNow ? `${C.cyan}15` : C.card, borderRadius: 14, padding: 14, border: isNow ? `1px solid ${C.cyan}30` : "none" }}>
-                {isNow && <div style={{ color: C.cyan, fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 4 }}>● NOW</div>}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 15, color: isDone ? C.textMuted : C.text }}>{item.title}</div>
-                    <div style={{ color: C.textSub, fontSize: 12, marginTop: 2 }}>{item.sub}</div>
-                  </div>
-                  <div style={{ color: C.textSub, fontSize: 12, flexShrink: 0, marginLeft: 8 }}>{item.time}</div>
-                </div>
-                {!isDone && (
-                  <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                    <div style={{ background: C.card3, borderRadius: 8, padding: "6px 12px", fontSize: 12, color: C.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
-                      <Icon d={icons.fileText} size={12} /> Docs
-                    </div>
-                    <div style={{ background: C.card3, borderRadius: 8, padding: "6px 12px", fontSize: 12, color: C.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
-                      <Icon d={icons.navigation} size={12} /> Map
-                    </div>
-                  </div>
-                )}
+  // Tick every 60 s to update NOW marker
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  // When active trip changes, snap selected day to today (if within trip) or trip start
+  useEffect(() => {
+    if (!activeTrip) { setSelectedDay(localDateKey(new Date())); return; }
+    const today = localDateKey(new Date());
+    if (today >= activeTrip.startDate && today <= activeTrip.endDate) setSelectedDay(today);
+    else setSelectedDay(activeTrip.startDate);
+  }, [activeTripId]);
+
+  const dateRange = activeTrip ? getDatesRange(activeTrip.startDate, activeTrip.endDate) : [todayKey];
+  const events: ItineraryEvent[] = activeTrip ? segmentsToEvents(activeTrip.segments) : [];
+
+  const dayEvents = events.filter(e => e.date === selectedDay);
+
+  const nowTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+
+  // The "NOW" event is the last one that started on today before current time
+  const nowEventId: string | null = selectedDay === todayKey
+    ? (dayEvents.filter(e => e.time <= nowTime).at(-1)?.id ?? null)
+    : null;
+
+  const getStatus = (e: ItineraryEvent): "done" | "now" | "upcoming" => {
+    if (e.id === nowEventId) return "now";
+    if (e.date < todayKey || (e.date === todayKey && e.time < nowTime)) return "done";
+    return "upcoming";
+  };
+
+  const daySelectorRef = useRef<HTMLDivElement>(null);
+
+  // Scroll selected day chip into view when it changes
+  useEffect(() => {
+    const el = daySelectorRef.current?.querySelector<HTMLElement>("[data-selected=true]");
+    el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, [selectedDay]);
+
+  return (
+    <div style={{ paddingBottom: 100 }}>
+      {/* Header */}
+      <div style={{ padding: "16px 20px 0" }}>
+        <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>Itinerary</div>
+        <div style={{ color: C.textMuted, fontSize: 13, marginBottom: 16 }}>
+          {formatDisplayDate(selectedDay)}{activeTrip?.destination ? ` · ${activeTrip.destination}` : ""}
+        </div>
+      </div>
+
+      {/* Day selector */}
+      <div ref={daySelectorRef} style={{ overflowX: "auto" }} className="no-scrollbar">
+        <div style={{ display: "flex", gap: 8, padding: "0 20px 16px", width: "max-content" }}>
+          {dateRange.map(day => {
+            const isSel = day === selectedDay;
+            const isToday = day === todayKey;
+            const d = new Date(day + "T12:00:00");
+            return (
+              <div key={day} data-selected={isSel} onClick={() => setSelectedDay(day)}
+                style={{ padding: "8px 14px", borderRadius: 12, cursor: "pointer", flexShrink: 0,
+                  background: isSel ? C.cyan : C.card,
+                  color: isSel ? "#000" : isToday ? C.cyan : C.text,
+                  border: `1px solid ${isSel ? C.cyan : isToday ? C.cyan + "40" : C.border}`,
+                  fontSize: 13, fontWeight: isSel ? 700 : 400,
+                  display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+                }}>
+                <span style={{ fontSize: 10, opacity: 0.7 }}>{d.toLocaleDateString("en", { weekday: "short" })}</span>
+                <span>{d.getDate()}</span>
               </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ICS export */}
+      {activeTripId && (
+        <div style={{ padding: "0 20px 12px", display: "flex", justifyContent: "flex-end" }}>
+          <a href={`/api/trips/${activeTripId}/ics`} download
+            style={{ color: C.cyan, fontSize: 12, display: "flex", alignItems: "center", gap: 4, textDecoration: "none" }}>
+            <Icon d={icons.calendar} size={13} stroke={C.cyan} /> Export to Calendar
+          </a>
+        </div>
+      )}
+
+      {/* Timeline */}
+      <div style={{ padding: "0 20px", position: "relative" }}>
+        {dayEvents.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "40px 0", color: C.textMuted }}>
+            <Icon d={icons.calendar} size={32} stroke={C.textMuted} />
+            <div style={{ marginTop: 12, fontSize: 14 }}>
+              {events.length === 0 ? "Add trip segments in Settings to see your itinerary" : "No events scheduled for this day"}
             </div>
           </div>
-        );
-      })}
+        ) : (
+          <>
+            <div style={{ position: "absolute", left: 39, top: 0, bottom: 0, width: 2, background: `linear-gradient(to bottom, ${C.cyan}40, ${C.cyan}10)` }} />
+            {dayEvents.map(event => {
+              const status = getStatus(event);
+              const isNow = status === "now";
+              const isDone = status === "done";
+              const catIcon = CATEGORY_ICONS[event.category] ?? icons.tag;
+              const hasMap = event.location && (event.location.address || (event.location.lat != null));
+              const hasDocs = event.docUrls && event.docUrls.length > 0;
+              return (
+                <div key={event.id} style={{ display: "flex", gap: 16, marginBottom: 16, position: "relative" }}>
+                  <div style={{ width: 40, height: 40, borderRadius: "50%", flexShrink: 0, zIndex: 1,
+                    background: isNow ? C.cyan : isDone ? "#1a2a1a" : C.card3,
+                    border: `2px solid ${isNow ? C.cyan : isDone ? C.green : C.border}`,
+                    display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Icon d={catIcon} size={16} stroke={isNow ? "#000" : isDone ? C.green : C.textMuted} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ background: isNow ? `${C.cyan}15` : C.card, borderRadius: 14, padding: 14,
+                      border: isNow ? `1px solid ${C.cyan}30` : "none" }}>
+                      {isNow && <div style={{ color: C.cyan, fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 4 }}>● NOW</div>}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 15, color: isDone ? C.textMuted : C.text }}>{event.title}</div>
+                          {event.subtitle && <div style={{ color: C.textSub, fontSize: 12, marginTop: 2 }}>{event.subtitle}</div>}
+                        </div>
+                        <div style={{ color: C.textSub, fontSize: 12, flexShrink: 0, marginLeft: 8 }}>{event.time}</div>
+                      </div>
+                      {!isDone && (hasMap || hasDocs) && (
+                        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                          {hasDocs && (
+                            <a href={event.docUrls![0]} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+                              <div style={{ background: C.card3, borderRadius: 8, padding: "6px 12px", fontSize: 12, color: C.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
+                                <Icon d={icons.fileText} size={12} /> Docs
+                              </div>
+                            </a>
+                          )}
+                          {hasMap && (
+                            <div onClick={() => openMapLink(event.location?.address, event.location?.lat, event.location?.lng)}
+                              style={{ background: C.card3, borderRadius: 8, padding: "6px 12px", fontSize: 12, color: C.textMuted, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
+                              <Icon d={icons.navigation} size={12} /> Map
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </>
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const WalletScreen = ({ onAddExpense, activeTripId }: any) => {
   const [budget, setBudgetState] = useState<TripBudget>(DEFAULT_BUDGET);
@@ -2721,7 +2898,7 @@ function AppShell() {
   } else {
     switch (tab) {
       case "home": content = <HomeScreen onNav={handleNav} onAddExpense={() => setShowAddExpense(true)} activeTripId={activeTripId} />; break;
-      case "itinerary": content = <ItineraryScreen />; break;
+      case "itinerary": content = <ItineraryScreen activeTripId={activeTripId} activeTrip={activeTrip} />; break;
       case "wallet": content = <WalletScreen onAddExpense={() => setShowAddExpense(true)} activeTripId={activeTripId} />; break;
       case "photos": content = <PhotosScreen />; break;
       case "sos": content = <SOSScreen />; break;
