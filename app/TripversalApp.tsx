@@ -108,6 +108,8 @@ interface ItineraryEvent {
   docUrls?: string[];
   durationMin?: number;
   segmentId?: string;  // source trip_segment.id — used for conflict cross-referencing
+  isCustom?: boolean;
+  _record?: ItineraryEventRecord;
 }
 
 interface ConflictSegment {
@@ -115,6 +117,36 @@ interface ConflictSegment {
   name: string; start_date: string; end_date: string;
 }
 interface SegmentConflict { a: ConflictSegment; b: ConflictSegment; }
+
+type ItinEventType = 'flight'|'train'|'bus'|'car'|'ferry'|'hotel_in'|'hotel_out'|'tour'|'meal'|'event'|'place'|'other';
+
+interface ItineraryEventRecord {
+  id: string;
+  tripId: string;
+  type: ItinEventType;
+  title: string;
+  startDt: string;
+  endDt?: string;
+  location?: string;
+  notes?: string;
+  confirmation?: string;
+  extras?: Record<string, string>;
+  createdBy: string;
+  updatedBy?: string;
+  deletedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface TripActivityItem {
+  id: string;
+  trip_id: string;
+  actor_sub: string;
+  actor_name?: string;
+  action: string;
+  subject?: string;
+  created_at: string;
+}
 
 interface InviteEvent {
   id: string;
@@ -470,6 +502,65 @@ const SegmentIcon = ({ color, size = 10 }: { color: string; size?: number }) => 
 const SEG_FLAGS = ['🇧🇷','🇺🇸','🇬🇧','🇫🇷','🇩🇪','🇮🇹','🇪🇸','🇵🇹','🇯🇵','🇨🇳','🇰🇷','🇦🇷','🇨🇴','🇲🇽','🇨🇱','🇦🇺','🇳🇿','🇨🇦','🇮🇳','🇷🇺','🇹🇷','🇬🇷','🇳🇱','🇧🇪','🇨🇭','🇦🇹','🇸🇪','🇳🇴','🇩🇰','🇵🇱','🇨🇿','🇸🇬','🇹🇭','🇮🇩','🇻🇳','🇲🇾','🇵🇭','🇪🇬','🇿🇦','🇲🇦','🇮🇱','🇸🇦','🇦🇪','🇺🇾','🇵🇪','🇧🇴','🇪🇨','🇨🇷','🇨🇺','🇭🇺','🇷🇴','🇧🇬','🇭🇷','🇸🇰','🇸🇮','🇷🇸'];
 const SEG_EMOJIS = ['✈️','🚂','🚢','🚁','🏨','🏝','🗺️','🏕','🌋','🌊','🗼','🗽','🏰','🎡','🎭','🎿','⛷️','🏄','🎪','🎨','🏔','🌅','🌃','🌆','🌉','🎠','🚡','🛥️','🏺','⛩️','🕌','🕍','🏯','🏟','🛕','🗿','🎑','🎆','🎇','🌄'];
 
+const ITIN_TYPES: { type: ItinEventType; emoji: string; label: string; extras: string[] }[] = [
+  { type: 'flight',    emoji: '✈️',  label: 'Flight',    extras: ['Airline','Flight #','Seat','Terminal'] },
+  { type: 'train',     emoji: '🚂',  label: 'Train',     extras: ['Train #','Seat','Platform'] },
+  { type: 'bus',       emoji: '🚌',  label: 'Bus',       extras: ['Bus #','Seat'] },
+  { type: 'car',       emoji: '🚗',  label: 'Car',       extras: ['Company','Pickup'] },
+  { type: 'ferry',     emoji: '⛴️',  label: 'Ferry',     extras: ['Ferry Name','Cabin'] },
+  { type: 'hotel_in',  emoji: '🏨',  label: 'Check-in',  extras: ['Hotel','Room','Address'] },
+  { type: 'hotel_out', emoji: '🛏️',  label: 'Check-out', extras: ['Hotel','Address'] },
+  { type: 'tour',      emoji: '🗺️',  label: 'Tour',      extras: ['Operator','Meeting Point'] },
+  { type: 'meal',      emoji: '🍽️',  label: 'Meal',      extras: ['Restaurant','Cuisine','Reservation'] },
+  { type: 'event',     emoji: '🎭',  label: 'Event',     extras: ['Venue','Ticket #'] },
+  { type: 'place',     emoji: '📍',  label: 'Place',     extras: ['Address'] },
+  { type: 'other',     emoji: '📌',  label: 'Other',     extras: [] },
+];
+
+function weatherIcon(code: number): string {
+  if (code === 0) return '☀️';
+  if (code <= 3) return '⛅';
+  if (code <= 48) return '🌫️';
+  if (code <= 67) return '🌧️';
+  if (code <= 77) return '❄️';
+  if (code <= 82) return '🌦️';
+  if (code <= 86) return '🌨️';
+  return '⛈️';
+}
+
+function itinTypeIcon(type: ItinEventType): string {
+  if (type === 'flight') return icons.plane;
+  if (type === 'train' || type === 'bus') return icons.car;
+  if (type === 'car') return icons.car;
+  if (type === 'ferry') return icons.layers;
+  if (type === 'hotel_in' || type === 'hotel_out') return icons.building;
+  if (type === 'tour') return icons.map;
+  if (type === 'meal') return icons.food;
+  if (type === 'event') return icons.ticket;
+  if (type === 'place') return icons.navigation;
+  return icons.calendar;
+}
+
+function itinRecordToEvent(rec: ItineraryEventRecord): ItineraryEvent & { isCustom: true; _record: ItineraryEventRecord } {
+  const dt = new Date(rec.startDt);
+  const date = localDateKey(dt);
+  const time = `${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+  const cat: EventCategory =
+    rec.type === 'flight' ? 'flight' :
+    rec.type === 'meal' ? 'food' :
+    rec.type === 'car' ? 'car' :
+    (rec.type === 'hotel_in' || rec.type === 'hotel_out') ? 'hotel' :
+    'activity';
+  return {
+    id: rec.id, date, time, category: cat,
+    title: rec.title,
+    subtitle: rec.location,
+    location: rec.location ? { address: rec.location } : undefined,
+    isCustom: true,
+    _record: rec,
+  };
+}
+
 const Btn = ({ children, onClick, variant = "primary", style = {}, icon }: any) => {
   const styles: any = {
     primary: { background: C.cyan, color: "#000", fontWeight: 700 },
@@ -607,6 +698,7 @@ const HomeScreen = ({ onNav, onAddExpense, onShowGroup, activeTripId, activeTrip
   const [yesterdaySpent, setYesterdaySpent] = useState(0);
   const [allExpenses, setAllExpenses] = useState<Expense[]>([]);
   const [inviteEvents, setInviteEvents] = useState<InviteEvent[]>([]);
+  const [serverActivity, setServerActivity] = useState<TripActivityItem[]>([]);
   const [visibleCount, setVisibleCount] = useState(10);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [selectedActivityExp, setSelectedActivityExp] = useState<Expense | null>(null);
@@ -667,6 +759,11 @@ const HomeScreen = ({ onNav, onAddExpense, onShowGroup, activeTripId, activeTrip
           setYesterdaySpent(forTrip.filter(e => localDateKey(new Date(e.date)) === yesterdayKey).reduce((s, e) => s + e.baseAmount, 0));
           setAllExpenses(forTrip);
         })
+        .catch(() => {});
+      // Fetch activity feed
+      fetch(`/api/trips/${activeTripId}/activity?callerSub=${encodeURIComponent(user.sub)}&limit=10`)
+        .then(r => r.ok ? r.json() : [])
+        .then((rows: TripActivityItem[]) => setServerActivity(rows))
         .catch(() => {});
     }
   }, [activeTripId]);
@@ -826,6 +923,7 @@ const HomeScreen = ({ onNav, onAddExpense, onShowGroup, activeTripId, activeTrip
           const activityItems = [
             ...allExpenses.map(e => ({ kind: 'expense' as const, at: e.date, data: e })),
             ...inviteEvents.map(ev => ({ kind: 'event' as const, at: ev.at, data: ev })),
+            ...serverActivity.map(a => ({ kind: 'activity' as const, at: a.created_at, data: a })),
           ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 
           if (activityItems.length === 0) return (
@@ -835,6 +933,26 @@ const HomeScreen = ({ onNav, onAddExpense, onShowGroup, activeTripId, activeTrip
           );
 
           return activityItems.slice(0, visibleCount).map(item => {
+            if (item.kind === 'activity') {
+              const a = item.data as TripActivityItem;
+              const actionLabel = a.action === 'event_created' ? 'added' : a.action === 'event_updated' ? 'updated' : 'removed';
+              return (
+                <Card key={`act-${a.id}`} style={{ marginBottom: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: C.card3, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 18 }}>📅</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
+                        {a.actor_name || a.actor_sub.slice(0, 8)} {actionLabel}: {a.subject}
+                      </div>
+                      <div style={{ color: C.textMuted, fontSize: 12 }}>Itinerary event</div>
+                    </div>
+                    <div style={{ color: C.textMuted, fontSize: 11, flexShrink: 0 }}>
+                      {new Date(a.created_at).toLocaleDateString("en", { day: "numeric", month: "short" })}
+                    </div>
+                  </div>
+                </Card>
+              );
+            }
             if (item.kind === 'event') {
               const ev = item.data as InviteEvent;
               return (
@@ -1025,13 +1143,32 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
   const [selectedDay, setSelectedDay] = useState<string>(todayKey);
   const [conflicts, setConflicts] = useState<SegmentConflict[]>([]);
 
-  // Tick every 60 s to update NOW marker
+  // Custom events
+  const [itinEvents, setItinEvents] = useState<ItineraryEventRecord[]>([]);
+  const [showEventForm, setShowEventForm] = useState(false);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [evtType, setEvtType] = useState<ItinEventType>('other');
+  const [evtTitle, setEvtTitle] = useState('');
+  const [evtDate, setEvtDate] = useState('');
+  const [evtTime, setEvtTime] = useState('12:00');
+  const [evtEndDate, setEvtEndDate] = useState('');
+  const [evtEndTime, setEvtEndTime] = useState('');
+  const [evtLocation, setEvtLocation] = useState('');
+  const [evtNotes, setEvtNotes] = useState('');
+  const [evtConfirmation, setEvtConfirmation] = useState('');
+  const [evtExtras, setEvtExtras] = useState<Record<string, string>>({});
+  const [evtSaving, setEvtSaving] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [weatherMap, setWeatherMap] = useState<Record<string, { temp: number; code: number }>>({});
+  const [countdown, setCountdown] = useState<{ title: string; remaining: string } | null>(null);
+
+  // Tick every 30s
   useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 60_000);
+    const t = setInterval(() => setNow(new Date()), 30_000);
     return () => clearInterval(t);
   }, []);
 
-  // Fetch cross-trip conflicts for this user
+  // Fetch cross-trip conflicts
   useEffect(() => {
     if (!userSub) return;
     fetch(`/api/users/${encodeURIComponent(userSub)}/segment-conflicts`)
@@ -1040,31 +1177,89 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
       .catch(() => {});
   }, [userSub]);
 
-  const events: ItineraryEvent[] = activeTrip ? segmentsToEvents(activeTrip.segments) : [];
+  // Load custom itinerary events
+  useEffect(() => {
+    if (!activeTripId) { setItinEvents([]); return; }
+    const lsKey = `tripversal_itin_${activeTripId}`;
+    try {
+      const stored = localStorage.getItem(lsKey);
+      if (stored) setItinEvents(JSON.parse(stored));
+    } catch {}
+    if (userSub) {
+      fetch(`/api/trips/${activeTripId}/itinerary?callerSub=${encodeURIComponent(userSub)}`)
+        .then(r => r.ok ? r.json() : null)
+        .then((rows: ItineraryEventRecord[] | null) => {
+          if (!rows) return;
+          setItinEvents(rows);
+          localStorage.setItem(lsKey, JSON.stringify(rows));
+        })
+        .catch(() => {});
+    }
+  }, [activeTripId]);
 
-  // Expand date range to include all segment event dates even if outside trip bounds
-  const eventDates = events.map(e => e.date);
+  // Weather from Open-Meteo (free, no key)
+  useEffect(() => {
+    if (!activeTripId || typeof navigator === 'undefined' || !('geolocation' in navigator)) return;
+    navigator.geolocation.getCurrentPosition(({ coords: { latitude, longitude } }) => {
+      const today = localDateKey(new Date());
+      const end = new Date(); end.setDate(end.getDate() + 15);
+      const endDate = localDateKey(end);
+      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&daily=temperature_2m_max,weathercode&timezone=auto&start_date=${today}&end_date=${endDate}`)
+        .then(r => r.json())
+        .then(d => {
+          if (!d.daily?.time) return;
+          const map: Record<string, { temp: number; code: number }> = {};
+          d.daily.time.forEach((date: string, i: number) => {
+            map[date] = { temp: Math.round(d.daily.temperature_2m_max[i]), code: d.daily.weathercode[i] };
+          });
+          setWeatherMap(map);
+        })
+        .catch(() => {});
+    }, () => {});
+  }, [activeTripId]);
+
+  // Countdown to next event today
+  useEffect(() => {
+    const today = localDateKey(now);
+    const nowMs = now.getTime();
+    const next = itinEvents
+      .filter(e => !e.deletedAt && new Date(e.startDt).getTime() > nowMs && localDateKey(new Date(e.startDt)) === today)
+      .sort((a, b) => new Date(a.startDt).getTime() - new Date(b.startDt).getTime())[0];
+    if (!next) { setCountdown(null); return; }
+    const diffMs = new Date(next.startDt).getTime() - nowMs;
+    const h = Math.floor(diffMs / 3_600_000);
+    const m = Math.floor((diffMs % 3_600_000) / 60_000);
+    setCountdown({ title: next.title, remaining: h > 0 ? `${h}h ${m}m` : `${m}m` });
+  }, [now, itinEvents]);
+
+  const segEvents: ItineraryEvent[] = activeTrip ? segmentsToEvents(activeTrip.segments) : [];
+  const activeItinEvents = itinEvents.filter(e => !e.deletedAt);
+  const customEventDates = activeItinEvents.map(e => localDateKey(new Date(e.startDt)));
+
+  const eventDates = segEvents.map(e => e.date);
   const allDates = activeTrip
-    ? [...getDatesRange(activeTrip.startDate, activeTrip.endDate), ...eventDates]
-    : [todayKey];
+    ? [...getDatesRange(activeTrip.startDate, activeTrip.endDate), ...eventDates, ...customEventDates]
+    : [todayKey, ...customEventDates];
   const dateRange = Array.from(new Set(allDates)).sort();
 
-  // When active trip changes, snap to today if in range, else first event day, else trip start
   useEffect(() => {
     if (!activeTrip) { setSelectedDay(localDateKey(new Date())); return; }
     const today = localDateKey(new Date());
     if (dateRange.includes(today)) { setSelectedDay(today); return; }
-    const firstEvent = eventDates.sort()[0];
+    const firstEvent = [...eventDates, ...customEventDates].sort()[0];
     setSelectedDay(firstEvent ?? activeTrip.startDate);
   }, [activeTripId]);
 
-  const dayEvents = events.filter(e => e.date === selectedDay);
+  const daySegEvents = segEvents.filter(e => e.date === selectedDay);
+  const dayCustomEvents = activeItinEvents
+    .filter(e => localDateKey(new Date(e.startDt)) === selectedDay)
+    .map(rec => itinRecordToEvent(rec));
+  const allDayEvents = [...daySegEvents, ...dayCustomEvents]
+    .sort((a, b) => a.time.localeCompare(b.time));
 
   const nowTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-
-  // The "NOW" event is the last one that started on today before current time
   const nowEventId: string | null = selectedDay === todayKey
-    ? (dayEvents.filter(e => e.time <= nowTime).at(-1)?.id ?? null)
+    ? (allDayEvents.filter(e => e.time <= nowTime).at(-1)?.id ?? null)
     : null;
 
   const getStatus = (e: ItineraryEvent): "done" | "now" | "upcoming" => {
@@ -1074,32 +1269,104 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
   };
 
   const daySelectorRef = useRef<HTMLDivElement>(null);
-
-  // Scroll selected day chip into view when it changes
   useEffect(() => {
     const el = daySelectorRef.current?.querySelector<HTMLElement>("[data-selected=true]");
     el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
   }, [selectedDay]);
 
-  // Conflicts that touch the selected day
   const dayConflicts = conflicts.filter(c =>
     (c.a.start_date <= selectedDay && c.a.end_date >= selectedDay) ||
     (c.b.start_date <= selectedDay && c.b.end_date >= selectedDay)
   );
-
-  // Segment IDs from THIS trip that are in a conflict
   const conflictingSegIds = new Set(
-    conflicts.flatMap(c => [c.a, c.b])
-      .filter(s => s.trip_id === activeTripId)
-      .map(s => s.id)
+    conflicts.flatMap(c => [c.a, c.b]).filter(s => s.trip_id === activeTripId).map(s => s.id)
   );
-
-  // The OTHER trips' names that conflict on the selected day
   const conflictingTripNames = Array.from(new Set(
-    dayConflicts.flatMap(c => [c.a, c.b])
-      .filter(s => s.trip_id !== activeTripId)
-      .map(s => s.trip_name)
+    dayConflicts.flatMap(c => [c.a, c.b]).filter(s => s.trip_id !== activeTripId).map(s => s.trip_name)
   ));
+
+  const saveItinEvents = (arr: ItineraryEventRecord[]) => {
+    setItinEvents(arr);
+    if (activeTripId) localStorage.setItem(`tripversal_itin_${activeTripId}`, JSON.stringify(arr));
+  };
+
+  const openAddForm = () => {
+    setEditingEventId(null);
+    setEvtType('other'); setEvtTitle(''); setEvtDate(selectedDay); setEvtTime('12:00');
+    setEvtEndDate(''); setEvtEndTime(''); setEvtLocation(''); setEvtNotes('');
+    setEvtConfirmation(''); setEvtExtras({});
+    setShowEventForm(true);
+  };
+
+  const openEditForm = (rec: ItineraryEventRecord) => {
+    const dt = new Date(rec.startDt);
+    const endDt = rec.endDt ? new Date(rec.endDt) : null;
+    setEditingEventId(rec.id);
+    setEvtType(rec.type); setEvtTitle(rec.title);
+    setEvtDate(localDateKey(dt));
+    setEvtTime(`${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`);
+    setEvtEndDate(endDt ? localDateKey(endDt) : '');
+    setEvtEndTime(endDt ? `${String(endDt.getHours()).padStart(2,'0')}:${String(endDt.getMinutes()).padStart(2,'0')}` : '');
+    setEvtLocation(rec.location || ''); setEvtNotes(rec.notes || '');
+    setEvtConfirmation(rec.confirmation || ''); setEvtExtras(rec.extras || {});
+    setShowEventForm(true);
+  };
+
+  const handleSaveEvent = async () => {
+    if (!evtTitle.trim() || !evtDate || !evtTime) return;
+    setEvtSaving(true);
+    const startDt = new Date(`${evtDate}T${evtTime}:00`).toISOString();
+    const endDt = evtEndDate && evtEndTime ? new Date(`${evtEndDate}T${evtEndTime}:00`).toISOString() : undefined;
+    const ts = new Date().toISOString();
+    const extrasObj = Object.keys(evtExtras).length > 0 ? evtExtras : undefined;
+
+    if (editingEventId) {
+      const updated: ItineraryEventRecord = {
+        ...itinEvents.find(e => e.id === editingEventId)!,
+        type: evtType, title: evtTitle.trim(), startDt, endDt,
+        location: evtLocation || undefined, notes: evtNotes || undefined,
+        confirmation: evtConfirmation || undefined, extras: extrasObj, updatedAt: ts,
+      };
+      saveItinEvents(itinEvents.map(e => e.id === editingEventId ? updated : e));
+      if (activeTripId) {
+        fetch(`/api/trips/${activeTripId}/itinerary/${editingEventId}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ callerSub: userSub, actorName: null, type: evtType, title: evtTitle.trim(), startDt, endDt: endDt ?? null, location: evtLocation || null, notes: evtNotes || null, confirmation: evtConfirmation || null, extras: extrasObj ?? null }),
+        }).catch(() => {});
+      }
+    } else {
+      const id = Date.now().toString();
+      const newRec: ItineraryEventRecord = {
+        id, tripId: activeTripId!, type: evtType, title: evtTitle.trim(), startDt, endDt,
+        location: evtLocation || undefined, notes: evtNotes || undefined,
+        confirmation: evtConfirmation || undefined, extras: extrasObj,
+        createdBy: userSub!, createdAt: ts, updatedAt: ts,
+      };
+      saveItinEvents([...itinEvents, newRec]);
+      if (activeTripId) {
+        fetch(`/api/trips/${activeTripId}/itinerary`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ callerSub: userSub, actorName: null, id, type: evtType, title: evtTitle.trim(), startDt, endDt: endDt ?? null, location: evtLocation || null, notes: evtNotes || null, confirmation: evtConfirmation || null, extras: extrasObj ?? null }),
+        }).catch(() => {});
+      }
+    }
+    setShowEventForm(false);
+    setEvtSaving(false);
+  };
+
+  const handleDeleteEvent = (id: string) => {
+    const ts = new Date().toISOString();
+    saveItinEvents(itinEvents.map(e => e.id === id ? { ...e, deletedAt: ts } : e));
+    if (activeTripId) {
+      fetch(`/api/trips/${activeTripId}/itinerary/${id}`, {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callerSub: userSub, actorName: null }),
+      }).catch(() => {});
+    }
+    setConfirmDeleteId(null);
+  };
+
+  const extrasForType = ITIN_TYPES.find(t => t.type === evtType)?.extras ?? [];
 
   return (
     <div style={{ paddingBottom: 100 }}>
@@ -1112,10 +1379,18 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
           </div>
         </div>
         {activeTripId && (
-          <a href={`/api/trips/${activeTripId}/ics`} download
-            style={{ color: C.cyan, fontSize: 12, display: "flex", alignItems: "center", gap: 4, textDecoration: "none", marginTop: 4, flexShrink: 0 }}>
-            <Icon d={icons.calendar} size={13} stroke={C.cyan} /> Export full trip
-          </a>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, marginTop: 4 }}>
+            <a href={`/api/trips/${activeTripId}/ics`} download
+              style={{ color: C.cyan, fontSize: 12, display: "flex", alignItems: "center", gap: 4, textDecoration: "none" }}>
+              <Icon d={icons.calendar} size={13} stroke={C.cyan} /> Export
+            </a>
+            <button onClick={() => {
+              const url = `webcal://${typeof window !== 'undefined' ? window.location.host : ''}/api/trips/${activeTripId}/ics`;
+              navigator.clipboard.writeText(url).catch(() => {});
+            }} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, fontSize: 12, display: "flex", alignItems: "center", gap: 4, padding: 0, fontFamily: "inherit" }}>
+              <Icon d={icons.refreshCw} size={13} stroke={C.textMuted} /> Subscribe
+            </button>
+          </div>
         )}
       </div>
 
@@ -1125,25 +1400,45 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
           {dateRange.map(day => {
             const isSel = day === selectedDay;
             const isToday = day === todayKey;
-            const hasEvents = events.some(e => e.date === day);
+            const hasEvents = segEvents.some(e => e.date === day) || activeItinEvents.some(e => localDateKey(new Date(e.startDt)) === day);
             const d = new Date(day + "T12:00:00");
+            const wx = weatherMap[day];
             return (
               <div key={day} data-selected={isSel} onClick={() => setSelectedDay(day)}
-                style={{ padding: "8px 14px", borderRadius: 12, cursor: "pointer", flexShrink: 0,
+                style={{ padding: "8px 12px", borderRadius: 12, cursor: "pointer", flexShrink: 0,
                   background: isSel ? C.cyan : C.card,
                   color: isSel ? "#000" : isToday ? C.cyan : C.text,
                   border: `1px solid ${isSel ? C.cyan : isToday ? C.cyan + "40" : C.border}`,
                   fontSize: 13, fontWeight: isSel ? 700 : 400,
-                  display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+                  display: "flex", flexDirection: "column", alignItems: "center", gap: 2, minWidth: 44,
                 }}>
                 <span style={{ fontSize: 10, opacity: 0.7 }}>{d.toLocaleDateString("en", { weekday: "short" })}</span>
                 <span>{d.getDate()}</span>
-                <div style={{ width: 4, height: 4, borderRadius: "50%", background: hasEvents ? (isSel ? "#000" : C.cyan) : "transparent", marginTop: 1 }} />
+                {wx ? (
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0 }}>
+                    <span style={{ fontSize: 11 }}>{weatherIcon(wx.code)}</span>
+                    <span style={{ fontSize: 9, opacity: 0.8 }}>{wx.temp}°</span>
+                  </div>
+                ) : (
+                  <div style={{ width: 4, height: 4, borderRadius: "50%", background: hasEvents ? (isSel ? "#000" : C.cyan) : "transparent", marginTop: 1 }} />
+                )}
               </div>
             );
           })}
         </div>
       </div>
+
+      {/* Countdown */}
+      {countdown && selectedDay === todayKey && (
+        <div style={{ margin: "0 20px 12px", background: `${C.cyan}12`, border: `1px solid ${C.cyan}30`, borderRadius: 12, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ fontSize: 13, color: C.textMuted }}>
+            Next: <span style={{ color: C.text, fontWeight: 600 }}>{countdown.title}</span>
+          </div>
+          <div style={{ background: C.cyan, color: "#000", borderRadius: 20, padding: "3px 10px", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+            in {countdown.remaining}
+          </div>
+        </div>
+      )}
 
       {/* Conflict banner */}
       {dayConflicts.length > 0 && (
@@ -1161,63 +1456,98 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
         </div>
       )}
 
+      {/* Add event button */}
+      {activeTripId && (
+        <div style={{ padding: "0 20px 12px" }}>
+          <button onClick={openAddForm} style={{ display: "flex", alignItems: "center", gap: 6, background: C.card, border: `1px dashed ${C.border}`, borderRadius: 12, padding: "10px 16px", color: C.textMuted, cursor: "pointer", fontSize: 13, width: "100%", fontFamily: "inherit", boxSizing: "border-box" as const }}>
+            <Icon d={icons.plus} size={16} stroke={C.textMuted} />
+            Add event · {new Date(selectedDay + "T12:00:00").toLocaleDateString("en", { weekday: "short", day: "numeric", month: "short" })}
+          </button>
+        </div>
+      )}
+
       {/* Timeline */}
       <div style={{ padding: "0 20px", position: "relative" }}>
-        {dayEvents.length === 0 ? (
+        {allDayEvents.length === 0 ? (
           <div style={{ textAlign: "center", padding: "40px 0", color: C.textMuted }}>
             <Icon d={icons.calendar} size={32} stroke={C.textMuted} />
             <div style={{ marginTop: 12, fontSize: 14 }}>
-              {events.length === 0 ? "Add dates to your segments to see them in the itinerary" : "No events on this day — tap a dot to jump to a day with events"}
+              {segEvents.length === 0 && itinEvents.length === 0
+                ? "Add segment dates or tap + to create your first event"
+                : "No events on this day"}
             </div>
           </div>
         ) : (
           <>
             <div style={{ position: "absolute", left: 39, top: 0, bottom: 0, width: 2, background: `linear-gradient(to bottom, ${C.cyan}40, ${C.cyan}10)` }} />
-            {dayEvents.map(event => {
+            {allDayEvents.map(event => {
               const status = getStatus(event);
               const isNow = status === "now";
               const isDone = status === "done";
               const isConflict = !!event.segmentId && conflictingSegIds.has(event.segmentId);
-              const catIcon = CATEGORY_ICONS[event.category] ?? icons.tag;
-              const hasMap = event.location && (event.location.address || (event.location.lat != null));
-              const hasDocs = event.docUrls && event.docUrls.length > 0;
+              const rec = event._record;
+              const typeCfg = rec ? ITIN_TYPES.find(t => t.type === rec.type) : null;
+              const catIcon = rec ? itinTypeIcon(rec.type) : (CATEGORY_ICONS[event.category] ?? icons.tag);
+              const hasMap = event.location && (event.location.address || event.location.lat != null);
               return (
                 <div key={event.id} style={{ display: "flex", gap: 16, marginBottom: 16, position: "relative" }}>
                   <div style={{ width: 40, height: 40, borderRadius: "50%", flexShrink: 0, zIndex: 1,
                     background: isNow ? C.cyan : isDone ? "#1a2a1a" : C.card3,
                     border: `2px solid ${isNow ? C.cyan : isDone ? C.green : isConflict ? C.yellow : C.border}`,
-                    display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Icon d={catIcon} size={16} stroke={isNow ? "#000" : isDone ? C.green : isConflict ? C.yellow : C.textMuted} />
+                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>
+                    {typeCfg
+                      ? <span>{typeCfg.emoji}</span>
+                      : <Icon d={catIcon} size={16} stroke={isNow ? "#000" : isDone ? C.green : isConflict ? C.yellow : C.textMuted} />}
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ background: isNow ? `${C.cyan}15` : C.card, borderRadius: 14, padding: 14,
                       border: isNow ? `1px solid ${C.cyan}30` : isConflict ? `1px solid ${C.yellow}40` : "none" }}>
                       {isNow && <div style={{ color: C.cyan, fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 4 }}>● NOW</div>}
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                        <div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 700, fontSize: 15, color: isDone ? C.textMuted : C.text }}>{event.title}</div>
                           {event.subtitle && <div style={{ color: C.textSub, fontSize: 12, marginTop: 2 }}>{event.subtitle}</div>}
+                          {rec?.confirmation && <div style={{ color: C.textSub, fontSize: 11, marginTop: 2 }}>Ref: {rec.confirmation}</div>}
                         </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, marginLeft: 8 }}>
-                          {isConflict && <span style={{ fontSize: 12 }} title="Scheduling conflict">⚠️</span>}
+                        <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0, marginLeft: 8 }}>
+                          {isConflict && <span style={{ fontSize: 12 }}>⚠️</span>}
                           <span style={{ color: C.textSub, fontSize: 12 }}>{event.time}</span>
+                          {event.isCustom && rec && (
+                            <>
+                              <button onClick={() => openEditForm(rec)} style={{ background: C.card3, border: "none", borderRadius: 6, padding: "3px 5px", cursor: "pointer" }}>
+                                <Icon d={icons.edit} size={13} stroke={C.textMuted} />
+                              </button>
+                              <button onClick={() => setConfirmDeleteId(event.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: "3px 2px" }}>
+                                <Icon d={icons.trash} size={13} stroke={C.red} />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
-                      {!isDone && (hasMap || hasDocs) && (
-                        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                          {hasDocs && (
-                            <a href={event.docUrls![0]} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-                              <div style={{ background: C.card3, borderRadius: 8, padding: "6px 12px", fontSize: 12, color: C.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
-                                <Icon d={icons.fileText} size={12} /> Docs
-                              </div>
-                            </a>
-                          )}
-                          {hasMap && (
-                            <div onClick={() => openMapLink(event.location?.address, event.location?.lat, event.location?.lng)}
-                              style={{ background: C.card3, borderRadius: 8, padding: "6px 12px", fontSize: 12, color: C.textMuted, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
-                              <Icon d={icons.navigation} size={12} /> Map
-                            </div>
-                          )}
+                      {rec?.extras && Object.keys(rec.extras).some(k => rec.extras![k]) && (
+                        <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap" as const, gap: 4 }}>
+                          {Object.entries(rec.extras).map(([k, v]) => v ? (
+                            <span key={k} style={{ background: C.card3, borderRadius: 6, padding: "2px 8px", fontSize: 11, color: C.textMuted }}>{k}: {v}</span>
+                          ) : null)}
+                        </div>
+                      )}
+                      {!isDone && hasMap && (
+                        <div style={{ marginTop: 10 }}>
+                          <div onClick={() => openMapLink(event.location?.address, event.location?.lat, event.location?.lng)}
+                            style={{ display: "inline-flex", background: C.card3, borderRadius: 8, padding: "6px 12px", fontSize: 12, color: C.textMuted, alignItems: "center", gap: 4, cursor: "pointer" }}>
+                            <Icon d={icons.navigation} size={12} /> Map
+                          </div>
+                        </div>
+                      )}
+                      {rec?.notes && (
+                        <div style={{ marginTop: 8, color: C.textSub, fontSize: 12, fontStyle: "italic", borderTop: `1px solid ${C.border}`, paddingTop: 6 }}>
+                          {rec.notes}
+                        </div>
+                      )}
+                      {confirmDeleteId === event.id && (
+                        <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
+                          <button onClick={() => handleDeleteEvent(event.id)} style={{ flex: 1, background: C.redDim, border: `1px solid ${C.red}40`, borderRadius: 8, padding: "8px", color: C.red, cursor: "pointer", fontSize: 13, fontFamily: "inherit", fontWeight: 700 }}>Delete</button>
+                          <button onClick={() => setConfirmDeleteId(null)} style={{ flex: 1, background: C.card3, border: "none", borderRadius: 8, padding: "8px", color: C.textMuted, cursor: "pointer", fontSize: 13, fontFamily: "inherit" }}>Cancel</button>
                         </div>
                       )}
                     </div>
@@ -1228,6 +1558,118 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
           </>
         )}
       </div>
+
+      {/* Event form (bottom sheet) */}
+      {showEventForm && (
+        <>
+          <div onClick={() => setShowEventForm(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 200 }} />
+          <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: C.card, borderRadius: "24px 24px 0 0", padding: "20px 20px 44px", zIndex: 201, maxHeight: "92vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <div style={{ fontSize: 17, fontWeight: 700 }}>{editingEventId ? "Edit Event" : "Add Event"}</div>
+              <button onClick={() => setShowEventForm(false)} style={{ background: C.card3, border: "none", borderRadius: "50%", width: 30, height: 30, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Icon d={icons.x} size={16} stroke={C.textMuted} />
+              </button>
+            </div>
+
+            {/* Type grid 4×3 */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>TYPE</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
+                {ITIN_TYPES.map(t => (
+                  <button key={t.type} onClick={() => { setEvtType(t.type); setEvtExtras({}); }}
+                    style={{ background: evtType === t.type ? `${C.cyan}20` : C.card3, border: `1.5px solid ${evtType === t.type ? C.cyan : "transparent"}`, borderRadius: 10, padding: "10px 4px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                    <span style={{ fontSize: 20 }}>{t.emoji}</span>
+                    <span style={{ fontSize: 10, color: evtType === t.type ? C.cyan : C.textMuted, fontFamily: "inherit" }}>{t.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Title */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TITLE *</div>
+              <input value={evtTitle} onChange={e => setEvtTitle(e.target.value)}
+                placeholder={ITIN_TYPES.find(t => t.type === evtType)?.label ?? "Event title"}
+                style={{ width: "100%", boxSizing: "border-box" as const, background: C.card2, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", color: C.text, fontSize: 14, outline: "none", fontFamily: "inherit" }} />
+            </div>
+
+            {/* Date + Time */}
+            <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+              <div style={{ flex: 2 }}>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>DATE *</div>
+                <Card style={{ padding: "10px 14px" }}>
+                  <input type="date" value={evtDate} onChange={e => setEvtDate(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} />
+                </Card>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TIME *</div>
+                <Card style={{ padding: "10px 14px" }}>
+                  <input type="time" value={evtTime} onChange={e => setEvtTime(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} />
+                </Card>
+              </div>
+            </div>
+
+            {/* End Date + Time */}
+            <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+              <div style={{ flex: 2 }}>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>END DATE</div>
+                <Card style={{ padding: "10px 14px" }}>
+                  <input type="date" value={evtEndDate} onChange={e => setEvtEndDate(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} />
+                </Card>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>END TIME</div>
+                <Card style={{ padding: "10px 14px" }}>
+                  <input type="time" value={evtEndTime} onChange={e => setEvtEndTime(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} />
+                </Card>
+              </div>
+            </div>
+
+            {/* Location */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>LOCATION</div>
+              <input value={evtLocation} onChange={e => setEvtLocation(e.target.value)} placeholder="Airport, hotel, restaurant…"
+                style={{ width: "100%", boxSizing: "border-box" as const, background: C.card2, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", color: C.text, fontSize: 14, outline: "none", fontFamily: "inherit" }} />
+            </div>
+
+            {/* Booking ref */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>BOOKING REF</div>
+              <input value={evtConfirmation} onChange={e => setEvtConfirmation(e.target.value)} placeholder="Confirmation number"
+                style={{ width: "100%", boxSizing: "border-box" as const, background: C.card2, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", color: C.text, fontSize: 14, outline: "none", fontFamily: "inherit" }} />
+            </div>
+
+            {/* Type-specific extras */}
+            {extrasForType.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>DETAILS</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  {extrasForType.map(field => (
+                    <input key={field} value={evtExtras[field] || ''} onChange={e => setEvtExtras(prev => ({ ...prev, [field]: e.target.value }))}
+                      placeholder={field}
+                      style={{ background: C.card2, border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", color: C.text, fontSize: 13, outline: "none", fontFamily: "inherit" }} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Notes */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>NOTES</div>
+              <textarea value={evtNotes} onChange={e => setEvtNotes(e.target.value)} placeholder="Additional notes…" rows={3}
+                style={{ width: "100%", boxSizing: "border-box" as const, background: C.card2, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", color: C.text, fontSize: 14, outline: "none", fontFamily: "inherit", resize: "none" as const }} />
+            </div>
+
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setShowEventForm(false)} style={{ flex: 1, background: C.card3, border: "none", borderRadius: 14, padding: "14px", color: C.textMuted, cursor: "pointer", fontSize: 14, fontFamily: "inherit" }}>Cancel</button>
+              <button onClick={handleSaveEvent} disabled={evtSaving || !evtTitle.trim() || !evtDate || !evtTime}
+                style={{ flex: 2, background: evtSaving || !evtTitle.trim() ? C.card3 : C.cyan, border: "none", borderRadius: 14, padding: "14px", color: evtSaving || !evtTitle.trim() ? C.textMuted : "#000", cursor: "pointer", fontSize: 14, fontWeight: 700, fontFamily: "inherit" }}>
+                {evtSaving ? "Saving…" : editingEventId ? "Save Changes" : "Add Event"}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };
@@ -3142,7 +3584,8 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
     setEditSegEnd(seg.endDate || '');
     setEditSegColor(seg.color);
     setEditSegAssigned(seg.assignedMemberIds || []);
-    setEditSegIconTab('colors');
+    const c = seg.color;
+    setEditSegIconTab(c.startsWith('#') ? 'colors' : SEG_FLAGS.includes(c) ? 'flags' : 'emojis');
   };
 
   const handleEditSegment = async () => {

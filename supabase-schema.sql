@@ -150,3 +150,52 @@ CREATE TABLE IF NOT EXISTS segment_attachments (
 CREATE INDEX IF NOT EXISTS segment_attachments_seg ON segment_attachments(segment_id);
 ALTER TABLE segment_attachments ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "service_role_all_seg_att" ON segment_attachments FOR ALL USING (true);
+
+-- ─── Itinerary Events ─────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS itinerary_events (
+  id           TEXT        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  trip_id      UUID        NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  type         TEXT        NOT NULL,  -- flight|train|bus|car|ferry|hotel_in|hotel_out|tour|meal|event|place|other
+  title        TEXT        NOT NULL,
+  start_dt     TIMESTAMPTZ NOT NULL,
+  end_dt       TIMESTAMPTZ,
+  location     TEXT,
+  notes        TEXT,
+  confirmation TEXT,
+  extras       JSONB,
+  weather      JSONB,
+  created_by   TEXT        NOT NULL,
+  updated_by   TEXT,
+  deleted_at   TIMESTAMPTZ,
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS itinerary_events_trip ON itinerary_events(trip_id) WHERE deleted_at IS NULL;
+ALTER TABLE itinerary_events ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role_all_itinerary" ON itinerary_events FOR ALL USING (true);
+
+-- ─── Itinerary Event Attachments ──────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS itinerary_event_attachments (
+  id         TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  event_id   TEXT NOT NULL REFERENCES itinerary_events(id) ON DELETE CASCADE,
+  trip_id    UUID NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,
+  file_data  TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE itinerary_event_attachments ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role_all_iea" ON itinerary_event_attachments FOR ALL USING (true);
+
+-- ─── Trip Activity Feed ───────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS trip_activity (
+  id         TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  trip_id    UUID NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  actor_sub  TEXT NOT NULL,
+  actor_name TEXT,
+  action     TEXT NOT NULL,  -- event_created|event_updated|event_deleted
+  subject    TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS trip_activity_trip ON trip_activity(trip_id);
+ALTER TABLE trip_activity ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role_all_activity" ON trip_activity FOR ALL USING (true);
