@@ -1237,6 +1237,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user }: any) => {
   const [editCity, setEditCity] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [visibleTxCount, setVisibleTxCount] = useState(10);
+  const [walletTab, setWalletTab] = useState<'transactions' | 'analytics'>('transactions');
   const txSentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -1338,93 +1339,232 @@ const WalletScreen = ({ onAddExpense, activeTripId, user }: any) => {
   };
 
   const { totalBudgetInBase, totalSpent, remaining } = calcSummary(budget, expenses);
+  const pctSpent = totalBudgetInBase > 0 ? Math.min(totalSpent / totalBudgetInBase, 1) : 0;
 
-  // Build 7-day trend
+  // 14-day daily trend
   const today = new Date();
-  const dayData = Array.from({ length: 7 }, (_, i) => {
+  const dayData = Array.from({ length: 14 }, (_, i) => {
     const d = new Date(today);
-    d.setDate(today.getDate() - (6 - i));
+    d.setDate(today.getDate() - (13 - i));
     const key = localDateKey(d);
-    const label = i === 6 ? "TODAY" : d.toLocaleDateString("en", { weekday: "short" }).toUpperCase().slice(0, 3);
+    const label = i === 13 ? "Today" : d.toLocaleDateString("en", { weekday: "short" }).slice(0, 3);
+    const showLabel = i === 13 || i % 2 === 0;
     const total = expenses.filter(e => localDateKey(new Date(e.date)) === key).reduce((s, e) => s + e.baseAmount, 0);
-    return { label, total, isToday: i === 6 };
+    return { label, total, isToday: i === 13, showLabel };
   });
   const maxDay = Math.max(...dayData.map(d => d.total), 1);
 
-  // Source lookup
+  // Category breakdown
+  const CAT_COLORS: Record<string, string> = { food: "#ff9f0a", transport: "#0a84ff", lodging: "#bf5af2", activity: "#30d158", shopping: "#ff375f", general: "#8e8e93" };
+  const catTotals = Object.entries(
+    expenses.reduce((acc, e) => { acc[e.category] = (acc[e.category] || 0) + e.baseAmount; return acc; }, {} as Record<string, number>)
+  ).sort((a, b) => b[1] - a[1]);
+  const maxCat = catTotals[0]?.[1] || 1;
+
+  // Source breakdown
   const sourceMap = Object.fromEntries(budget.sources.map(s => [s.id, s]));
+  const srcTotals = Object.entries(
+    expenses.reduce((acc, e) => { acc[e.sourceId] = (acc[e.sourceId] || 0) + e.baseAmount; return acc; }, {} as Record<string, number>)
+  ).sort((a, b) => b[1] - a[1]);
+  const maxSrc = srcTotals[0]?.[1] || 1;
+
+  // SVG donut params
+  const R = 54, CX = 70, CY = 70, CIRC = 2 * Math.PI * R;
 
   return (
     <div style={{ padding: "0 20px 100px" }}>
-      <div style={{ paddingTop: 16, marginBottom: 4 }}>
-        <div style={{ fontSize: 36, fontWeight: 800, letterSpacing: -1 }}>{currSym(budget.baseCurrency)}{fmtAmt(totalSpent)}</div>
-        <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, fontWeight: 600 }}>TOTAL TRIP SPEND</div>
-      </div>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 20 }}>
+      {/* ── Header totals ── */}
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", paddingTop: 16, marginBottom: 16 }}>
+        <div>
+          <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: -1 }}>{currSym(budget.baseCurrency)}{fmtAmt(totalSpent)}</div>
+          <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, fontWeight: 600 }}>TOTAL TRIP SPEND</div>
+        </div>
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: C.textMuted }}>{currSym(budget.baseCurrency)}{fmtAmt(remaining)}</div>
-          <div style={{ color: C.textSub, fontSize: 11, letterSpacing: 1 }}>REMAINING</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: remaining >= 0 ? C.green : C.red }}>{remaining >= 0 ? '+' : ''}{currSym(budget.baseCurrency)}{fmtAmt(Math.abs(remaining))}</div>
+          <div style={{ color: C.textSub, fontSize: 11, letterSpacing: 1 }}>{remaining >= 0 ? 'REMAINING' : 'OVER BUDGET'}</div>
         </div>
       </div>
-      <Card style={{ marginBottom: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 16 }}>Spending Trend</div>
-            <div style={{ color: C.textMuted, fontSize: 12 }}>7 DAYS</div>
-          </div>
-          <div style={{ background: "#1a2a1a", borderRadius: 20, padding: "4px 10px", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700 }}>
-            <div style={{ width: 7, height: 7, borderRadius: "50%", background: C.green }} />
-            <span style={{ color: C.green }}>LIVE</span>
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 100 }}>
-          {dayData.map(d => (
-            <div key={d.label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-              <div style={{ width: "100%", height: `${Math.max((d.total / maxDay) * 100, d.total > 0 ? 4 : 0)}%`, background: d.isToday ? C.cyan : C.card3, borderRadius: "6px 6px 0 0", minHeight: d.total > 0 ? 4 : 0 }} />
-              <div style={{ fontSize: 9, color: d.isToday ? C.cyan : C.textSub, fontWeight: d.isToday ? 700 : 400 }}>{d.label}</div>
+
+      {/* ── Tab switcher ── */}
+      <div style={{ background: C.card3, borderRadius: 14, padding: 4, display: "flex", marginBottom: 20 }}>
+        {(['transactions', 'analytics'] as const).map(t => (
+          <button key={t} onClick={() => setWalletTab(t)} style={{ flex: 1, padding: "11px", borderRadius: 10, border: "none", cursor: "pointer", background: walletTab === t ? C.cyan : "transparent", color: walletTab === t ? "#000" : C.textMuted, fontWeight: walletTab === t ? 700 : 400, fontSize: 12, fontFamily: "inherit", letterSpacing: 1 }}>
+            {t === 'transactions' ? 'TRANSACTIONS' : 'ANALYTICS'}
+          </button>
+        ))}
+      </div>
+
+      {walletTab === 'transactions' ? (
+        <>
+          {expenses.length === 0 && (
+            <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", padding: "40px 0", textAlign: "center" }}>No expenses yet. Tap + to add one.</div>
+          )}
+          {expenses.slice(0, visibleTxCount).map(exp => {
+            const src = sourceMap[exp.sourceId];
+            const catIcon = categories.find(c => c.id === exp.category)?.icon || icons.moreH;
+            const d = new Date(exp.date);
+            const dateStr = d.toLocaleDateString("en", { day: "numeric", month: "short" }).toUpperCase() + " · " + d.toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" });
+            return (
+              <Card key={exp.id} style={{ marginBottom: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: C.card3, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Icon d={catIcon} size={20} stroke={C.cyan} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{exp.description}</div>
+                    <div style={{ color: src ? src.color : C.textMuted, fontSize: 11, letterSpacing: 0.5 }}>{src ? src.name.toUpperCase() : "—"} • {exp.category.toUpperCase()}</div>
+                  </div>
+                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 15 }}>{currSym(exp.localCurrency)}{fmtAmt(exp.localAmount)}</div>
+                    <div style={{ color: C.textSub, fontSize: 11 }}>{dateStr}</div>
+                  </div>
+                  <button onClick={e => { e.stopPropagation(); setSelectedExpenseId(exp.id); setEditMode(false); setConfirmDelete(false); }}
+                    style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer", color: C.textMuted }}>
+                    <Icon d={icons.moreH} size={16} stroke={C.textMuted} />
+                  </button>
+                </div>
+              </Card>
+            );
+          })}
+          {visibleTxCount < expenses.length && (
+            <div ref={txSentinelRef} style={{ height: 40, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ color: C.textSub, fontSize: 12 }}>Loading more...</div>
             </div>
-          ))}
-        </div>
-      </Card>
-      <SectionLabel>TRANSACTIONS</SectionLabel>
-      {expenses.length === 0 && (
-        <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", padding: "20px 0", textAlign: "center" }}>No expenses yet. Tap + to add one.</div>
-      )}
-      {expenses.slice(0, visibleTxCount).map(exp => {
-        const src = sourceMap[exp.sourceId];
-        const catIcon = categories.find(c => c.id === exp.category)?.icon || icons.moreH;
-        const d = new Date(exp.date);
-        const dateStr = d.toLocaleDateString("en", { day: "numeric", month: "short" }).toUpperCase() + " · " + d.toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" });
-        return (
-          <Card key={exp.id} style={{ marginBottom: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 44, height: 44, borderRadius: 12, background: C.card3, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Icon d={catIcon} size={20} stroke={C.cyan} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{exp.description}</div>
-                <div style={{ color: src ? src.color : C.textMuted, fontSize: 11, letterSpacing: 0.5 }}>{src ? src.name.toUpperCase() : "—"} • {exp.category.toUpperCase()}</div>
-              </div>
-              <div style={{ textAlign: "right", flexShrink: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>{currSym(exp.localCurrency)}{fmtAmt(exp.localAmount)}</div>
-                <div style={{ color: C.textSub, fontSize: 11 }}>{dateStr}</div>
-              </div>
-              <button onClick={e => { e.stopPropagation(); setSelectedExpenseId(exp.id); setEditMode(false); setConfirmDelete(false); }}
-                style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer", color: C.textMuted }}>
-                <Icon d={icons.moreH} size={16} stroke={C.textMuted} />
-              </button>
+          )}
+          {visibleTxCount >= expenses.length && expenses.length > 10 && (
+            <div style={{ color: C.textSub, fontSize: 11, textAlign: "center", padding: "12px 0" }}>All {expenses.length} transactions shown</div>
+          )}
+        </>
+      ) : (
+        <>
+          {/* ── Budget Ring ── */}
+          <Card style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 20 }}>
+            <svg width={140} height={140} style={{ flexShrink: 0 }}>
+              {/* track */}
+              <circle cx={CX} cy={CY} r={R} fill="none" stroke={C.card3} strokeWidth={14} />
+              {/* spent arc */}
+              <circle cx={CX} cy={CY} r={R} fill="none"
+                stroke={pctSpent >= 0.9 ? C.red : pctSpent >= 0.7 ? C.yellow : C.cyan}
+                strokeWidth={14} strokeLinecap="round"
+                strokeDasharray={`${pctSpent * CIRC} ${CIRC}`}
+                strokeDashoffset={CIRC * 0.25}
+                transform={`rotate(-90 ${CX} ${CY})`}
+                style={{ transition: "stroke-dasharray 0.6s ease" }}
+              />
+              <text x={CX} y={CY - 8} textAnchor="middle" fill={C.text} fontSize={22} fontWeight={800} fontFamily="-apple-system,sans-serif">
+                {Math.round(pctSpent * 100)}%
+              </text>
+              <text x={CX} y={CY + 12} textAnchor="middle" fill={C.textMuted} fontSize={10} fontFamily="-apple-system,sans-serif">
+                OF BUDGET
+              </text>
+              {totalBudgetInBase > 0 && (
+                <text x={CX} y={CY + 28} textAnchor="middle" fill={C.textSub} fontSize={9} fontFamily="-apple-system,sans-serif">
+                  {currSym(budget.baseCurrency)}{fmtAmt(totalBudgetInBase, 0)} total
+                </text>
+              )}
+            </svg>
+            <div style={{ flex: 1 }}>
+              {totalBudgetInBase === 0 && <div style={{ color: C.textSub, fontSize: 12, fontStyle: "italic" }}>Set a budget in Settings to see your usage.</div>}
+              {totalBudgetInBase > 0 && (
+                <>
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>SPENT</div>
+                    <div style={{ fontWeight: 700, fontSize: 18, color: C.text }}>{currSym(budget.baseCurrency)}{fmtAmt(totalSpent)}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>{remaining >= 0 ? 'REMAINING' : 'OVER BUDGET'}</div>
+                    <div style={{ fontWeight: 700, fontSize: 18, color: remaining >= 0 ? C.green : C.red }}>{currSym(budget.baseCurrency)}{fmtAmt(Math.abs(remaining))}</div>
+                  </div>
+                </>
+              )}
             </div>
           </Card>
-        );
-      })}
-      {visibleTxCount < expenses.length && (
-        <div ref={txSentinelRef} style={{ height: 40, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ color: C.textSub, fontSize: 12 }}>Loading more...</div>
-        </div>
+
+          {/* ── By Category ── */}
+          {catTotals.length > 0 && (
+            <Card style={{ marginBottom: 16 }}>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 14 }}>By Category</div>
+              {catTotals.map(([cat, amt]) => {
+                const pct = amt / maxCat;
+                const color = CAT_COLORS[cat] || C.textMuted;
+                const catLabel = categories.find(c => c.id === cat)?.label || cat.toUpperCase();
+                return (
+                  <div key={cat} style={{ marginBottom: 12 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color }}>{catLabel}</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: C.text }}>{currSym(budget.baseCurrency)}{fmtAmt(amt)}</span>
+                    </div>
+                    <div style={{ height: 8, background: C.card3, borderRadius: 4, overflow: "hidden" }}>
+                      <div style={{ width: `${pct * 100}%`, height: "100%", background: color, borderRadius: 4, transition: "width 0.5s ease" }} />
+                    </div>
+                    <div style={{ color: C.textSub, fontSize: 10, marginTop: 3 }}>{totalSpent > 0 ? Math.round(amt / totalSpent * 100) : 0}% of total</div>
+                  </div>
+                );
+              })}
+            </Card>
+          )}
+
+          {/* ── By Source ── */}
+          {srcTotals.length > 0 && budget.sources.length > 0 && (
+            <Card style={{ marginBottom: 16 }}>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 14 }}>By Payment Source</div>
+              {srcTotals.map(([srcId, amt]) => {
+                const src = sourceMap[srcId];
+                if (!src) return null;
+                const pct = amt / maxSrc;
+                const limitBase = src.limitInBase ?? src.limit;
+                const usePct = limitBase > 0 ? Math.min(amt / limitBase, 1) : 0;
+                return (
+                  <div key={srcId} style={{ marginBottom: 12 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: src.color }}>{src.name}</span>
+                      <span style={{ fontSize: 12, fontWeight: 700 }}>{currSym(budget.baseCurrency)}{fmtAmt(amt)}{limitBase > 0 ? ` / ${fmtAmt(limitBase, 0)}` : ''}</span>
+                    </div>
+                    <div style={{ height: 8, background: C.card3, borderRadius: 4, overflow: "hidden" }}>
+                      <div style={{ width: `${(limitBase > 0 ? usePct : pct) * 100}%`, height: "100%", background: src.color, borderRadius: 4, transition: "width 0.5s ease" }} />
+                    </div>
+                    {limitBase > 0 && <div style={{ color: C.textSub, fontSize: 10, marginTop: 3 }}>{Math.round(usePct * 100)}% of limit</div>}
+                  </div>
+                );
+              })}
+            </Card>
+          )}
+
+          {/* ── 14-day Trend ── */}
+          <Card style={{ marginBottom: 16 }}>
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>Daily Spend — 14 days</div>
+            <div style={{ color: C.textMuted, fontSize: 11, marginBottom: 16 }}>{currSym(budget.baseCurrency)} per day</div>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 120 }}>
+              {dayData.map((d, i) => {
+                const barPct = d.total > 0 ? Math.max(d.total / maxDay, 0.04) : 0;
+                const barColor = d.isToday ? C.cyan : d.total > 0 ? "#00b8cc" : C.card3;
+                return (
+                  <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 4, height: "100%" }}>
+                    {/* amount label on top of bar */}
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column" as const, justifyContent: "flex-end", width: "100%" }}>
+                      {d.total > 0 && (
+                        <div style={{ color: d.isToday ? C.cyan : C.textMuted, fontSize: 7, fontWeight: 700, textAlign: "center", marginBottom: 2, whiteSpace: "nowrap" as const }}>
+                          {d.total >= 1000 ? `${(d.total/1000).toFixed(1)}k` : fmtAmt(d.total, 0)}
+                        </div>
+                      )}
+                      <div style={{ width: "100%", height: `${barPct * 100}%`, minHeight: d.total > 0 ? 4 : 0, background: barColor, borderRadius: "4px 4px 0 0" }} />
+                    </div>
+                    {/* day label */}
+                    <div style={{ fontSize: 8, color: d.isToday ? C.cyan : C.textSub, fontWeight: d.isToday ? 700 : 400, whiteSpace: "nowrap" as const }}>
+                      {d.showLabel ? d.label : ''}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+
+          {expenses.length === 0 && (
+            <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "20px 0" }}>No expenses yet — analytics will appear here.</div>
+          )}
+        </>
       )}
-      {visibleTxCount >= expenses.length && expenses.length > 10 && (
-        <div style={{ color: C.textSub, fontSize: 11, textAlign: "center", padding: "12px 0" }}>All {expenses.length} transactions shown</div>
-      )}
+
       <div style={{ position: "fixed", bottom: 90, right: "calc(50% - 200px)", width: 56, height: 56, borderRadius: "50%", background: C.cyan, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: `0 4px 20px ${C.cyan}50` }} onClick={onAddExpense}>
         <Icon d={icons.plus} size={24} stroke="#000" strokeWidth={2.5} />
       </div>
