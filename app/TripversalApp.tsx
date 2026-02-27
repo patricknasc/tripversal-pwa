@@ -1040,16 +1040,23 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
       .catch(() => {});
   }, [userSub]);
 
-  // When active trip changes, snap selected day to today (if within trip) or trip start
+  const events: ItineraryEvent[] = activeTrip ? segmentsToEvents(activeTrip.segments) : [];
+
+  // Expand date range to include all segment event dates even if outside trip bounds
+  const eventDates = events.map(e => e.date);
+  const allDates = activeTrip
+    ? [...getDatesRange(activeTrip.startDate, activeTrip.endDate), ...eventDates]
+    : [todayKey];
+  const dateRange = Array.from(new Set(allDates)).sort();
+
+  // When active trip changes, snap to today if in range, else first event day, else trip start
   useEffect(() => {
     if (!activeTrip) { setSelectedDay(localDateKey(new Date())); return; }
     const today = localDateKey(new Date());
-    if (today >= activeTrip.startDate && today <= activeTrip.endDate) setSelectedDay(today);
-    else setSelectedDay(activeTrip.startDate);
+    if (dateRange.includes(today)) { setSelectedDay(today); return; }
+    const firstEvent = eventDates.sort()[0];
+    setSelectedDay(firstEvent ?? activeTrip.startDate);
   }, [activeTripId]);
-
-  const dateRange = activeTrip ? getDatesRange(activeTrip.startDate, activeTrip.endDate) : [todayKey];
-  const events: ItineraryEvent[] = activeTrip ? segmentsToEvents(activeTrip.segments) : [];
 
   const dayEvents = events.filter(e => e.date === selectedDay);
 
@@ -1118,6 +1125,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
           {dateRange.map(day => {
             const isSel = day === selectedDay;
             const isToday = day === todayKey;
+            const hasEvents = events.some(e => e.date === day);
             const d = new Date(day + "T12:00:00");
             return (
               <div key={day} data-selected={isSel} onClick={() => setSelectedDay(day)}
@@ -1130,6 +1138,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
                 }}>
                 <span style={{ fontSize: 10, opacity: 0.7 }}>{d.toLocaleDateString("en", { weekday: "short" })}</span>
                 <span>{d.getDate()}</span>
+                <div style={{ width: 4, height: 4, borderRadius: "50%", background: hasEvents ? (isSel ? "#000" : C.cyan) : "transparent", marginTop: 1 }} />
               </div>
             );
           })}
@@ -1158,7 +1167,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
           <div style={{ textAlign: "center", padding: "40px 0", color: C.textMuted }}>
             <Icon d={icons.calendar} size={32} stroke={C.textMuted} />
             <div style={{ marginTop: 12, fontSize: 14 }}>
-              {events.length === 0 ? "Add trip segments in Settings to see your itinerary" : "No events scheduled for this day"}
+              {events.length === 0 ? "Add dates to your segments to see them in the itinerary" : "No events on this day — tap a dot to jump to a day with events"}
             </div>
           </div>
         ) : (
@@ -3006,6 +3015,19 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
     try { const s = localStorage.getItem(`tripversal_seg_att_${trip?.id}`); return s ? JSON.parse(s) : []; } catch { return []; }
   });
   const [segIconTab, setSegIconTab] = useState<'colors' | 'flags' | 'emojis'>('colors');
+  const [segError, setSegError] = useState<string | null>(null);
+  const [attError, setAttError] = useState<string | null>(null);
+  // Edit segment
+  const [editSegId, setEditSegId] = useState<string | null>(null);
+  const [editSegName, setEditSegName] = useState('');
+  const [editSegOrigin, setEditSegOrigin] = useState('');
+  const [editSegDest, setEditSegDest] = useState('');
+  const [editSegStart, setEditSegStart] = useState('');
+  const [editSegEnd, setEditSegEnd] = useState('');
+  const [editSegColor, setEditSegColor] = useState('#00e5ff');
+  const [editSegAssigned, setEditSegAssigned] = useState<string[]>([]);
+  const [editSegIconTab, setEditSegIconTab] = useState<'colors' | 'flags' | 'emojis'>('colors');
+  const [editSegSaving, setEditSegSaving] = useState(false);
   const [expandedSegId, setExpandedSegId] = useState<string | null>(null);
   const [addAttSegId, setAddAttSegId] = useState<string | null>(null);
   const [attName, setAttName] = useState('');
@@ -3093,7 +3115,8 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
   };
 
   const handleAddSegment = async () => {
-    if (!segName.trim()) return;
+    if (!segName.trim()) { setSegError("Segment name is required."); return; }
+    setSegError(null);
     setSegSaving(true);
     try {
       const res = await fetch(`/api/trips/${trip.id}/segments`, {
@@ -3108,6 +3131,35 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
       setSegName(""); setSegOrigin(""); setSegDest(""); setSegStart(""); setSegEnd(""); setSegColor("#00e5ff"); setSegAssigned([]); setSegIconTab('colors'); setShowAddSeg(false);
     } catch { showToast("Failed to add segment."); }
     setSegSaving(false);
+  };
+
+  const openEditSeg = (seg: TripSegment) => {
+    setEditSegId(seg.id);
+    setEditSegName(seg.name);
+    setEditSegOrigin(seg.origin || '');
+    setEditSegDest(seg.destination || '');
+    setEditSegStart(seg.startDate || '');
+    setEditSegEnd(seg.endDate || '');
+    setEditSegColor(seg.color);
+    setEditSegAssigned(seg.assignedMemberIds || []);
+    setEditSegIconTab('colors');
+  };
+
+  const handleEditSegment = async () => {
+    if (!editSegName.trim()) { showToast("Segment name is required."); return; }
+    setEditSegSaving(true);
+    try {
+      const res = await fetch(`/api/trips/${trip.id}/segments/${editSegId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callerSub: user.sub, name: editSegName.trim(), origin: editSegOrigin || null, destination: editSegDest || null, startDate: editSegStart || null, endDate: editSegEnd || null, color: editSegColor, assignedMemberIds: editSegAssigned }),
+      });
+      if (!res.ok) throw new Error();
+      const updated = await res.json();
+      const updatedSeg: TripSegment = { id: updated.id, name: updated.name, startDate: updated.start_date, endDate: updated.end_date, origin: updated.origin, destination: updated.destination, color: updated.color, assignedMemberIds: updated.assigned_member_ids || [] };
+      onTripUpdate({ ...trip, segments: segments.map((s: TripSegment) => s.id === editSegId ? updatedSeg : s) });
+      setEditSegId(null);
+    } catch { showToast("Failed to update segment."); }
+    setEditSegSaving(false);
   };
 
   const handleDeleteSegment = async (segId: string) => {
@@ -3346,9 +3398,65 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
                   ))}
                 </div>
               )}
+              {segError && <div style={{ color: C.red, fontSize: 13, marginBottom: 8 }}>{segError}</div>}
               <div style={{ display: "flex", gap: 10 }}>
-                <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setShowAddSeg(false)}>Cancel</Btn>
+                <Btn style={{ flex: 1 }} variant="ghost" onClick={() => { setShowAddSeg(false); setSegError(null); }}>Cancel</Btn>
                 <Btn style={{ flex: 1 }} onClick={handleAddSegment}>{segSaving ? "Saving…" : "Create"}</Btn>
+              </div>
+            </Card>
+          )}
+
+          {/* Edit Segment form */}
+          {editSegId && (
+            <Card style={{ marginBottom: 16, border: `1px solid ${C.yellow}30` }}>
+              <div style={{ fontWeight: 700, marginBottom: 12 }}>Edit Segment</div>
+              <Input placeholder="Segment name *" value={editSegName} onChange={setEditSegName} style={{ marginBottom: 10 }} />
+              <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+                <div style={{ flex: 1 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>FROM</div><Input placeholder="Origin" value={editSegOrigin} onChange={setEditSegOrigin} /></div>
+                <div style={{ flex: 1 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TO</div><Input placeholder="Destination" value={editSegDest} onChange={setEditSegDest} /></div>
+              </div>
+              <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+                <div style={{ flex: 1 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>START</div><Card style={{ padding: 10 }}><input type="date" value={editSegStart} onChange={e => setEditSegStart(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} /></Card></div>
+                <div style={{ flex: 1 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>END</div><Card style={{ padding: 10 }}><input type="date" value={editSegEnd} onChange={e => setEditSegEnd(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} /></Card></div>
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>ICON</div>
+                <div style={{ background: C.card3, borderRadius: 10, padding: 3, display: "flex", marginBottom: 8 }}>
+                  {(['colors', 'flags', 'emojis'] as const).map(t => (
+                    <button key={t} onClick={() => setEditSegIconTab(t)} style={{ flex: 1, padding: "6px", borderRadius: 8, border: "none", cursor: "pointer", background: editSegIconTab === t ? C.card : "transparent", color: editSegIconTab === t ? C.text : C.textMuted, fontWeight: editSegIconTab === t ? 700 : 400, fontSize: 11, fontFamily: "inherit" }}>{t.toUpperCase()}</button>
+                  ))}
+                </div>
+                {editSegIconTab === 'colors' && (
+                  <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 8 }}>
+                    {segColors.map(c => <button key={c} onClick={() => setEditSegColor(c)} style={{ width: 26, height: 26, borderRadius: "50%", background: c, border: editSegColor === c ? "3px solid #fff" : "3px solid transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{editSegColor === c && <Icon d={icons.check} size={11} stroke="#fff" strokeWidth={3} />}</button>)}
+                  </div>
+                )}
+                {editSegIconTab === 'flags' && (
+                  <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 4, maxHeight: 100, overflowY: "auto" }}>
+                    {SEG_FLAGS.map(f => <button key={f} onClick={() => setEditSegColor(f)} style={{ width: 34, height: 34, borderRadius: 8, background: editSegColor === f ? C.card2 : "transparent", border: editSegColor === f ? `2px solid ${C.cyan}` : "2px solid transparent", cursor: "pointer", fontSize: 20 }}>{f}</button>)}
+                  </div>
+                )}
+                {editSegIconTab === 'emojis' && (
+                  <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 4, maxHeight: 100, overflowY: "auto" }}>
+                    {SEG_EMOJIS.map(e => <button key={e} onClick={() => setEditSegColor(e)} style={{ width: 34, height: 34, borderRadius: 8, background: editSegColor === e ? C.card2 : "transparent", border: editSegColor === e ? `2px solid ${C.cyan}` : "2px solid transparent", cursor: "pointer", fontSize: 18 }}>{e}</button>)}
+                  </div>
+                )}
+              </div>
+              {accepted.length > 0 && (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>ASSIGN MEMBERS</div>
+                  {accepted.map((m: TripMember) => (
+                    <label key={m.id} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, cursor: "pointer" }}>
+                      <input type="checkbox" checked={editSegAssigned.includes(m.id)} onChange={e => setEditSegAssigned(prev => e.target.checked ? [...prev, m.id] : prev.filter(id => id !== m.id))} />
+                      <Avatar name={m.name || m.email} src={m.avatarUrl} size={28} />
+                      <span style={{ fontSize: 13 }}>{m.name || m.email}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 10 }}>
+                <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setEditSegId(null)}>Cancel</Btn>
+                <Btn style={{ flex: 1 }} onClick={handleEditSegment}>{editSegSaving ? "Saving…" : "Save Changes"}</Btn>
               </div>
             </Card>
           )}
@@ -3380,6 +3488,11 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
                       <Icon d={icons.ticket} size={14} stroke={segAtts.length > 0 ? C.cyan : C.textMuted} /> {segAtts.length > 0 ? segAtts.length : ''}
                     </button>
                     {isAdmin && (
+                      <button onClick={() => openEditSeg(seg)} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "5px 7px", cursor: "pointer" }}>
+                        <Icon d={icons.edit} size={14} stroke={C.textMuted} />
+                      </button>
+                    )}
+                    {isAdmin && (
                       <button onClick={() => handleDeleteSegment(seg.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.red, padding: 4 }}>
                         <Icon d={icons.trash} size={16} stroke={C.red} />
                       </button>
@@ -3406,9 +3519,16 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
                             <Icon d={icons.camera} size={16} stroke={C.textMuted} /> Capture or upload
                           </label>
                         )}
+                        {attError && <div style={{ color: C.red, fontSize: 12, marginBottom: 8 }}>{attError}</div>}
                         <div style={{ display: "flex", gap: 8 }}>
-                          <button onClick={() => setAddAttSegId(null)} style={{ flex: 1, background: C.card2, border: "none", borderRadius: 10, padding: "8px", color: C.textMuted, cursor: "pointer", fontSize: 12, fontFamily: "inherit" }}>Cancel</button>
-                          <button onClick={() => { if (!attName.trim() || !attDataUrl) return; const att: SegmentAttachment = { id: Date.now().toString(), segmentId: seg.id, tripId: trip.id, name: attName.trim(), fileData: attDataUrl, createdAt: new Date().toISOString() }; addSegAttachment(att); setAddAttSegId(null); }} style={{ flex: 1, background: C.cyan, border: "none", borderRadius: 10, padding: "8px", color: "#000", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit" }}>Save</button>
+                          <button onClick={() => { setAddAttSegId(null); setAttError(null); }} style={{ flex: 1, background: C.card2, border: "none", borderRadius: 10, padding: "8px", color: C.textMuted, cursor: "pointer", fontSize: 12, fontFamily: "inherit" }}>Cancel</button>
+                          <button onClick={() => {
+                            if (!attName.trim()) { setAttError("File name is required."); return; }
+                            if (!attDataUrl) { setAttError("Please capture or upload a file."); return; }
+                            setAttError(null);
+                            const att: SegmentAttachment = { id: Date.now().toString(), segmentId: seg.id, tripId: trip.id, name: attName.trim(), fileData: attDataUrl, createdAt: new Date().toISOString() };
+                            addSegAttachment(att); setAddAttSegId(null);
+                          }} style={{ flex: 1, background: C.cyan, border: "none", borderRadius: 10, padding: "8px", color: "#000", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit" }}>Save</button>
                         </div>
                       </div>
                     )}
@@ -3422,6 +3542,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
                           <div style={{ fontWeight: 600, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{att.name}</div>
                           <div style={{ color: C.textSub, fontSize: 11 }}>{new Date(att.createdAt).toLocaleDateString()}</div>
                         </div>
+                        <button onClick={async e => { e.stopPropagation(); try { const blob = await (await fetch(att.fileData)).blob(); const file = new File([blob], `${att.name}.jpg`, { type: 'image/jpeg' }); if (navigator.share && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: att.name }); } else { const a = document.createElement('a'); a.href = att.fileData; a.download = `${att.name}.jpg`; a.click(); } } catch {} }} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "5px 7px", cursor: "pointer" }}><Icon d={icons.share} size={13} stroke={C.cyan} /></button>
                         <button onClick={e => { e.stopPropagation(); deleteSegAttachment(att.id, seg.id); }} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "5px 7px", cursor: "pointer" }}><Icon d={icons.trash} size={13} stroke={C.red} /></button>
                       </div>
                     ))}
@@ -3518,7 +3639,7 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
         {(trips as Trip[]).length === 0 && (
           <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", padding: "40px 0", textAlign: "center" }}>No trips yet. Create one in Settings.</div>
         )}
-        {(trips as Trip[]).map((trip: Trip) => {
+        {([...(trips as Trip[])].sort((a, b) => (b.id === activeTripId ? 1 : 0) - (a.id === activeTripId ? 1 : 0))).map((trip: Trip) => {
           const isActive = trip.id === activeTripId;
           const accepted = (trip.crew || []).filter((m: TripMember) => m.status === 'accepted').length;
           const segCount = (trip.segments || []).length;
