@@ -17,7 +17,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     .select(`
       id, owner_id, name, destination, start_date, end_date, budget, created_at,
       trip_members ( id, email, name, avatar_url, google_sub, role, status, invited_at, accepted_at ),
-      trip_segments ( id, name, start_date, end_date, origin, destination, color, assigned_member_ids )
+      trip_segments ( id, name, start_date, end_date, origin, destination, color, assigned_member_ids,
+        segment_attachments ( id, name, created_at ) )
     `)
     .eq('id', params.id)
     .single();

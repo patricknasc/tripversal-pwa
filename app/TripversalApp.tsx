@@ -62,6 +62,15 @@ interface TripMember {
   acceptedAt?: string;
 }
 
+interface SegmentAttachment {
+  id: string;
+  segmentId: string;
+  tripId: string;
+  name: string;
+  fileData: string;
+  createdAt: string;
+}
+
 interface TripSegment {
   id: string;
   name: string;
@@ -71,6 +80,7 @@ interface TripSegment {
   destination?: string;
   color: string;
   assignedMemberIds: string[];
+  attachments?: SegmentAttachment[]; // metadata only from trips GET; full data in localStorage
 }
 
 interface Trip {
@@ -335,6 +345,14 @@ function rowToTrip(row: any): Trip {
       destination: s.destination,
       color: s.color || C.cyan,
       assignedMemberIds: s.assigned_member_ids || [],
+      attachments: (s.segment_attachments || []).map((a: any) => ({
+        id: a.id,
+        segmentId: s.id,
+        tripId: row.id,
+        name: a.name,
+        fileData: '', // not included in trips GET to avoid large payloads
+        createdAt: a.created_at,
+      })),
     })),
   };
 }
@@ -356,6 +374,7 @@ function rowToExpense(row: any): Expense {
     splits: row.splits ?? undefined,
     city: row.city ?? undefined,
     editHistory: row.edit_history ?? undefined,
+    receiptDataUrl: row.receipt_data ?? undefined,
     tripId: row.trip_id,
   };
 }
@@ -377,7 +396,7 @@ function expenseToRow(e: Expense): Record<string, unknown> {
     splits: e.splits ?? null,
     city: e.city ?? null,
     edit_history: e.editHistory ?? null,
-    // receiptDataUrl intentionally excluded
+    receipt_data: e.receiptDataUrl ?? null,
   };
 }
 
@@ -1888,7 +1907,7 @@ const PhotosScreen = () => (
   </div>
 );
 
-const SOSScreen = () => {
+const SOSScreen = ({ user }: { user?: any }) => {
   const [medical, setMedical] = useState<MedicalId>(() => { try { const s = localStorage.getItem('tripversal_medical_id'); return s ? JSON.parse(s) : DEFAULT_MEDICAL; } catch { return DEFAULT_MEDICAL; } });
   const [editMedical, setEditMedical] = useState(false);
   const [medDraft, setMedDraft] = useState<MedicalId>(medical);
@@ -1904,9 +1923,45 @@ const SOSScreen = () => {
   const [docDataUrl, setDocDataUrl] = useState<string | null>(null);
   const [viewDoc, setViewDoc] = useState<TravelDocument | null>(null);
 
-  const saveMedical = (m: MedicalId) => { setMedical(m); localStorage.setItem('tripversal_medical_id', JSON.stringify(m)); };
-  const saveInsurance = (i: Insurance) => { setInsurance(i); localStorage.setItem('tripversal_insurance', JSON.stringify(i)); };
+  // Hydrate from Supabase on mount
+  useEffect(() => {
+    if (!user?.sub) return;
+    fetch(`/api/users/${user.sub}/medical`).then(r => r.ok ? r.json() : null).then(row => {
+      if (!row) return;
+      const m: MedicalId = { bloodType: row.blood_type || '', contactName: row.contact_name || '', contactPhone: row.contact_phone || '', allergies: row.allergies || '', medications: row.medications || '', notes: row.notes || '', sharing: row.sharing ?? true };
+      setMedical(m); setMedDraft(m); localStorage.setItem('tripversal_medical_id', JSON.stringify(m));
+    }).catch(() => {});
+    fetch(`/api/users/${user.sub}/insurance`).then(r => r.ok ? r.json() : null).then(row => {
+      if (!row) return;
+      const i: Insurance = { provider: row.provider || '', policyNumber: row.policy_number || '', emergencyPhone: row.emergency_phone || '', coverageStart: row.coverage_start || '', coverageEnd: row.coverage_end || '', notes: row.notes || '' };
+      setInsurance(i); setInsDraft(i); localStorage.setItem('tripversal_insurance', JSON.stringify(i));
+    }).catch(() => {});
+    fetch(`/api/users/${user.sub}/documents`).then(r => r.ok ? r.json() : null).then((rows: any[]) => {
+      if (!rows || rows.length === 0) return;
+      const docs: TravelDocument[] = rows.map(r => ({ id: r.id, name: r.name, docType: r.doc_type, dataUrl: r.file_data, createdAt: r.created_at }));
+      setDocuments(docs); localStorage.setItem('tripversal_documents', JSON.stringify(docs));
+    }).catch(() => {});
+  }, [user?.sub]);
+
+  const saveMedical = (m: MedicalId) => {
+    setMedical(m); localStorage.setItem('tripversal_medical_id', JSON.stringify(m));
+    if (user?.sub) fetch(`/api/users/${user.sub}/medical`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(m) }).catch(() => {});
+  };
+  const saveInsurance = (i: Insurance) => {
+    setInsurance(i); localStorage.setItem('tripversal_insurance', JSON.stringify(i));
+    if (user?.sub) fetch(`/api/users/${user.sub}/insurance`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(i) }).catch(() => {});
+  };
   const saveDocs = (d: TravelDocument[]) => { setDocuments(d); localStorage.setItem('tripversal_documents', JSON.stringify(d)); };
+  const addDoc = (doc: TravelDocument) => {
+    const next = [doc, ...documents];
+    setDocuments(next); localStorage.setItem('tripversal_documents', JSON.stringify(next));
+    if (user?.sub) fetch(`/api/users/${user.sub}/documents`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: doc.id, name: doc.name, docType: doc.docType, fileData: doc.dataUrl }) }).catch(() => {});
+  };
+  const deleteDoc = (id: string) => {
+    const next = documents.filter(d => d.id !== id);
+    setDocuments(next); localStorage.setItem('tripversal_documents', JSON.stringify(next));
+    if (user?.sub) fetch(`/api/users/${user.sub}/documents/${id}`, { method: 'DELETE' }).catch(() => {});
+  };
 
   const textareaStyle: any = { background: C.card3, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", color: C.text, fontSize: 14, width: "100%", outline: "none", fontFamily: "inherit", resize: "none", boxSizing: "border-box" };
 
@@ -2043,7 +2098,7 @@ const SOSScreen = () => {
           )}
           <div style={{ display: "flex", gap: 10 }}>
             <Btn variant="ghost" style={{ flex: 1 }} onClick={() => setShowAddDoc(false)}>Cancel</Btn>
-            <Btn style={{ flex: 1 }} onClick={() => { if (!docName.trim() || !docDataUrl) return; const doc: TravelDocument = { id: Date.now().toString(), name: docName.trim(), docType, dataUrl: docDataUrl, createdAt: new Date().toISOString() }; saveDocs([doc, ...documents]); setShowAddDoc(false); }}>Add</Btn>
+            <Btn style={{ flex: 1 }} onClick={() => { if (!docName.trim() || !docDataUrl) return; const doc: TravelDocument = { id: Date.now().toString(), name: docName.trim(), docType, dataUrl: docDataUrl, createdAt: new Date().toISOString() }; addDoc(doc); setShowAddDoc(false); }}>Add</Btn>
           </div>
         </Card>
       )}
@@ -2061,7 +2116,7 @@ const SOSScreen = () => {
               <div style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{doc.name}</div>
               <div style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{doc.docType} · {new Date(doc.createdAt).toLocaleDateString()}</div>
             </div>
-            <button onClick={e => { e.stopPropagation(); saveDocs(documents.filter(d => d.id !== doc.id)); }} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}><Icon d={icons.trash} size={14} stroke={C.red} /></button>
+            <button onClick={e => { e.stopPropagation(); deleteDoc(doc.id); }} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}><Icon d={icons.trash} size={14} stroke={C.red} /></button>
           </div>
         </Card>
       ))}
@@ -2796,6 +2851,40 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
   const [segAssigned, setSegAssigned] = useState<string[]>([]);
   const [segSaving, setSegSaving] = useState(false);
   const segColors = ["#00e5ff","#30d158","#ffd60a","#ff3b30","#f57c00","#6a1b9a","#1565c0","#e91e8c"];
+  // Segment attachments
+  const [segAttachments, setSegAttachments] = useState<SegmentAttachment[]>(() => {
+    try { const s = localStorage.getItem(`tripversal_seg_att_${trip?.id}`); return s ? JSON.parse(s) : []; } catch { return []; }
+  });
+  const [expandedSegId, setExpandedSegId] = useState<string | null>(null);
+  const [addAttSegId, setAddAttSegId] = useState<string | null>(null);
+  const [attName, setAttName] = useState('');
+  const [attDataUrl, setAttDataUrl] = useState<string | null>(null);
+  const [viewAtt, setViewAtt] = useState<SegmentAttachment | null>(null);
+
+  const saveSegAttachments = (atts: SegmentAttachment[]) => {
+    setSegAttachments(atts);
+    localStorage.setItem(`tripversal_seg_att_${trip?.id}`, JSON.stringify(atts));
+  };
+  const addSegAttachment = (att: SegmentAttachment) => {
+    const next = [att, ...segAttachments];
+    saveSegAttachments(next);
+    if (user?.sub) {
+      fetch(`/api/trips/${trip.id}/segments/${att.segmentId}/attachments`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callerSub: user.sub, id: att.id, name: att.name, fileData: att.fileData }),
+      }).catch(() => {});
+    }
+  };
+  const deleteSegAttachment = (attId: string, segId: string) => {
+    const next = segAttachments.filter(a => a.id !== attId);
+    saveSegAttachments(next);
+    if (user?.sub) {
+      fetch(`/api/trips/${trip.id}/segments/${segId}/attachments/${attId}`, {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callerSub: user.sub }),
+      }).catch(() => {});
+    }
+  };
 
   if (!trip) return (
     <div style={{ padding: "40px 20px", textAlign: "center", color: C.textMuted }}>No active trip selected.</div>
@@ -3084,6 +3173,8 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
           {segments.map((seg: TripSegment) => {
             const assignedNames = seg.assignedMemberIds.length === 0 ? 'Everyone'
               : seg.assignedMemberIds.map((id: string) => accepted.find((m: TripMember) => m.id === id)?.name || '?').join(', ');
+            const segAtts = segAttachments.filter(a => a.segmentId === seg.id);
+            const isExpanded = expandedSegId === seg.id;
             return (
               <Card key={seg.id} style={{ marginBottom: 10 }}>
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
@@ -3098,15 +3189,73 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
                     )}
                     <div style={{ color: C.textSub, fontSize: 12, marginTop: 2 }}>{assignedNames}</div>
                   </div>
-                  {isAdmin && (
-                    <button onClick={() => handleDeleteSegment(seg.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.red, padding: 4 }}>
-                      <Icon d={icons.trash} size={16} stroke={C.red} />
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button onClick={() => setExpandedSegId(isExpanded ? null : seg.id)} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "5px 8px", cursor: "pointer", color: C.textMuted, fontSize: 11, fontFamily: "inherit" }}>
+                      <Icon d={icons.ticket} size={14} stroke={segAtts.length > 0 ? C.cyan : C.textMuted} /> {segAtts.length > 0 ? segAtts.length : ''}
                     </button>
-                  )}
+                    {isAdmin && (
+                      <button onClick={() => handleDeleteSegment(seg.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.red, padding: 4 }}>
+                        <Icon d={icons.trash} size={16} stroke={C.red} />
+                      </button>
+                    )}
+                  </div>
                 </div>
+                {isExpanded && (
+                  <div style={{ marginTop: 12, borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1 }}>ATTACHMENTS</div>
+                      <button onClick={() => { setAddAttSegId(seg.id); setAttName(''); setAttDataUrl(null); }} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "4px 10px", cursor: "pointer", color: C.cyan, fontSize: 11, fontFamily: "inherit", fontWeight: 700 }}>+ Add</button>
+                    </div>
+                    {addAttSegId === seg.id && (
+                      <div style={{ background: C.card3, borderRadius: 12, padding: 12, marginBottom: 8 }}>
+                        <input placeholder="File name (e.g. Boarding Pass)" value={attName} onChange={e => setAttName(e.target.value)} style={{ background: C.card2, border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", color: C.text, fontSize: 13, width: "100%", outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const, marginBottom: 10 }} />
+                        <input type="file" accept="image/*" id={`attInput_${seg.id}`} style={{ display: "none" }} onChange={async e => { const f = e.target.files?.[0]; if (f) setAttDataUrl(await compressImage(f, 1200, 0.8)); }} />
+                        {attDataUrl ? (
+                          <div style={{ position: "relative", marginBottom: 10 }}>
+                            <img src={attDataUrl} style={{ width: "100%", borderRadius: 10, maxHeight: 140, objectFit: "cover" }} />
+                            <button onClick={() => setAttDataUrl(null)} style={{ position: "absolute", top: 6, right: 6, background: C.redDim, border: "none", borderRadius: "50%", width: 24, height: 24, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon d={icons.x} size={12} stroke={C.red} /></button>
+                          </div>
+                        ) : (
+                          <label htmlFor={`attInput_${seg.id}`} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, border: `2px dashed ${C.border}`, borderRadius: 10, padding: 12, cursor: "pointer", marginBottom: 10, color: C.textMuted, fontSize: 12 }}>
+                            <Icon d={icons.camera} size={16} stroke={C.textMuted} /> Capture or upload
+                          </label>
+                        )}
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button onClick={() => setAddAttSegId(null)} style={{ flex: 1, background: C.card2, border: "none", borderRadius: 10, padding: "8px", color: C.textMuted, cursor: "pointer", fontSize: 12, fontFamily: "inherit" }}>Cancel</button>
+                          <button onClick={() => { if (!attName.trim() || !attDataUrl) return; const att: SegmentAttachment = { id: Date.now().toString(), segmentId: seg.id, tripId: trip.id, name: attName.trim(), fileData: attDataUrl, createdAt: new Date().toISOString() }; addSegAttachment(att); setAddAttSegId(null); }} style={{ flex: 1, background: C.cyan, border: "none", borderRadius: 10, padding: "8px", color: "#000", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit" }}>Save</button>
+                        </div>
+                      </div>
+                    )}
+                    {segAtts.length === 0 && addAttSegId !== seg.id && (
+                      <div style={{ color: C.textSub, fontSize: 12, fontStyle: "italic", textAlign: "center", padding: "8px 0" }}>No attachments. Tap + Add to store tickets & docs.</div>
+                    )}
+                    {segAtts.map(att => (
+                      <div key={att.id} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, cursor: "pointer" }} onClick={() => setViewAtt(att)}>
+                        <div style={{ width: 44, height: 44, borderRadius: 8, overflow: "hidden", flexShrink: 0, background: C.card3 }}><img src={att.fileData} style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{att.name}</div>
+                          <div style={{ color: C.textSub, fontSize: 11 }}>{new Date(att.createdAt).toLocaleDateString()}</div>
+                        </div>
+                        <button onClick={e => { e.stopPropagation(); deleteSegAttachment(att.id, seg.id); }} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "5px 7px", cursor: "pointer" }}><Icon d={icons.trash} size={13} stroke={C.red} /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </Card>
             );
           })}
+          {/* Fullscreen attachment viewer */}
+          {viewAtt && (
+            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.95)", zIndex: 400, display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", padding: 20 }}>
+              <div style={{ width: "100%", maxWidth: 400 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                  <div style={{ fontWeight: 700, fontSize: 16 }}>{viewAtt.name}</div>
+                  <button onClick={() => setViewAtt(null)} style={{ background: C.card3, border: "none", borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><Icon d={icons.x} size={18} stroke={C.text} /></button>
+                </div>
+                <img src={viewAtt.fileData} style={{ width: "100%", borderRadius: 16, maxHeight: "75vh", objectFit: "contain" }} />
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
@@ -3380,7 +3529,7 @@ function AppShell() {
       case "itinerary": content = <ItineraryScreen activeTripId={activeTripId} activeTrip={activeTrip} userSub={user?.sub} />; break;
       case "wallet": content = <WalletScreen onAddExpense={() => setShowAddExpense(true)} activeTripId={activeTripId} user={user} />; break;
       case "photos": content = <PhotosScreen />; break;
-      case "sos": content = <SOSScreen />; break;
+      case "sos": content = <SOSScreen user={user} />; break;
       default: content = null;
     }
   }

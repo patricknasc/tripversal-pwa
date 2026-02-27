@@ -85,12 +85,68 @@ CREATE TABLE IF NOT EXISTS expenses (
   splits             JSONB,
   city               TEXT,
   edit_history       JSONB,
+  receipt_data       TEXT,          -- base64 compressed image (optional)
   deleted_at         TIMESTAMPTZ,   -- NULL = active; set = soft-deleted
   created_at         TIMESTAMPTZ DEFAULT NOW(),
   updated_at         TIMESTAMPTZ DEFAULT NOW()
-  -- receiptDataUrl (base64) intentionally excluded
 );
 
 CREATE INDEX IF NOT EXISTS expenses_trip_active ON expenses(trip_id) WHERE deleted_at IS NULL;
 ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "service_role_all_expenses" ON expenses FOR ALL USING (true);
+
+-- ─── User Medical IDs ────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS user_medical_ids (
+  google_sub      TEXT        PRIMARY KEY,
+  blood_type      TEXT,
+  contact_name    TEXT,
+  contact_phone   TEXT,
+  allergies       TEXT,
+  medications     TEXT,
+  notes           TEXT,
+  sharing         BOOLEAN     DEFAULT TRUE,
+  updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE user_medical_ids ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role_all_medical" ON user_medical_ids FOR ALL USING (true);
+
+-- ─── User Insurance ──────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS user_insurance (
+  google_sub      TEXT        PRIMARY KEY,
+  provider        TEXT,
+  policy_number   TEXT,
+  emergency_phone TEXT,
+  coverage_start  DATE,
+  coverage_end    DATE,
+  notes           TEXT,
+  updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE user_insurance ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role_all_insurance" ON user_insurance FOR ALL USING (true);
+
+-- ─── User Documents ──────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS user_documents (
+  id          TEXT        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  google_sub  TEXT        NOT NULL,
+  name        TEXT        NOT NULL,
+  doc_type    TEXT        NOT NULL,
+  file_data   TEXT        NOT NULL,  -- base64 compressed image
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS user_documents_sub ON user_documents(google_sub);
+ALTER TABLE user_documents ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role_all_user_docs" ON user_documents FOR ALL USING (true);
+
+-- ─── Segment Attachments ─────────────────────────────────────────────────────
+-- Critical itinerary files: boarding passes, tickets, hotel confirmations, etc.
+CREATE TABLE IF NOT EXISTS segment_attachments (
+  id          TEXT        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  segment_id  UUID        NOT NULL REFERENCES trip_segments(id) ON DELETE CASCADE,
+  trip_id     UUID        NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  name        TEXT        NOT NULL,
+  file_data   TEXT        NOT NULL,  -- base64 compressed image
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS segment_attachments_seg ON segment_attachments(segment_id);
+ALTER TABLE segment_attachments ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role_all_seg_att" ON segment_attachments FOR ALL USING (true);
