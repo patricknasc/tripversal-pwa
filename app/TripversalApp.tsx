@@ -115,6 +115,36 @@ interface InviteEvent {
   at: string;
 }
 
+interface MedicalId {
+  bloodType: string;
+  contactName: string;
+  contactPhone: string;
+  allergies: string;
+  medications: string;
+  notes: string;
+  sharing: boolean;
+}
+interface Insurance {
+  provider: string;
+  policyNumber: string;
+  emergencyPhone: string;
+  coverageStart: string;
+  coverageEnd: string;
+  notes: string;
+}
+interface TravelDocument {
+  id: string;
+  name: string;
+  docType: string;
+  dataUrl: string;
+  createdAt: string;
+}
+
+const DEFAULT_MEDICAL: MedicalId = { bloodType: '', contactName: '', contactPhone: '', allergies: '', medications: '', notes: '', sharing: true };
+const DEFAULT_INSURANCE: Insurance = { provider: '', policyNumber: '', emergencyPhone: '', coverageStart: '', coverageEnd: '', notes: '' };
+const BLOOD_TYPES = ['A+','A-','B+','B-','AB+','AB-','O+','O-'];
+const DOC_TYPES = ['Passport','Visa','Insurance Card','Vaccination','Driver License','Other'];
+
 function calcSummary(budget: TripBudget, expenses: Expense[]) {
   const totalBudgetInBase = budget.sources.reduce(
     (acc, s) => acc + (s.limitInBase ?? s.limit), 0
@@ -542,7 +572,7 @@ const BottomNav = ({ active, onNav }: any) => {
   );
 };
 
-const HomeScreen = ({ onNav, onAddExpense, activeTripId, activeTrip, user }: any) => {
+const HomeScreen = ({ onNav, onAddExpense, onShowGroup, activeTripId, activeTrip, user }: any) => {
   const [budget, setBudget] = useState<TripBudget>(DEFAULT_BUDGET);
   const [todaySpent, setTodaySpent] = useState(0);
   const [yesterdaySpent, setYesterdaySpent] = useState(0);
@@ -752,7 +782,7 @@ const HomeScreen = ({ onNav, onAddExpense, activeTripId, activeTrip, user }: any
         {[
           { label: "EXPENSE", icon: icons.plus, action: onAddExpense },
           { label: "PHOTO", icon: icons.camera, action: () => onNav("photos") },
-          { label: "GROUP", icon: icons.users, action: () => onNav("settings") },
+          { label: "GROUP", icon: icons.users, action: onShowGroup },
           { label: "SOS", icon: icons.phone, variant: "red" },
         ].map(({ label, icon, variant, action }: any) => (
           <button key={label} onClick={action} style={{ background: variant === "red" ? C.redDim : C.card2, borderRadius: 16, padding: "16px 8px", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
@@ -1858,59 +1888,198 @@ const PhotosScreen = () => (
   </div>
 );
 
-const SOSScreen = () => (
-  <div style={{ padding: "16px 20px 100px", overflowY: "auto" }}>
-    <Card style={{ marginBottom: 16, border: `1px solid #ff3b3020` }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Icon d={icons.heart} size={18} stroke={C.red} fill={`${C.red}30`} />
-          <span style={{ fontWeight: 700, fontSize: 16 }}>My Medical ID</span>
+const SOSScreen = () => {
+  const [medical, setMedical] = useState<MedicalId>(() => { try { const s = localStorage.getItem('tripversal_medical_id'); return s ? JSON.parse(s) : DEFAULT_MEDICAL; } catch { return DEFAULT_MEDICAL; } });
+  const [editMedical, setEditMedical] = useState(false);
+  const [medDraft, setMedDraft] = useState<MedicalId>(medical);
+
+  const [insurance, setInsurance] = useState<Insurance>(() => { try { const s = localStorage.getItem('tripversal_insurance'); return s ? JSON.parse(s) : DEFAULT_INSURANCE; } catch { return DEFAULT_INSURANCE; } });
+  const [editInsurance, setEditInsurance] = useState(false);
+  const [insDraft, setInsDraft] = useState<Insurance>(insurance);
+
+  const [documents, setDocuments] = useState<TravelDocument[]>(() => { try { const s = localStorage.getItem('tripversal_documents'); return s ? JSON.parse(s) : []; } catch { return []; } });
+  const [showAddDoc, setShowAddDoc] = useState(false);
+  const [docName, setDocName] = useState('');
+  const [docType, setDocType] = useState('Passport');
+  const [docDataUrl, setDocDataUrl] = useState<string | null>(null);
+  const [viewDoc, setViewDoc] = useState<TravelDocument | null>(null);
+
+  const saveMedical = (m: MedicalId) => { setMedical(m); localStorage.setItem('tripversal_medical_id', JSON.stringify(m)); };
+  const saveInsurance = (i: Insurance) => { setInsurance(i); localStorage.setItem('tripversal_insurance', JSON.stringify(i)); };
+  const saveDocs = (d: TravelDocument[]) => { setDocuments(d); localStorage.setItem('tripversal_documents', JSON.stringify(d)); };
+
+  const textareaStyle: any = { background: C.card3, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", color: C.text, fontSize: 14, width: "100%", outline: "none", fontFamily: "inherit", resize: "none", boxSizing: "border-box" };
+
+  return (
+    <div style={{ padding: "16px 20px 100px" }}>
+      {/* ── Medical ID ── */}
+      <Card style={{ marginBottom: 16, border: `1px solid ${C.red}20` }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Icon d={icons.heart} size={18} stroke={C.red} fill={`${C.red}30`} />
+            <span style={{ fontWeight: 700, fontSize: 16 }}>My Medical ID</span>
+          </div>
+          {!editMedical ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Toggle value={medical.sharing} onChange={(v: boolean) => saveMedical({ ...medical, sharing: v })} />
+              <span style={{ color: C.cyan, fontSize: 11, fontWeight: 700 }}>SHARING</span>
+              <button onClick={() => { setMedDraft(medical); setEditMedical(true); }} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}><Icon d={icons.edit} size={15} stroke={C.textMuted} /></button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", gap: 8 }}>
+              <Btn variant="ghost" style={{ padding: "6px 14px", fontSize: 13 }} onClick={() => setEditMedical(false)}>Cancel</Btn>
+              <Btn style={{ padding: "6px 14px", fontSize: 13 }} onClick={() => { saveMedical(medDraft); setEditMedical(false); }}>Save</Btn>
+            </div>
+          )}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Toggle value={true} onChange={() => {}} />
-          <span style={{ color: C.cyan, fontSize: 11, fontWeight: 700 }}>SHARING</span>
+        {editMedical ? (
+          <>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>BLOOD TYPE</div>
+              <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 6 }}>
+                {BLOOD_TYPES.map(bt => <button key={bt} onClick={() => setMedDraft(d => ({ ...d, bloodType: bt }))} style={{ background: medDraft.bloodType === bt ? C.red : C.card3, color: medDraft.bloodType === bt ? "#fff" : C.textMuted, border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{bt}</button>)}
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>CONTACT NAME</div><Input placeholder="e.g. Mom" value={medDraft.contactName} onChange={(v: string) => setMedDraft(d => ({ ...d, contactName: v }))} /></div>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>CONTACT PHONE</div><Input placeholder="+55 11 9…" value={medDraft.contactPhone} onChange={(v: string) => setMedDraft(d => ({ ...d, contactPhone: v }))} /></div>
+            </div>
+            <div style={{ marginBottom: 10 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>ALLERGIES</div><textarea rows={2} value={medDraft.allergies} onChange={e => setMedDraft(d => ({ ...d, allergies: e.target.value }))} placeholder="e.g. Penicillin, Peanuts" style={textareaStyle} /></div>
+            <div style={{ marginBottom: 10 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>MEDICATIONS</div><textarea rows={2} value={medDraft.medications} onChange={e => setMedDraft(d => ({ ...d, medications: e.target.value }))} placeholder="e.g. Metformin 500mg" style={textareaStyle} /></div>
+            <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>MEDICAL NOTES</div><textarea rows={2} value={medDraft.notes} onChange={e => setMedDraft(d => ({ ...d, notes: e.target.value }))} placeholder="Other info for emergency responders" style={textareaStyle} /></div>
+          </>
+        ) : (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+              <div style={{ background: C.card3, borderRadius: 12, padding: 12 }}>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>BLOOD TYPE</div>
+                <div style={{ fontWeight: 800, fontSize: 22, color: medical.bloodType ? C.red : C.textSub }}>{medical.bloodType || '—'}</div>
+              </div>
+              <div style={{ background: C.card3, borderRadius: 12, padding: 12 }}>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>EMERGENCY CONTACT</div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{medical.contactName || '—'}</div>
+                {medical.contactPhone && <a href={`tel:${medical.contactPhone}`} style={{ color: C.cyan, fontSize: 12, textDecoration: "none" }}>{medical.contactPhone}</a>}
+              </div>
+            </div>
+            {medical.allergies && <div style={{ background: C.card3, borderRadius: 12, padding: 12, marginBottom: 8 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>ALLERGIES</div><div style={{ fontSize: 13 }}>{medical.allergies}</div></div>}
+            {medical.medications && <div style={{ background: C.card3, borderRadius: 12, padding: 12, marginBottom: 8 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>MEDICATIONS</div><div style={{ fontSize: 13 }}>{medical.medications}</div></div>}
+            {medical.notes && <div style={{ background: C.card3, borderRadius: 12, padding: 12 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>MEDICAL NOTES</div><div style={{ fontSize: 13 }}>{medical.notes}</div></div>}
+            {!medical.bloodType && !medical.contactName && <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "8px 0" }}>Tap edit to fill in your Medical ID</div>}
+          </>
+        )}
+      </Card>
+
+      {/* ── Travel Insurance ── */}
+      <SectionLabel>TRAVEL INSURANCE</SectionLabel>
+      <Card style={{ marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: editInsurance ? 14 : 0 }}>
+          <span style={{ fontWeight: 700, fontSize: 15 }}>Insurance</span>
+          {!editInsurance ? (
+            <button onClick={() => { setInsDraft(insurance); setEditInsurance(true); }} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}><Icon d={icons.edit} size={15} stroke={C.textMuted} /></button>
+          ) : (
+            <div style={{ display: "flex", gap: 8 }}>
+              <Btn variant="ghost" style={{ padding: "6px 14px", fontSize: 13 }} onClick={() => setEditInsurance(false)}>Cancel</Btn>
+              <Btn style={{ padding: "6px 14px", fontSize: 13 }} onClick={() => { saveInsurance(insDraft); setEditInsurance(false); }}>Save</Btn>
+            </div>
+          )}
         </div>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-        <div style={{ background: C.card3, borderRadius: 12, padding: 12 }}>
-          <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>BLOOD TYPE</div>
-          <div style={{ fontWeight: 800, fontSize: 22 }}>O+</div>
+        {editInsurance ? (
+          <>
+            <Input placeholder="Provider (e.g. Allianz)" value={insDraft.provider} onChange={(v: string) => setInsDraft(d => ({ ...d, provider: v }))} style={{ marginBottom: 10 }} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>POLICY NUMBER</div><Input placeholder="e.g. AZ-9920" value={insDraft.policyNumber} onChange={(v: string) => setInsDraft(d => ({ ...d, policyNumber: v }))} /></div>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>EMERGENCY PHONE</div><Input placeholder="+1 800…" value={insDraft.emergencyPhone} onChange={(v: string) => setInsDraft(d => ({ ...d, emergencyPhone: v }))} /></div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>COVERAGE START</div><Card style={{ padding: 10 }}><input type="date" value={insDraft.coverageStart} onChange={e => setInsDraft(d => ({ ...d, coverageStart: e.target.value }))} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%" }} /></Card></div>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>COVERAGE END</div><Card style={{ padding: 10 }}><input type="date" value={insDraft.coverageEnd} onChange={e => setInsDraft(d => ({ ...d, coverageEnd: e.target.value }))} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%" }} /></Card></div>
+            </div>
+            <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>NOTES</div><textarea rows={2} value={insDraft.notes} onChange={e => setInsDraft(d => ({ ...d, notes: e.target.value }))} placeholder="Coverage limits, exclusions…" style={textareaStyle} /></div>
+          </>
+        ) : insurance.provider ? (
+          <>
+            <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4, marginTop: 12 }}>PROVIDER</div>
+            <div style={{ fontWeight: 800, fontSize: 22, marginBottom: 14 }}>{insurance.provider}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", marginBottom: 12 }}>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>POLICY NUMBER</div><Badge color={C.textMuted} bg={C.card3}>{insurance.policyNumber || '—'}</Badge></div>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>EMERGENCY PHONE</div>
+                {insurance.emergencyPhone ? <a href={`tel:${insurance.emergencyPhone}`} style={{ color: C.cyan, fontWeight: 700, textDecoration: "none" }}>{insurance.emergencyPhone}</a> : <span style={{ color: C.textSub }}>—</span>}
+              </div>
+            </div>
+            {(insurance.coverageStart || insurance.coverageEnd) && <div style={{ background: C.card3, borderRadius: 12, padding: "10px 12px", marginBottom: 12, fontSize: 12, color: C.textMuted }}>Coverage: {insurance.coverageStart || '?'} → {insurance.coverageEnd || '?'}</div>}
+            {insurance.notes && <div style={{ background: C.card3, borderRadius: 12, padding: "10px 12px", marginBottom: 12, fontSize: 13, color: C.textSub }}>{insurance.notes}</div>}
+            {insurance.emergencyPhone && <Btn style={{ width: "100%", background: C.cyan, color: "#000" }} onClick={() => window.open(`tel:${insurance.emergencyPhone}`)} icon={<Icon d={icons.phone} size={16} stroke="#000" />}>CALL EMERGENCY ASSIST</Btn>}
+          </>
+        ) : (
+          <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "16px 0" }}>Tap edit to add your travel insurance</div>
+        )}
+      </Card>
+
+      {/* ── Critical Documents ── */}
+      <SectionLabel icon="fileText" action={
+        <button onClick={() => { setShowAddDoc(true); setDocName(''); setDocType('Passport'); setDocDataUrl(null); }} style={{ width: 32, height: 32, borderRadius: 10, background: C.card3, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon d={icons.plus} size={16} /></button>
+      }>CRITICAL DOCUMENTS</SectionLabel>
+
+      {showAddDoc && (
+        <Card style={{ marginBottom: 12, border: `1px solid ${C.cyan}30` }}>
+          <div style={{ fontWeight: 700, marginBottom: 12 }}>Add Document</div>
+          <Input placeholder="Document name (e.g. Passport)" value={docName} onChange={setDocName} style={{ marginBottom: 10 }} />
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TYPE</div>
+            <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 6 }}>
+              {DOC_TYPES.map(t => <button key={t} onClick={() => setDocType(t)} style={{ background: docType === t ? C.cyan : C.card3, color: docType === t ? "#000" : C.textMuted, border: "none", borderRadius: 8, padding: "5px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{t}</button>)}
+            </div>
+          </div>
+          <input type="file" accept="image/*" id="docInput" style={{ display: "none" }} onChange={async e => { const f = e.target.files?.[0]; if (f) { const c = await compressImage(f); setDocDataUrl(c); } }} />
+          {docDataUrl ? (
+            <div style={{ position: "relative", marginBottom: 12 }}>
+              <img src={docDataUrl} style={{ width: "100%", borderRadius: 12, maxHeight: 160, objectFit: "cover" }} />
+              <button onClick={() => setDocDataUrl(null)} style={{ position: "absolute", top: 8, right: 8, background: C.redDim, border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon d={icons.x} size={14} stroke={C.red} /></button>
+            </div>
+          ) : (
+            <label htmlFor="docInput" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, border: `2px dashed ${C.border}`, borderRadius: 12, padding: 16, cursor: "pointer", marginBottom: 12, color: C.textMuted, fontSize: 13 }}>
+              <Icon d={icons.camera} size={18} stroke={C.textMuted} /> Capture or upload
+            </label>
+          )}
+          <div style={{ display: "flex", gap: 10 }}>
+            <Btn variant="ghost" style={{ flex: 1 }} onClick={() => setShowAddDoc(false)}>Cancel</Btn>
+            <Btn style={{ flex: 1 }} onClick={() => { if (!docName.trim() || !docDataUrl) return; const doc: TravelDocument = { id: Date.now().toString(), name: docName.trim(), docType, dataUrl: docDataUrl, createdAt: new Date().toISOString() }; saveDocs([doc, ...documents]); setShowAddDoc(false); }}>Add</Btn>
+          </div>
+        </Card>
+      )}
+
+      {documents.length === 0 && !showAddDoc ? (
+        <Card style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", padding: 40, gap: 12 }}>
+          <div style={{ width: 60, height: 60, borderRadius: "50%", background: C.card3, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon d={icons.fileText} size={28} stroke={C.textMuted} /></div>
+          <div style={{ color: C.textMuted, fontSize: 13, textAlign: "center" }}>Store copies of passports, visas, and insurance cards for offline access.</div>
+        </Card>
+      ) : documents.map(doc => (
+        <Card key={doc.id} style={{ marginBottom: 8, cursor: "pointer" }} onClick={() => setViewDoc(doc)}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 52, height: 52, borderRadius: 10, overflow: "hidden", flexShrink: 0 }}><img src={doc.dataUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{doc.name}</div>
+              <div style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{doc.docType} · {new Date(doc.createdAt).toLocaleDateString()}</div>
+            </div>
+            <button onClick={e => { e.stopPropagation(); saveDocs(documents.filter(d => d.id !== doc.id)); }} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}><Icon d={icons.trash} size={14} stroke={C.red} /></button>
+          </div>
+        </Card>
+      ))}
+
+      {viewDoc && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 400, display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ width: "100%", maxWidth: 400 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <div><div style={{ fontWeight: 700, fontSize: 16 }}>{viewDoc.name}</div><div style={{ color: C.textMuted, fontSize: 12 }}>{viewDoc.docType}</div></div>
+              <button onClick={() => setViewDoc(null)} style={{ background: C.card3, border: "none", borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><Icon d={icons.x} size={18} stroke={C.text} /></button>
+            </div>
+            <img src={viewDoc.dataUrl} style={{ width: "100%", borderRadius: 16, maxHeight: "70vh", objectFit: "contain" }} />
+          </div>
         </div>
-        <div style={{ background: C.card3, borderRadius: 12, padding: 12 }}>
-          <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>EMERGENCY CONTACT</div>
-          <div style={{ fontWeight: 700, fontSize: 15 }}>Mom</div>
-        </div>
-      </div>
-      <div style={{ background: C.card3, borderRadius: 12, padding: 12 }}>
-        <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>MEDICAL NOTES</div>
-        <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic" }}>No critical notes added.</div>
-      </div>
-    </Card>
-    <SectionLabel>TRAVEL INSURANCE</SectionLabel>
-    <Card style={{ marginBottom: 16 }}>
-      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>PROVIDER</div>
-      <div style={{ fontWeight: 800, fontSize: 22, marginBottom: 16 }}>Allianz</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", marginBottom: 16 }}>
-        <div>
-          <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>POLICY NUMBER</div>
-          <Badge color={C.textMuted} bg={C.card3}>AZ-9920</Badge>
-        </div>
-        <div>
-          <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>EMERGENCY PHONE</div>
-          <div style={{ fontWeight: 700 }}>+331</div>
-        </div>
-      </div>
-      <Btn style={{ width: "100%", background: C.cyan, color: "#000" }} icon={<Icon d={icons.phone} size={16} stroke="#000" />}>CALL GLOBAL ASSIST</Btn>
-    </Card>
-    <SectionLabel icon="fileText" action={<button style={{ width: 32, height: 32, borderRadius: 10, background: C.card3, border: "none", cursor: "pointer", color: C.text, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon d={icons.plus} size={16} /></button>}>CRITICAL DOCUMENTS</SectionLabel>
-    <Card style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: 40, gap: 12 }}>
-      <div style={{ width: 60, height: 60, borderRadius: "50%", background: C.card3, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <Icon d={icons.fileText} size={28} stroke={C.textMuted} />
-      </div>
-      <div style={{ color: C.textMuted, fontSize: 13, textAlign: "center" }}>Store copies of passports, visas, and insurance cards for offline access.</div>
-    </Card>
-  </div>
-);
+      )}
+    </div>
+  );
+};
 
 const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], activeTripId, onSwitchTrip, onTripCreate, onTripUpdate, onTripDelete, offlineSim = false, setOfflineSim, isSyncing = false }: any) => {
   const [forcePending, setForcePending] = useState(false);
@@ -2984,11 +3153,70 @@ const LoginScreen = ({ onLogin }: { onLogin: (user: any) => void }) => {
   );
 };
 
+const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUpdate }: any) => {
+  const [managingTrip, setManagingTrip] = useState<Trip | null>(null);
+
+  if (managingTrip) {
+    return (
+      <ManageCrewScreen
+        trip={managingTrip}
+        user={user}
+        onBack={() => setManagingTrip(null)}
+        onTripUpdate={(updated: Trip) => { onTripUpdate(updated); setManagingTrip(updated); }}
+      />
+    );
+  }
+
+  return (
+    <div style={{ padding: "0 0 100px" }}>
+      <div style={{ padding: "16px 20px 12px", display: "flex", alignItems: "center", gap: 14 }}>
+        <button onClick={onBack} style={{ background: C.card3, border: "none", borderRadius: 12, width: 38, height: 38, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+          <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={C.text} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div>
+          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>My Tripversals</div>
+          <div style={{ color: C.textMuted, fontSize: 12, letterSpacing: 1 }}>{(trips as Trip[]).length} TRIP{(trips as Trip[]).length !== 1 ? 'S' : ''}</div>
+        </div>
+      </div>
+
+      <div style={{ padding: "0 20px" }}>
+        {(trips as Trip[]).length === 0 && (
+          <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", padding: "40px 0", textAlign: "center" }}>No trips yet. Create one in Settings.</div>
+        )}
+        {(trips as Trip[]).map((trip: Trip) => {
+          const isActive = trip.id === activeTripId;
+          const accepted = (trip.crew || []).filter((m: TripMember) => m.status === 'accepted').length;
+          const segCount = (trip.segments || []).length;
+          return (
+            <Card key={trip.id} style={{ marginBottom: 10, border: isActive ? `1.5px solid ${C.cyan}30` : undefined, position: "relative", overflow: "visible" }}>
+              {isActive && <div style={{ position: "absolute", top: -1, right: 0, background: C.cyan, color: "#000", fontSize: 11, fontWeight: 800, padding: "3px 12px", borderRadius: "0 14px 0 12px" }}>Active</div>}
+              <div style={{ paddingRight: isActive ? 64 : 0 }}>
+                <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 2 }}>{trip.name}</div>
+                {trip.destination && <div style={{ color: C.textMuted, fontSize: 12 }}>{trip.destination}</div>}
+                <div style={{ color: C.textSub, fontSize: 11, marginTop: 2 }}>{formatDateRange(trip.startDate, trip.endDate)}</div>
+                <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                  <span style={{ background: C.card3, color: C.textMuted, borderRadius: 8, padding: "3px 8px", fontSize: 11, fontWeight: 600 }}>{accepted} member{accepted !== 1 ? 's' : ''}</span>
+                  <span style={{ background: C.card3, color: C.textMuted, borderRadius: 8, padding: "3px 8px", fontSize: 11, fontWeight: 600 }}>{segCount} segment{segCount !== 1 ? 's' : ''}</span>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                {!isActive && <Btn variant="ghost" style={{ flex: 1, padding: "10px" }} onClick={() => onSwitchTrip(trip.id)}>Set Active</Btn>}
+                <Btn variant="secondary" style={{ flex: 1, padding: "10px" }} onClick={() => setManagingTrip(trip)} icon={<Icon d={icons.users} size={15} />}>Manage</Btn>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 function AppShell() {
   const [user, setUser] = useState<any>(null);
   const [tab, setTab] = useState("home");
   const [showSettings, setShowSettings] = useState(false);
   const [showManageCrew, setShowManageCrew] = useState(false);
+  const [showGroup, setShowGroup] = useState(false);
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -3076,7 +3304,7 @@ function AppShell() {
   if (!user) return <LoginScreen onLogin={setUser} />;
 
   const handleNav = (t: string) => {
-    setShowSettings(false); setShowManageCrew(false); setShowAddExpense(false); setShowHistory(false); setTab(t);
+    setShowSettings(false); setShowManageCrew(false); setShowGroup(false); setShowAddExpense(false); setShowHistory(false); setTab(t);
   };
 
   let content;
@@ -3095,6 +3323,17 @@ function AppShell() {
           setPendingInviteToken(null);
           window.history.replaceState({}, '', '/');
         }}
+      />
+    );
+  } else if (showGroup) {
+    content = (
+      <GroupScreen
+        trips={trips}
+        activeTripId={activeTripId}
+        user={user}
+        onBack={() => setShowGroup(false)}
+        onSwitchTrip={(id: string) => { switchActiveTrip(id); }}
+        onTripUpdate={(updated: Trip) => setTrips(p => p.map(t => t.id === updated.id ? updated : t))}
       />
     );
   } else if (showAddExpense) {
@@ -3137,7 +3376,7 @@ function AppShell() {
     );
   } else {
     switch (tab) {
-      case "home": content = <HomeScreen onNav={handleNav} onAddExpense={() => setShowAddExpense(true)} activeTripId={activeTripId} activeTrip={activeTrip} user={user} />; break;
+      case "home": content = <HomeScreen onNav={handleNav} onAddExpense={() => setShowAddExpense(true)} onShowGroup={() => setShowGroup(true)} activeTripId={activeTripId} activeTrip={activeTrip} user={user} />; break;
       case "itinerary": content = <ItineraryScreen activeTripId={activeTripId} activeTrip={activeTrip} userSub={user?.sub} />; break;
       case "wallet": content = <WalletScreen onAddExpense={() => setShowAddExpense(true)} activeTripId={activeTripId} user={user} />; break;
       case "photos": content = <PhotosScreen />; break;
@@ -3146,7 +3385,7 @@ function AppShell() {
     }
   }
 
-  const activeTab = showSettings || showManageCrew || showAddExpense || showHistory || pendingInviteToken ? null : tab;
+  const activeTab = showSettings || showManageCrew || showGroup || showAddExpense || showHistory || pendingInviteToken ? null : tab;
 
   return (
     <div style={{ background: "#000", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
