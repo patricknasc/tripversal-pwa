@@ -1237,8 +1237,12 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
   const customEventDates = activeItinEvents.map(e => localDateKey(new Date(e.startDt)));
 
   const eventDates = segEvents.map(e => e.date);
+  // Include every day within each segment's date range (not just event trigger days)
+  const segmentRangeDates = activeTrip?.segments.flatMap(seg =>
+    seg.startDate ? getDatesRange(seg.startDate, seg.endDate ?? seg.startDate) : []
+  ) ?? [];
   const allDates = activeTrip
-    ? [...getDatesRange(activeTrip.startDate, activeTrip.endDate), ...eventDates, ...customEventDates]
+    ? [...getDatesRange(activeTrip.startDate, activeTrip.endDate), ...eventDates, ...customEventDates, ...segmentRangeDates]
     : [todayKey, ...customEventDates];
   const dateRange = Array.from(new Set(allDates)).sort();
 
@@ -1456,16 +1460,6 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
         </div>
       )}
 
-      {/* Add event button */}
-      {activeTripId && (
-        <div style={{ padding: "0 20px 12px" }}>
-          <button onClick={openAddForm} style={{ display: "flex", alignItems: "center", gap: 6, background: C.card, border: `1px dashed ${C.border}`, borderRadius: 12, padding: "10px 16px", color: C.textMuted, cursor: "pointer", fontSize: 13, width: "100%", fontFamily: "inherit", boxSizing: "border-box" as const }}>
-            <Icon d={icons.plus} size={16} stroke={C.textMuted} />
-            Add event · {new Date(selectedDay + "T12:00:00").toLocaleDateString("en", { weekday: "short", day: "numeric", month: "short" })}
-          </button>
-        </div>
-      )}
-
       {/* Timeline */}
       <div style={{ padding: "0 20px", position: "relative" }}>
         {allDayEvents.length === 0 ? (
@@ -1558,6 +1552,14 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
           </>
         )}
       </div>
+
+      {/* FAB: Add event */}
+      {activeTripId && !showEventForm && (
+        <button onClick={openAddForm}
+          style={{ position: "fixed", bottom: 88, right: 20, width: 56, height: 56, borderRadius: "50%", background: C.cyan, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 20px rgba(0,229,255,0.35)", zIndex: 100 }}>
+          <Icon d={icons.plus} size={24} stroke="#000" strokeWidth={2.5} />
+        </button>
+      )}
 
       {/* Event form (bottom sheet) */}
       {showEventForm && (
@@ -3434,13 +3436,33 @@ const InviteAcceptScreen = ({ token, user, onDone, onDecline }: any) => {
   );
 };
 
+interface SavedBudget {
+  id: string;
+  name: string;
+  currency: string;
+  amount: number;
+  createdAt: string;
+}
+
 const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
-  const [crewTab, setCrewTab] = useState<'crew' | 'segments'>('crew');
+  const [crewTab, setCrewTab] = useState<'crew' | 'segments' | 'budget'>('crew');
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviting, setInviting] = useState(false);
   const [inviteToast, setInviteToast] = useState<string | null>(null);
   const [menuMemberId, setMenuMemberId] = useState<string | null>(null);
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  // Budget tab
+  const [savedBudgets, setSavedBudgets] = useState<SavedBudget[]>(() => {
+    try { const s = localStorage.getItem('tripversal_saved_budgets'); return s ? JSON.parse(s) : []; } catch { return []; }
+  });
+  const [activeBudgetId, setActiveBudgetId] = useState<string | null>(() => {
+    try { return localStorage.getItem(`tripversal_active_budget_${trip?.id}`) ?? null; } catch { return null; }
+  });
+  const [showAddBudget, setShowAddBudget] = useState(false);
+  const [budgetName, setBudgetName] = useState('');
+  const [budgetCurrency, setBudgetCurrency] = useState('USD');
+  const [budgetAmount, setBudgetAmount] = useState('');
   // Segment form
   const [showAddSeg, setShowAddSeg] = useState(false);
   const [segName, setSegName] = useState("");
@@ -3556,6 +3578,42 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
     } catch { showToast("Failed to remove member."); }
   };
 
+  const handleLeaveGroup = async () => {
+    setConfirmLeave(false);
+    try {
+      const res = await fetch(`/api/trips/${trip.id}/members/leave`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callerSub: user.sub }),
+      });
+      if (!res.ok) { const d = await res.json(); showToast(d.error || "Failed to leave group."); return; }
+      onBack();
+    } catch { showToast("Failed to leave group."); }
+  };
+
+  const saveBudgets = (budgets: SavedBudget[]) => {
+    setSavedBudgets(budgets);
+    localStorage.setItem('tripversal_saved_budgets', JSON.stringify(budgets));
+  };
+
+  const activateBudget = (budgetId: string | null) => {
+    setActiveBudgetId(budgetId);
+    if (budgetId) localStorage.setItem(`tripversal_active_budget_${trip?.id}`, budgetId);
+    else localStorage.removeItem(`tripversal_active_budget_${trip?.id}`);
+  };
+
+  const handleAddBudget = () => {
+    if (!budgetName.trim() || !budgetAmount) return;
+    const b: SavedBudget = { id: crypto.randomUUID(), name: budgetName.trim(), currency: budgetCurrency, amount: parseFloat(budgetAmount), createdAt: new Date().toISOString() };
+    saveBudgets([b, ...savedBudgets]);
+    setBudgetName(''); setBudgetCurrency('USD'); setBudgetAmount(''); setShowAddBudget(false);
+  };
+
+  const handleDeleteBudget = (budgetId: string) => {
+    saveBudgets(savedBudgets.filter(b => b.id !== budgetId));
+    if (activeBudgetId === budgetId) activateBudget(null);
+  };
+
   const handleAddSegment = async () => {
     if (!segName.trim()) { setSegError("Segment name is required."); return; }
     setSegError(null);
@@ -3626,15 +3684,15 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
         <button onClick={onBack} style={{ background: C.card3, border: "none", borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: C.text, fontSize: 18 }}>←</button>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 18, fontWeight: 700 }}>Travel Crew</div>
+          <div style={{ fontSize: 18, fontWeight: 700 }}>Manage</div>
           <div style={{ color: C.textMuted, fontSize: 12 }}>{trip.name}</div>
         </div>
       </div>
 
       {/* Tab switcher */}
       <div style={{ background: C.card3, borderRadius: 14, padding: 4, display: "flex", marginBottom: 20 }}>
-        {(['crew', 'segments'] as const).map(t => (
-          <button key={t} onClick={() => setCrewTab(t)} style={{ flex: 1, padding: "12px", borderRadius: 10, border: "none", cursor: "pointer", background: crewTab === t ? C.cyan : "transparent", color: crewTab === t ? "#000" : C.textMuted, fontWeight: crewTab === t ? 700 : 400, fontSize: 13, fontFamily: "inherit", transition: "all 0.2s", letterSpacing: 1 }}>
+        {(['crew', 'segments', 'budget'] as const).map(t => (
+          <button key={t} onClick={() => setCrewTab(t)} style={{ flex: 1, padding: "10px 4px", borderRadius: 10, border: "none", cursor: "pointer", background: crewTab === t ? C.cyan : "transparent", color: crewTab === t ? "#000" : C.textMuted, fontWeight: crewTab === t ? 700 : 400, fontSize: 12, fontFamily: "inherit", transition: "all 0.2s", letterSpacing: 0.5 }}>
             {t.toUpperCase()}
           </button>
         ))}
@@ -3746,8 +3804,30 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
               </div>
             </div>
           )}
+
+          {/* Leave Group */}
+          <div style={{ marginTop: 32, paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
+            <button onClick={() => setConfirmLeave(true)} style={{ width: "100%", background: "transparent", border: `1px solid ${C.red}40`, borderRadius: 12, padding: "12px", cursor: "pointer", color: C.red, fontSize: 14, fontWeight: 600, fontFamily: "inherit" }}>
+              Leave Group
+            </button>
+          </div>
+
+          {confirmLeave && (
+            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+              <div style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "20px 20px 0 0", padding: "24px 20px 40px" }}>
+                <div style={{ textAlign: "center", marginBottom: 20 }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: C.red, marginBottom: 8 }}>Leave Group?</div>
+                  <div style={{ color: C.textMuted, fontSize: 13 }}>You will lose access to this trip. If you are the only admin, another member will be promoted automatically.</div>
+                </div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setConfirmLeave(false)}>Cancel</Btn>
+                  <Btn style={{ flex: 1 }} variant="danger" onClick={handleLeaveGroup}>Leave</Btn>
+                </div>
+              </div>
+            </div>
+          )}
         </>
-      ) : (
+      ) : crewTab === 'segments' ? (
         <>
           {/* Segments tab */}
           {isAdmin && (
@@ -4007,6 +4087,69 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
             </div>
           )}
         </>
+      ) : (
+        <>
+          {/* Budget tab */}
+          <button onClick={() => setShowAddBudget(p => !p)} style={{ display: "flex", alignItems: "center", gap: 6, background: C.cyan, color: "#000", border: "none", borderRadius: 12, padding: "10px 16px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 13, marginBottom: 16 }}>
+            <Icon d={icons.plus} size={14} stroke="#000" strokeWidth={2.5} /> New Budget
+          </button>
+
+          {showAddBudget && (
+            <Card style={{ marginBottom: 16, border: `1px solid ${C.cyan}30` }}>
+              <div style={{ fontWeight: 700, marginBottom: 12 }}>New Budget</div>
+              <Input placeholder="Name (e.g. Europe Trip 2026)" value={budgetName} onChange={setBudgetName} style={{ marginBottom: 10 }} />
+              <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>CURRENCY</div>
+                  <Card style={{ padding: 10 }}>
+                    <input value={budgetCurrency} onChange={e => setBudgetCurrency(e.target.value.toUpperCase().slice(0, 3))} maxLength={3} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", width: "100%", textTransform: "uppercase" as const }} placeholder="USD" />
+                  </Card>
+                </div>
+                <div style={{ flex: 2 }}>
+                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TOTAL AMOUNT</div>
+                  <Card style={{ padding: 10 }}>
+                    <input type="number" value={budgetAmount} onChange={e => setBudgetAmount(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", width: "100%" }} placeholder="0.00" />
+                  </Card>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <Btn variant="ghost" style={{ flex: 1 }} onClick={() => { setShowAddBudget(false); setBudgetName(''); setBudgetAmount(''); setBudgetCurrency('USD'); }}>Cancel</Btn>
+                <Btn style={{ flex: 1 }} onClick={handleAddBudget}>Save</Btn>
+              </div>
+            </Card>
+          )}
+
+          {savedBudgets.length === 0 && !showAddBudget && (
+            <div style={{ textAlign: "center", color: C.textSub, fontSize: 13, padding: "40px 0" }}>No budgets yet. Create one above.</div>
+          )}
+
+          {savedBudgets.map(b => {
+            const isActive = b.id === activeBudgetId;
+            return (
+              <Card key={b.id} style={{ marginBottom: 10, border: isActive ? `1px solid ${C.cyan}` : `1px solid ${C.border}` }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{b.name}</div>
+                    <div style={{ color: C.textMuted, fontSize: 12 }}>{b.currency} {b.amount.toLocaleString()}</div>
+                  </div>
+                  {isActive && <Badge color={C.cyan} bg="#003d45">ACTIVE</Badge>}
+                  <button onClick={() => activateBudget(isActive ? null : b.id)} style={{ background: isActive ? C.card3 : C.cyan, color: isActive ? C.textMuted : "#000", border: "none", borderRadius: 10, padding: "7px 12px", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit" }}>
+                    {isActive ? "Deactivate" : "Activate"}
+                  </button>
+                  <button onClick={() => handleDeleteBudget(b.id)} style={{ background: C.redDim, border: "none", borderRadius: 10, padding: "7px 10px", cursor: "pointer" }}>
+                    <Icon d={icons.trash} size={13} stroke={C.red} />
+                  </button>
+                </div>
+              </Card>
+            );
+          })}
+
+          {activeBudgetId && (
+            <div style={{ marginTop: 16, padding: "12px 16px", background: C.card3, borderRadius: 12, fontSize: 12, color: C.textMuted }}>
+              The active budget will be used as your spending reference for <strong style={{ color: C.text }}>{trip.name}</strong>.
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -4073,7 +4216,7 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
           <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={C.text} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
         </button>
         <div>
-          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>My Tripversals</div>
+          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>Group</div>
           <div style={{ color: C.textMuted, fontSize: 12, letterSpacing: 1 }}>{(trips as Trip[]).length} TRIP{(trips as Trip[]).length !== 1 ? 'S' : ''}</div>
         </div>
       </div>
