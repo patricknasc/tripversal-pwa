@@ -429,6 +429,7 @@ function expenseToRow(e: Expense): Record<string, unknown> {
     city: e.city ?? null,
     edit_history: e.editHistory ?? null,
     receipt_data: e.receiptDataUrl ?? null,
+    trip_id: e.tripId ?? null,
   };
 }
 
@@ -740,10 +741,10 @@ const HomeScreen = ({ onNav, onAddExpense, onShowGroup, activeTripId, activeTrip
           const stored: Expense[] = (() => { try { const s = localStorage.getItem('tripversal_expenses'); return s ? JSON.parse(s) : []; } catch { return []; } })();
           // If server is empty, upload any existing localStorage expenses (one-time migration)
           if (rows.length === 0) {
-            stored.filter(e => e.tripId === activeTripId).forEach(e => {
+            stored.filter(e => !e.tripId || e.tripId === activeTripId).forEach(e => {
               fetch(`/api/trips/${activeTripId}/expenses`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ callerSub, ...expenseToRow(e) }),
+                body: JSON.stringify({ callerSub, ...expenseToRow({ ...e, tripId: activeTripId }) }),
               }).catch(() => {});
             });
             return; // keep localStorage as-is
@@ -1808,10 +1809,10 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
           const stored: Expense[] = (() => { try { const s = localStorage.getItem('tripversal_expenses'); return s ? JSON.parse(s) : []; } catch { return []; } })();
           // If server is empty, upload existing localStorage expenses (one-time migration)
           if (rows.length === 0) {
-            stored.filter(e => e.tripId === activeTripId).forEach(e => {
+            stored.filter(e => !e.tripId || e.tripId === activeTripId).forEach(e => {
               fetch(`/api/trips/${activeTripId}/expenses`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ callerSub, ...expenseToRow(e) }),
+                body: JSON.stringify({ callerSub, ...expenseToRow({ ...e, tripId: activeTripId }) }),
               }).catch(() => {});
             });
             return; // keep localStorage as-is

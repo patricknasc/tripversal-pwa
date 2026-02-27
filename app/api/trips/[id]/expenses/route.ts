@@ -52,6 +52,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     splits: fields.splits ?? null,
     city: fields.city ?? null,
     edit_history: fields.editHistory ?? null,
+    receipt_data: fields.receipt_data ?? null,
     deleted_at: null,
     updated_at: new Date().toISOString(),
   };

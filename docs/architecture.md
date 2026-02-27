@@ -1,7 +1,7 @@
 # Tripversal — Arquitetura do Sistema
 
-> **Versão:** 2.4
-> **Atualizado:** 2026-02-26
+> **Versão:** 2.5
+> **Atualizado:** 2026-02-27
 > **Stack:** Next.js 14 (App Router) · Supabase (PostgreSQL) · React 18
 > **Convenção de nomes:** tabelas e colunas em `snake_case`; tipos TypeScript em `camelCase/PascalCase`
 
@@ -12,13 +12,13 @@
 1. [Visão Geral](#1-visão-geral)
 2. [Schema do Banco de Dados](#2-schema-do-banco-de-dados)
 3. [Dicionário de Dados](#3-dicionário-de-dados)
-4. [Regras de Negócio](#4-regras-de-negócio) ← 4.4 Sobreposição de segmentos cross-trip
-5. [Algoritmos](#5-algoritmos) ← 5.3 detectSegmentConflicts (implementado)
-6. [Componentes de UI](#6-componentes-de-ui) ← 6.4 ItineraryScreen + ICS export
+4. [Regras de Negócio](#4-regras-de-negócio)
+5. [Algoritmos](#5-algoritmos)
+6. [Componentes de UI](#6-componentes-de-ui)
 7. [Hooks](#7-hooks)
-8. [API Routes](#8-api-routes) ← 8.2 Expenses (novo)
-9. [Estratégia de Sync localStorage ↔ Supabase](#9-estratégia-de-sync-localstorage--supabase) ← novo
-10. [Decisões de Arquitetura (ADRs)](#10-decisões-de-arquitetura-adrs) ← ADR-05 novo
+8. [API Routes](#8-api-routes)
+9. [Estratégia de Sync localStorage ↔ Supabase](#9-estratégia-de-sync-localstorage--supabase)
+10. [Decisões de Arquitetura (ADRs)](#10-decisões-de-arquitetura-adrs)
 
 ---
 
@@ -49,7 +49,11 @@ trips
   │         └─── expense_shares  (1 cota por participante por despesa)
   │
   ├─── trip_segments
-  └─── invite_tokens
+  ├─── invite_tokens
+  ├─── itinerary_events  (eventos granulares: voo, hotel, refeição…)
+  │         │
+  │         └─── itinerary_event_attachments  (boarding pass, ingresso, PDF…)
+  └─── trip_activity  (feed de ações do grupo)
 ```
 
 ### 2.2 Script SQL completo
@@ -178,6 +182,60 @@ CREATE TABLE IF NOT EXISTS invite_tokens (
   used_at     TIMESTAMPTZ
 );
 
+-- ─── itinerary_events ─────────────────────────────────────────────────────────
+-- Eventos granulares do itinerário de viagem (voo, hotel, refeição, passeio…)
+CREATE TABLE IF NOT EXISTS itinerary_events (
+  id           TEXT        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  trip_id      UUID        NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  type         TEXT        NOT NULL,
+  -- flight|train|bus|car|ferry|hotel_in|hotel_out|tour|meal|event|place|other
+  title        TEXT        NOT NULL,
+  start_dt     TIMESTAMPTZ NOT NULL,
+  end_dt       TIMESTAMPTZ,
+  location     TEXT,
+  notes        TEXT,
+  confirmation TEXT,    -- nº de reserva / booking ref
+  extras       JSONB,   -- campos específicos por tipo (airline, flightNo, seat…)
+  weather      JSONB,   -- snapshot {temp, code} gravado no cliente na criação
+  created_by   TEXT     NOT NULL,
+  updated_by   TEXT,
+  deleted_at   TIMESTAMPTZ,
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS itinerary_events_trip ON itinerary_events(trip_id)
+  WHERE deleted_at IS NULL;
+ALTER TABLE itinerary_events ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role_all_itinerary" ON itinerary_events FOR ALL USING (true);
+
+-- ─── itinerary_event_attachments ──────────────────────────────────────────────
+-- Anexos de eventos (boarding pass, ingresso, confirmação PDF…)
+CREATE TABLE IF NOT EXISTS itinerary_event_attachments (
+  id         TEXT        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  event_id   TEXT        NOT NULL REFERENCES itinerary_events(id) ON DELETE CASCADE,
+  trip_id    UUID        NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  name       TEXT        NOT NULL,
+  file_data  TEXT        NOT NULL,  -- base64 (comprimido no cliente)
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE itinerary_event_attachments ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role_all_iea" ON itinerary_event_attachments FOR ALL USING (true);
+
+-- ─── trip_activity ────────────────────────────────────────────────────────────
+-- Feed de atividades do grupo: quem criou/editou/removeu o quê
+CREATE TABLE IF NOT EXISTS trip_activity (
+  id         TEXT        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  trip_id    UUID        NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  actor_sub  TEXT        NOT NULL,    -- google_sub de quem realizou a ação
+  actor_name TEXT,
+  action     TEXT        NOT NULL,    -- 'event_created'|'event_updated'|'event_deleted'
+  subject    TEXT,                    -- título do evento afetado
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS trip_activity_trip ON trip_activity(trip_id);
+ALTER TABLE trip_activity ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role_all_activity" ON trip_activity FOR ALL USING (true);
+
 -- ─── Row Level Security ───────────────────────────────────────────────────────
 ALTER TABLE trips              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE trip_participants  ENABLE ROW LEVEL SECURITY;
@@ -301,7 +359,9 @@ Migrado de `localStorage` para Supabase. `id` é o `Date.now().toString()` gerad
 | `created_at` | TIMESTAMPTZ | Timestamp de criação |
 | `updated_at` | TIMESTAMPTZ | Timestamp da última atualização |
 
-> `receiptDataUrl` (base64) é intencionalmente **excluído** do banco — permanece apenas no `localStorage`.
+| `receipt_data` | TEXT | Base64 da imagem do recibo (coluna `receipt_data` no banco) |
+
+> `receiptDataUrl` é persistido no banco como `receipt_data` (base64). Enviado via `expenseToRow()` no campo `receipt_data`.
 
 #### `expenses` — v2 (planejada)
 
@@ -377,6 +437,79 @@ Tokens de convite com validade de 7 dias enviados por email via Resend.
 | `token` | TEXT UNIQUE | Token único para o link de convite |
 | `expires_at` | TIMESTAMPTZ | Expiração (padrão: +7 dias) |
 | `used_at` | TIMESTAMPTZ | Quando foi usado (null = não usado) |
+
+---
+
+### `itinerary_events`
+
+Eventos granulares do itinerário, criados pelos membros do grupo. Diferente de `trip_segments` (que representam etapas logísticas da viagem), `itinerary_events` são atividades pontuais com data e hora precisas.
+
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `id` | TEXT PK | UUID gerado no cliente (permite upsert idempotente) |
+| `trip_id` | UUID FK → `trips` | Viagem |
+| `type` | TEXT | Tipo do evento — ver tabela de tipos abaixo |
+| `title` | TEXT | Título de exibição |
+| `start_dt` | TIMESTAMPTZ | Início do evento (obrigatório) |
+| `end_dt` | TIMESTAMPTZ | Fim do evento (opcional) |
+| `location` | TEXT | Endereço ou nome do local (texto livre) |
+| `notes` | TEXT | Notas livres do usuário |
+| `confirmation` | TEXT | Nº de reserva / booking reference |
+| `extras` | JSONB | Campos específicos por tipo (airline, flightNo, seat…) |
+| `weather` | JSONB | Snapshot climático `{temp: number, code: number}` — capturado no cliente via Open-Meteo |
+| `created_by` | TEXT | `google_sub` de quem criou |
+| `updated_by` | TEXT | `google_sub` de quem atualizou por último |
+| `deleted_at` | TIMESTAMPTZ | Soft-delete: `NULL` = ativo |
+| `created_at` | TIMESTAMPTZ | Timestamp de criação |
+| `updated_at` | TIMESTAMPTZ | Timestamp da última atualização |
+
+**Tipos de evento e campos `extras` associados:**
+
+| `type` | Emoji | Campos em `extras` |
+|---|---|---|
+| `flight` | ✈️ | `airline`, `flightNo`, `seat`, `terminal`, `gate` |
+| `train` | 🚂 | `trainNo`, `seat`, `platform` |
+| `bus` | 🚌 | `busNo`, `seat` |
+| `car` | 🚗 | `rentalCompany`, `pickupLocation` |
+| `ferry` | ⛴️ | `ferryName`, `cabin` |
+| `hotel_in` | 🏨 | `hotelName`, `room`, `address` |
+| `hotel_out` | 🛏️ | `hotelName`, `address` |
+| `tour` | 🗺️ | `operator`, `meetingPoint` |
+| `meal` | 🍽️ | `restaurant`, `cuisine`, `reservation` |
+| `event` | 🎭 | `venue`, `ticketNo` |
+| `place` | 📍 | `address` |
+| `other` | 📌 | — |
+
+---
+
+### `itinerary_event_attachments`
+
+Arquivos vinculados a eventos do itinerário (boarding pass, ingresso, confirmação de hotel em PDF).
+
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `id` | TEXT PK | UUID gerado no cliente |
+| `event_id` | TEXT FK → `itinerary_events` | Evento pai |
+| `trip_id` | UUID FK → `trips` | Viagem (redundante para queries diretas) |
+| `name` | TEXT | Nome do arquivo (ex: "Boarding Pass UA123.pdf") |
+| `file_data` | TEXT | Base64 do arquivo (comprimido no cliente) |
+| `created_at` | TIMESTAMPTZ | Timestamp de criação |
+
+---
+
+### `trip_activity`
+
+Feed de atividades do grupo. Cada linha representa uma ação de um membro sobre recursos da viagem.
+
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `id` | TEXT PK | UUID gerado no servidor |
+| `trip_id` | UUID FK → `trips` | Viagem |
+| `actor_sub` | TEXT | `google_sub` de quem realizou a ação |
+| `actor_name` | TEXT | Nome de exibição (desnormalizado para performance) |
+| `action` | TEXT | `'event_created'` \| `'event_updated'` \| `'event_deleted'` |
+| `subject` | TEXT | Título do evento afetado (snapshot no momento da ação) |
+| `created_at` | TIMESTAMPTZ | Timestamp da ação |
 
 ---
 
@@ -795,23 +928,203 @@ const conflictingTripNames = Array.from(new Set(
 
 Os 3 sinais são independentes: um dia sem conflito não renderiza nenhum elemento extra.
 
-#### ICS Export
+#### Eventos do itinerário na timeline
 
-`<a href="/api/trips/[activeTripId]/ics" download>` — link direto para o endpoint ICS. Não depende de estado. Ver seção da API abaixo.
+A timeline do dia mesclado duas fontes:
+
+1. **Segmentos** (`trip_segments`): convertidos por `segmentsToEvents()` — não editáveis diretamente na timeline.
+2. **Eventos criados** (`itinerary_events`): filtrados por `start_dt` no dia selecionado — editáveis (lápis) e removíveis (lixo com confirmação).
+
+Ambos são ordenados cronologicamente e renderizados juntos.
+
+#### Weather chips
+
+Temperatura e condição climática são exibidas no chip de cada dia do seletor horizontal. A fonte de dados é **Open-Meteo** (grátis, sem API key):
+
+```
+GET https://api.open-meteo.com/v1/forecast
+  ?latitude={lat}&longitude={lon}
+  &daily=temperature_2m_max,weathercode
+  &timezone=auto
+  &start_date={YYYY-MM-DD}
+  &end_date={YYYY-MM-DD}
+```
+
+A geolocalização usada é a do **destino do segmento** (Nominatim geocoding), não o GPS do usuário. Resultado: `weatherMap: Record<"YYYY-MM-DD", { temp: number; code: number }>`.
+
+#### Countdown para próximo evento
+
+Exibido no topo da timeline quando o dia selecionado é hoje. Atualizado a cada 30 segundos. Mostra o próximo evento com `start_dt > agora` como "Next: [título] in [Xh Ym]".
+
+#### ICS Export e Subscribe
+
+Dois botões no header da ItineraryScreen:
+
+- **Export** — `<a href="/api/trips/[id]/ics" download>` — baixa o `.ics` completo da viagem (segmentos + itinerary_events). Funciona offline com os dados do servidor no momento do clique.
+- **Subscribe** — copia `webcal://[host]/api/trips/[id]/ics` para o clipboard. O usuário cola em "Adicionar Calendário" no Google Calendar / Apple Calendar. A assinatura é sincronizada automaticamente (Google: ~24h; Apple: configurável até 1h). Não exige re-export manual.
 
 #### API Route ICS — `GET /api/trips/[id]/ics`
 
 **Arquivo:** `app/api/trips/[id]/ics/route.ts`
 
-Gera um feed `.ics` (iCalendar RFC 5545) a partir dos `trip_segments` da viagem:
+Gera um feed `.ics` (iCalendar RFC 5545) a partir de `trip_segments` **e** `itinerary_events`:
 
-| Segmento | VEVENTs gerados |
+**De `trip_segments`:**
+
+| Condição | VEVENTs gerados |
 |---|---|
-| `origin → destination` + `start_date` | 1 evento de viagem (todo-dia) |
+| `origin + destination + start_date` | 1 evento de viagem (todo-dia) |
 | `start_date` | 1 evento check-in 14h–15h |
 | `end_date ≠ start_date` | 1 evento check-out 11h–12h |
 
+**De `itinerary_events`:**
+
+- UID estável: `evt-{id}@tripversal`
+- `SEQUENCE` = segundos desde epoch do `updated_at` — permite atualização via re-import sem duplicar
+- `DESCRIPTION` = `notes + " | Ref: " + confirmation` quando disponíveis
+- `LOCATION` = campo `location` do evento
+
 Headers da resposta: `Content-Type: text/calendar`, `Content-Disposition: attachment; filename="<TripName>.ics"`, `Cache-Control: no-store`.
+
+---
+
+### 6.5 `WalletScreen`
+
+**Arquivo:** `app/TripversalApp.tsx` (componente inline)
+
+#### Funcionalidades
+
+- Lista de transações com infinite scroll (IntersectionObserver, +10 por vez)
+- Analytics tab: donut ring de % gasto, barras por categoria, barras por fonte, gráfico de tendência 14 dias
+- **Active trip banner**: exibe o nome da viagem ativa e o orçamento `SavedBudget` associado
+
+#### Conexão com `SavedBudget`
+
+```typescript
+// Na montagem (useEffect [activeTripId]):
+const budgets: SavedBudget[] = JSON.parse(localStorage.getItem('tripversal_saved_budgets') || '[]');
+const found = budgets.find(b => b.activeTripId === activeTripId)
+  ?? (budgets.find(b => b.id === localStorage.getItem(`tripversal_active_budget_${activeTripId}`)))
+  ?? null;
+setActiveSavedBudget(found);
+```
+
+O `SavedBudget` ativo **substitui** o sistema legado `TripBudget.sources` para o cálculo de `totalBudgetInBase`:
+
+```typescript
+const totalBudgetInBase = activeSavedBudget ? activeSavedBudget.amount : legacyTotal;
+const budgetCurrency = activeSavedBudget ? activeSavedBudget.currency : budget.baseCurrency;
+const remaining = totalBudgetInBase - totalSpent;
+const pctSpent = totalBudgetInBase > 0 ? Math.min(totalSpent / totalBudgetInBase, 1) : 0;
+```
+
+> Se `activeSavedBudget` for `null` (nenhum orçamento ativado para a trip ativa), o gráfico exibe `0%` e `pctSpent = 0`.
+
+---
+
+### 6.6 `GroupScreen`
+
+**Arquivo:** `app/TripversalApp.tsx` (componente inline)
+
+Tela de gestão das viagens do usuário. Acessada via ícone de grupo no AppShell.
+
+#### Funcionalidades
+
+- Lista todas as viagens (`trips`) do usuário
+- Indica qual está ativa (borda cyan + badge "ACTIVE")
+- Botão "+ New" → formulário de criação (nome, destino, datas)
+- Swipe/botões → editar ou deletar viagem (confirmação modal antes de deletar)
+- Trocar viagem ativa via tap no card
+
+#### Props
+
+```typescript
+{
+  trips: Trip[];
+  activeTripId: string | null;
+  user: GoogleUser | null;
+  onBack: () => void;
+  onSwitchTrip: (id: string) => void;
+  onTripUpdate: (updated: Trip) => void;
+  onTripCreate: (trip: Trip) => void;
+  onTripDelete: (id: string) => void;
+}
+```
+
+#### Callback `onTripCreate`
+
+Além de adicionar ao array `trips`, chama `switchActiveTrip(trip.id)` automaticamente — a nova viagem vira a ativa.
+
+#### Callback `onTripDelete`
+
+Filtra o array de viagens. Se a viagem deletada era a ativa, ativa a primeira restante ou limpa `activeTripId` se não restar nenhuma.
+
+---
+
+### 6.7 `ManageCrewScreen` — Aba Budget
+
+**Arquivo:** `app/TripversalApp.tsx` (componente inline)
+
+Tela de gerenciamento de membros de uma viagem específica. Agora tem duas abas:
+
+| Aba | Conteúdo |
+|---|---|
+| **Members** | Lista de membros (avatar, nome, role badge), convite por email, botão "Leave Group" |
+| **Budget** | Lista de `SavedBudget`, botão "Add Budget", ativar/desativar orçamento por viagem |
+
+#### Interface `SavedBudget`
+
+```typescript
+interface SavedBudget {
+  id: string;          // nanoid gerado no cliente
+  name: string;        // ex: "Orçamento Europa"
+  currency: string;    // ISO 4217
+  amount: number;      // valor total do orçamento
+  activeTripId?: string; // trip_id onde este orçamento está ativo (1 por trip)
+  createdAt: string;   // ISO date
+}
+```
+
+Armazenado em `localStorage` com a chave `tripversal_saved_budgets`.
+
+#### Regra: um orçamento por viagem
+
+`activateBudget(budgetId, tripId)`:
+1. Remove `activeTripId` de qualquer orçamento que já estava ativo para esta viagem
+2. Define `activeTripId = tripId` no orçamento selecionado
+3. Atualiza `tripversal_saved_budgets` no localStorage
+4. Também escreve `localStorage.setItem('tripversal_active_budget_{tripId}', budgetId)` (fallback de lookup)
+
+#### Leave Group
+
+Botão disponível para membros não-admin (ou admin que não é o único). Chama `DELETE /api/trips/[id]/members/leave` com `{ callerSub }`. Business rules na API:
+- Bloqueia se o usuário for o único membro (deve deletar a viagem)
+- Promove automaticamente outro membro a admin se o usuário for o único admin
+
+---
+
+### 6.8 `HomeScreen` — Activity Feed
+
+**Arquivo:** `app/TripversalApp.tsx` (componente inline)
+
+A seção "RECENT ACTIVITY" da HomeScreen agora mescla três fontes:
+
+| Fonte | Tipo | Conteúdo |
+|---|---|---|
+| `trip_activity` | `TripActivityItem` | Ações do grupo no itinerário (event_created, event_updated, event_deleted) |
+| `expenses` locais | `Expense[]` | Transações recentes do usuário |
+| `invite_events` | `InviteEvent[]` | Convites enviados/aceitos |
+
+Hydration do feed de atividade:
+
+```typescript
+fetch(`/api/trips/${activeTripId}/activity?callerSub=${user.sub}&limit=10`)
+  .then(r => r.ok ? r.json() : [])
+  .then(rows => setActivityItems(rows))
+  .catch(() => {});
+```
+
+Formato de exibição: ícone 📅 + texto `"[actor_name] added: [subject]"` / `"updated: ..."` / `"removed: ..."` + timestamp relativo.
 
 ---
 
@@ -908,8 +1221,15 @@ const effectiveIsOnline = isOnline && !offlineSim;
 | GET | `/api/trips?userId=SUB` | — | Lista viagens do usuário (com members e segments) |
 | GET | `/api/trips/[id]` | — | Detalhes de uma viagem |
 | PUT | `/api/trips/[id]` | admin | Atualiza campos (name, destination, dates, budget) |
-| DELETE | `/api/trips/[id]` | owner | Deleta a viagem |
-| GET | `/api/trips/[id]/ics` | — | Feed iCalendar dos segments |
+| DELETE | `/api/trips/[id]` | owner | Deleta a viagem e todos os dados relacionados |
+| GET | `/api/trips/[id]/ics` | — | Feed iCalendar (segments + itinerary_events) |
+| DELETE | `/api/trips/[id]/members/leave` | member | Sair do grupo (ver regras abaixo) |
+
+**Regras de Leave Group (`DELETE /api/trips/[id]/members/leave`):**
+- Body: `{ callerSub: string }`
+- Retorna `400` se o usuário for o único membro (deve deletar a viagem)
+- Promove automaticamente o próximo membro a `admin` se o usuário for o único admin
+- Retorna `204 No Content` em caso de sucesso
 
 ### 8.2 Expenses
 
@@ -944,12 +1264,83 @@ const effectiveIsOnline = isOnline && !offlineSim;
   splits?: Record<string, number>;
   city?: string;
   editHistory?: Array<{ at: string; snapshot: object }>;
+  receipt_data?: string;   // base64 do recibo (opcional)
 }
 ```
 
-> `receiptDataUrl` é intencionalmente omitido — não vai ao servidor.
+### 8.3 Itinerary
 
-### 8.3 Users
+**Arquivos:** `app/api/trips/[id]/itinerary/route.ts`, `app/api/trips/[id]/itinerary/[eventId]/route.ts`
+
+| Método | Rota | Auth | Descrição |
+|---|---|---|---|
+| GET | `/api/trips/[id]/itinerary` | member | Lista eventos ativos (`deleted_at IS NULL`), ordenados por `start_dt` |
+| POST | `/api/trips/[id]/itinerary` | member | Cria ou atualiza evento (upsert por `id`) + insere em `trip_activity` |
+| PUT | `/api/trips/[id]/itinerary/[eventId]` | member | Atualiza campos do evento + insere em `trip_activity` |
+| DELETE | `/api/trips/[id]/itinerary/[eventId]` | member | Soft-delete (`deleted_at = NOW()`) + insere em `trip_activity` |
+
+**Payload do POST (campos opcionais omitidos = null no banco):**
+
+```typescript
+{
+  callerSub: string;        // obrigatório
+  actorName?: string;       // para o feed de atividade
+  id?: string;              // UUID gerado no cliente (permite upsert)
+  type: ItinEventType;
+  title: string;
+  startDt: string;          // ISO 8601 com timezone
+  endDt?: string;
+  location?: string;
+  notes?: string;
+  confirmation?: string;
+  extras?: Record<string, string>;
+  weather?: { temp: number; code: number };
+}
+```
+
+### 8.4 Itinerary Attachments
+
+**Arquivos:** `app/api/trips/[id]/itinerary/[eventId]/attachments/route.ts`, `…/[attId]/route.ts`
+
+| Método | Rota | Auth | Descrição |
+|---|---|---|---|
+| GET | `/api/trips/[id]/itinerary/[eventId]/attachments` | member | Lista anexos do evento (sem `file_data` para payload leve) |
+| POST | `/api/trips/[id]/itinerary/[eventId]/attachments` | member | Adiciona anexo (upsert por `id`) |
+| DELETE | `/api/trips/[id]/itinerary/[eventId]/attachments/[attId]` | member | Hard-delete do anexo |
+
+**Payload do POST:**
+
+```typescript
+{
+  id: string;       // UUID gerado no cliente
+  name: string;     // nome do arquivo
+  file_data: string; // base64
+}
+```
+
+### 8.5 Activity Feed
+
+**Arquivo:** `app/api/trips/[id]/activity/route.ts`
+
+| Método | Rota | Auth | Descrição |
+|---|---|---|---|
+| GET | `/api/trips/[id]/activity?callerSub=SUB&limit=20` | member | Últimas N atividades, `ORDER BY created_at DESC` |
+
+**Resposta:**
+
+```typescript
+Array<{
+  id: string;
+  trip_id: string;
+  actor_sub: string;
+  actor_name: string | null;
+  action: 'event_created' | 'event_updated' | 'event_deleted';
+  subject: string | null;
+  created_at: string;
+}>
+```
+
+### 8.6 Users
 
 | Método | Rota | Descrição |
 |---|---|---|
@@ -996,19 +1387,69 @@ function mergeServerExpenses(stored: Expense[], server: Expense[], tripId: strin
 | Criar despesa | ✅ síncrono | ✅ POST em background | AddExpenseScreen.handleSave, após `onBack()` |
 | Editar despesa | ✅ síncrono | ✅ PUT em background | HomeScreen.handleHomeEdit, WalletScreen.handleEdit |
 | Deletar despesa | ✅ síncrono | ✅ soft-delete em background | HomeScreen.handleHomeDelete, WalletScreen.handleDelete |
-| Editar orçamento | ✅ síncrono | ✅ PUT /trips/[id] em background | SettingsScreen.saveBudget |
-| Hydrate ao montar | — | ✅ GET + mergeServerExpenses | HomeScreen/WalletScreen useEffect |
+| Editar orçamento (legacy) | ✅ síncrono | ✅ PUT /trips/[id] em background | SettingsScreen.saveBudget |
+| Hydrate expenses ao montar | — | ✅ GET + mergeServerExpenses | HomeScreen/WalletScreen useEffect |
 | Reconexão | — | ✅ GET + mergeServerExpenses | handleReconnect (useNetworkSync) |
+| Criar evento itinerário | ✅ síncrono | ✅ POST (upsert) em background | ItineraryScreen.handleSaveEvent |
+| Editar evento itinerário | ✅ síncrono | ✅ PUT em background | ItineraryScreen.handleSaveEvent |
+| Deletar evento itinerário | ✅ soft-delete local | ✅ soft-delete em background | ItineraryScreen.handleDeleteEvent |
+| Hydrate itinerário ao montar | ✅ localStorage primeiro | ✅ GET + substituição | ItineraryScreen useEffect [activeTripId] |
+| Activity feed | — | ✅ GET /activity | HomeScreen useEffect [activeTripId] |
 
-### 9.4 Dados intencionalmente sem espelho
+### 9.4 Dados intencionalmente sem espelho no servidor
 
 | Key localStorage | Motivo |
 |---|---|
 | `tripversal_active_trip_id` | UI state — local por design |
 | `tripversal_user` | Sessão Google — renovada pelo OAuth |
-| `tripversal_profile` | Out of scope desta PR |
+| `tripversal_profile` | Out of scope |
 | `INVITE_EVENTS_KEY` | Notificação efêmera local |
 | `tripversal_deleted_expenses` | Log de auditoria local; o soft-delete no server é suficiente |
+| `tripversal_saved_budgets` | `SavedBudget` — localStorage-only, ver ADR-06 |
+| `tripversal_active_budget_{tripId}` | Fallback de lookup do SavedBudget ativo |
+
+### 9.5 Bugs de sync corrigidos (2026-02-27)
+
+#### Bug 1: `expenseToRow()` não incluía `trip_id`
+
+**Sintoma:** despesas criadas no computador nunca chegavam ao servidor com o `trip_id` correto; ao logar no celular, o servidor retornava registros sem `trip_id` mas a migração não os encontrava.
+
+**Causa:** `expenseToRow()` (serializer cliente→servidor) omitia o campo `tripId → trip_id`.
+
+**Fix:** adicionado `trip_id: e.tripId ?? null` ao objeto retornado.
+
+```typescript
+// Antes
+function expenseToRow(e: Expense): Record<string, unknown> {
+  return { id: e.id, description: e.description, ... };
+  // tripId ausente!
+}
+
+// Depois
+function expenseToRow(e: Expense): Record<string, unknown> {
+  return { id: e.id, description: e.description, ..., trip_id: e.tripId ?? null };
+}
+```
+
+#### Bug 2: migração de localStorage → servidor excluía despesas antigas
+
+**Sintoma:** despesas criadas antes da funcionalidade de `tripId` (campo adicionado posteriormente) não eram migradas ao servidor porque a migração filtrava `e.tripId === activeTripId` — as antigas tinham `tripId = undefined`.
+
+**Fix:** filtro alterado para `!e.tripId || e.tripId === activeTripId`. As despesas sem `tripId` são associadas à `activeTripId` no momento da migração.
+
+```typescript
+// Antes
+stored.filter(e => e.tripId === activeTripId).forEach(e => {
+  fetch(..., { body: JSON.stringify({ callerSub, ...expenseToRow(e) }) });
+});
+
+// Depois
+stored.filter(e => !e.tripId || e.tripId === activeTripId).forEach(e => {
+  fetch(..., { body: JSON.stringify({ callerSub, ...expenseToRow({ ...e, tripId: activeTripId }) }) });
+});
+```
+
+Esta correção existe nos dois pontos de migração: `HomeScreen` e `WalletScreen`.
 
 ---
 
@@ -1126,3 +1567,24 @@ Uma imagem comprimida ainda tem ~60-80 KB. Com dezenas de despesas por viagem e 
 - O Supabase nunca é a fonte de verdade primária em tempo de escrita — é o backup durável.
 - Ao reconectar (`handleReconnect`), o app refaz o GET de expenses e mescla com `mergeServerExpenses`, que prioriza os dados do servidor para o `tripId` ativo e preserva dados de outras viagens já no localStorage.
 - Dados criados offline chegam ao servidor apenas no próximo `handleReconnect`. O máximo de perda de dados é o intervalo offline.
+
+---
+
+### ADR-06: `SavedBudget` em localStorage (sem espelho no servidor)
+
+**Contexto:** O sistema de orçamento anterior usava `budget.sources` no JSONB da tabela `trips`. A nova abstração `SavedBudget` permite criar orçamentos reutilizáveis e ativá-los por viagem.
+
+**Decisão:** `SavedBudget` é armazenado exclusivamente em `localStorage` (chave `tripversal_saved_budgets`). Não há tabela no banco.
+
+**Justificativa:**
+
+1. **Escopo de uso:** orçamentos pessoais são privados a cada usuário. Não precisam ser compartilhados com outros membros da viagem.
+2. **Complexidade vs. benefício:** criar uma tabela no banco requer migration + API routes + sync bidirecional. O ganho cross-device é real mas marginal — orçamento é configurado uma vez por dispositivo.
+3. **Consistência com o padrão existente:** `budget.baseCurrency`, `budget.dailyLimit` etc. também vivem em localStorage. `SavedBudget` segue o mesmo padrão.
+
+**Consequências:**
+
+- Trocar de dispositivo requer recriar os orçamentos. O histórico de gastos (expenses) é synced — apenas o orçamento precisa ser configurado novamente.
+- Se no futuro for necessário sync cross-device, criar tabela `user_budgets (id, google_sub, name, currency, amount, created_at)` e associar à viagem via tabela de junção.
+
+**Invariante de ativação:** um orçamento pode estar ativo em no máximo uma viagem (`activeTripId`). A função `activateBudget` garante isso removendo `activeTripId` de todos os outros orçamentos antes de definir o novo.
