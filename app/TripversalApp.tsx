@@ -352,6 +352,9 @@ function expenseToRow(e: Expense): Record<string, unknown> {
 }
 
 function mergeServerExpenses(stored: Expense[], server: Expense[], tripId: string): Expense[] {
+  // If server returned nothing, trust localStorage — table may not have been migrated yet.
+  // This prevents the "flash of empty" caused by an uninitialized Supabase table.
+  if (server.length === 0) return stored;
   const others = stored.filter(e => e.tripId !== tripId);
   return [...others, ...server].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
@@ -539,7 +542,7 @@ const BottomNav = ({ active, onNav }: any) => {
   );
 };
 
-const HomeScreen = ({ onNav, onAddExpense, activeTripId, user }: any) => {
+const HomeScreen = ({ onNav, onAddExpense, activeTripId, activeTrip, user }: any) => {
   const [budget, setBudget] = useState<TripBudget>(DEFAULT_BUDGET);
   const [todaySpent, setTodaySpent] = useState(0);
   const [yesterdaySpent, setYesterdaySpent] = useState(0);
@@ -578,14 +581,26 @@ const HomeScreen = ({ onNav, onAddExpense, activeTripId, user }: any) => {
     } catch {}
     // Background hydration from server
     if (activeTripId && user?.sub) {
-      fetch(`/api/trips/${activeTripId}/expenses?callerSub=${user.sub}`)
+      const callerSub = user.sub;
+      fetch(`/api/trips/${activeTripId}/expenses?callerSub=${callerSub}`)
         .then(r => r.ok ? r.json() : null)
         .then((rows: any[] | null) => {
           if (!rows) return;
           const stored: Expense[] = (() => { try { const s = localStorage.getItem('tripversal_expenses'); return s ? JSON.parse(s) : []; } catch { return []; } })();
+          // If server is empty, upload any existing localStorage expenses (one-time migration)
+          if (rows.length === 0) {
+            stored.filter(e => e.tripId === activeTripId).forEach(e => {
+              fetch(`/api/trips/${activeTripId}/expenses`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ callerSub, ...expenseToRow(e) }),
+              }).catch(() => {});
+            });
+            return; // keep localStorage as-is
+          }
           const merged = mergeServerExpenses(stored, rows.map(rowToExpense), activeTripId);
           localStorage.setItem('tripversal_expenses', JSON.stringify(merged));
-          const forTrip = merged.filter(e => e.tripId === activeTripId);
+          // Use same filter as initial render — includes expenses with no tripId
+          const forTrip = merged.filter(e => !e.tripId || !activeTripId || e.tripId === activeTripId);
           const todayKey = localDateKey(new Date());
           const yest = new Date(); yest.setDate(yest.getDate() - 1);
           const yesterdayKey = localDateKey(yest);
@@ -700,22 +715,39 @@ const HomeScreen = ({ onNav, onAddExpense, activeTripId, user }: any) => {
           </div>
         )}
       </div>
-      <div style={{ margin: "16px 20px 0", background: "linear-gradient(135deg, #0d2526 0%, #0a1a1a 100%)", borderRadius: 20, padding: 20, border: `1px solid ${C.cyan}20` }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-          <div style={{ background: "#003d4520", border: `1px solid ${C.cyan}40`, borderRadius: 20, padding: "5px 12px", display: "flex", alignItems: "center", gap: 6, color: C.cyan, fontSize: 12, fontWeight: 700 }}>
-            <Icon d={icons.clock} size={12} stroke={C.cyan} /> IN 45M
+      {(() => {
+        const events: ItineraryEvent[] = activeTrip ? segmentsToEvents(activeTrip.segments) : [];
+        const todayStr = localDateKey(new Date());
+        const nowStr = `${String(new Date().getHours()).padStart(2,'0')}:${String(new Date().getMinutes()).padStart(2,'0')}`;
+        const next = events.find(e => e.date > todayStr || (e.date === todayStr && e.time >= nowStr));
+        if (!next) return null;
+        const eventDate = new Date(`${next.date}T${next.time}:00`);
+        const diffMs = eventDate.getTime() - Date.now();
+        const diffH = Math.floor(diffMs / 3_600_000);
+        const diffM = Math.floor((diffMs % 3_600_000) / 60_000);
+        const timeLabel = diffMs < 0 ? "NOW" : diffH > 0 ? `IN ${diffH}H ${diffM}M` : `IN ${diffM}M`;
+        const catIcon = CATEGORY_ICONS[next.category] || icons.calendar;
+        return (
+          <div style={{ margin: "16px 20px 0", background: "linear-gradient(135deg, #0d2526 0%, #0a1a1a 100%)", borderRadius: 20, padding: 20, border: `1px solid ${C.cyan}20` }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <div style={{ background: "#003d4520", border: `1px solid ${C.cyan}40`, borderRadius: 20, padding: "5px 12px", display: "flex", alignItems: "center", gap: 6, color: C.cyan, fontSize: 12, fontWeight: 700 }}>
+                <Icon d={icons.clock} size={12} stroke={C.cyan} /> {timeLabel}
+              </div>
+              <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#ffffff15", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Icon d={catIcon} size={20} stroke={C.text} />
+              </div>
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: C.text, marginBottom: 4 }}>{next.title}</div>
+            {next.subtitle && <div style={{ color: C.textMuted, fontSize: 14, marginBottom: 14 }}>{next.subtitle}</div>}
+            <div style={{ display: "flex", gap: 10 }}>
+              {next.location?.address && (
+                <Btn style={{ flex: 1, borderRadius: 12 }} variant="secondary" onClick={() => openMapLink(next.location?.address, next.location?.lat, next.location?.lng)} icon={<Icon d={icons.navigation} size={16} />}>Directions</Btn>
+              )}
+              <Btn style={{ flex: 1, borderRadius: 12 }} variant="secondary" onClick={() => onNav("itinerary")} icon={<Icon d={icons.calendar} size={16} />}>Itinerary</Btn>
+            </div>
           </div>
-          <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#ffffff15", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Icon d={icons.plane} size={20} stroke={C.text} />
-          </div>
-        </div>
-        <div style={{ fontSize: 26, fontWeight: 800, color: C.text, marginBottom: 4 }}>Flight to Rome</div>
-        <div style={{ color: C.textMuted, fontSize: 14, marginBottom: 18 }}>Boarding in 45m</div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <Btn style={{ flex: 1, borderRadius: 12 }} variant="white" icon={<Icon d={icons.fileText} size={16} />}>Tickets</Btn>
-          <Btn style={{ flex: 1, borderRadius: 12 }} variant="secondary" icon={<Icon d={icons.navigation} size={16} />}>Directions</Btn>
-        </div>
-      </div>
+        );
+      })()}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, margin: "16px 20px 0" }}>
         {[
           { label: "EXPENSE", icon: icons.plus, action: onAddExpense },
@@ -1161,14 +1193,26 @@ const WalletScreen = ({ onAddExpense, activeTripId, user }: any) => {
     } catch {}
     // Background hydration from server
     if (activeTripId && user?.sub) {
-      fetch(`/api/trips/${activeTripId}/expenses?callerSub=${user.sub}`)
+      const callerSub = user.sub;
+      fetch(`/api/trips/${activeTripId}/expenses?callerSub=${callerSub}`)
         .then(r => r.ok ? r.json() : null)
         .then((rows: any[] | null) => {
           if (!rows) return;
           const stored: Expense[] = (() => { try { const s = localStorage.getItem('tripversal_expenses'); return s ? JSON.parse(s) : []; } catch { return []; } })();
+          // If server is empty, upload existing localStorage expenses (one-time migration)
+          if (rows.length === 0) {
+            stored.filter(e => e.tripId === activeTripId).forEach(e => {
+              fetch(`/api/trips/${activeTripId}/expenses`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ callerSub, ...expenseToRow(e) }),
+              }).catch(() => {});
+            });
+            return; // keep localStorage as-is
+          }
           const merged = mergeServerExpenses(stored, rows.map(rowToExpense), activeTripId);
           localStorage.setItem('tripversal_expenses', JSON.stringify(merged));
-          setExpenses(merged.filter(e => e.tripId === activeTripId));
+          // Same filter as initial render — includes expenses with no tripId
+          setExpenses(merged.filter(e => !e.tripId || !activeTripId || e.tripId === activeTripId));
         })
         .catch(() => {});
     }
@@ -3093,7 +3137,7 @@ function AppShell() {
     );
   } else {
     switch (tab) {
-      case "home": content = <HomeScreen onNav={handleNav} onAddExpense={() => setShowAddExpense(true)} activeTripId={activeTripId} user={user} />; break;
+      case "home": content = <HomeScreen onNav={handleNav} onAddExpense={() => setShowAddExpense(true)} activeTripId={activeTripId} activeTrip={activeTrip} user={user} />; break;
       case "itinerary": content = <ItineraryScreen activeTripId={activeTripId} activeTrip={activeTrip} userSub={user?.sub} />; break;
       case "wallet": content = <WalletScreen onAddExpense={() => setShowAddExpense(true)} activeTripId={activeTripId} user={user} />; break;
       case "photos": content = <PhotosScreen />; break;
