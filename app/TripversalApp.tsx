@@ -460,6 +460,16 @@ const Input = ({ placeholder, value, onChange, style = {} }: any) => (
   />
 );
 
+// Renders a segment color dot OR an emoji/flag string
+const SegmentIcon = ({ color, size = 10 }: { color: string; size?: number }) => {
+  if (color.startsWith('#'))
+    return <div style={{ width: size, height: size, borderRadius: "50%", background: color, flexShrink: 0 }} />;
+  return <span style={{ fontSize: size * 1.8, lineHeight: 1, flexShrink: 0 }}>{color}</span>;
+};
+
+const SEG_FLAGS = ['🇧🇷','🇺🇸','🇬🇧','🇫🇷','🇩🇪','🇮🇹','🇪🇸','🇵🇹','🇯🇵','🇨🇳','🇰🇷','🇦🇷','🇨🇴','🇲🇽','🇨🇱','🇦🇺','🇳🇿','🇨🇦','🇮🇳','🇷🇺','🇹🇷','🇬🇷','🇳🇱','🇧🇪','🇨🇭','🇦🇹','🇸🇪','🇳🇴','🇩🇰','🇵🇱','🇨🇿','🇸🇬','🇹🇭','🇮🇩','🇻🇳','🇲🇾','🇵🇭','🇪🇬','🇿🇦','🇲🇦','🇮🇱','🇸🇦','🇦🇪','🇺🇾','🇵🇪','🇧🇴','🇪🇨','🇨🇷','🇨🇺','🇭🇺','🇷🇴','🇧🇬','🇭🇷','🇸🇰','🇸🇮','🇷🇸'];
+const SEG_EMOJIS = ['✈️','🚂','🚢','🚁','🏨','🏝','🗺️','🏕','🌋','🌊','🗼','🗽','🏰','🎡','🎭','🎿','⛷️','🏄','🎪','🎨','🏔','🌅','🌃','🌆','🌉','🎠','🚡','🛥️','🏺','⛩️','🕌','🕍','🏯','🏟','🛕','🗿','🎑','🎆','🎇','🌄'];
+
 const Btn = ({ children, onClick, variant = "primary", style = {}, icon }: any) => {
   const styles: any = {
     primary: { background: C.cyan, color: "#000", fontWeight: 700 },
@@ -2855,6 +2865,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
   const [segAttachments, setSegAttachments] = useState<SegmentAttachment[]>(() => {
     try { const s = localStorage.getItem(`tripversal_seg_att_${trip?.id}`); return s ? JSON.parse(s) : []; } catch { return []; }
   });
+  const [segIconTab, setSegIconTab] = useState<'colors' | 'flags' | 'emojis'>('colors');
   const [expandedSegId, setExpandedSegId] = useState<string | null>(null);
   const [addAttSegId, setAddAttSegId] = useState<string | null>(null);
   const [attName, setAttName] = useState('');
@@ -2954,7 +2965,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
       const seg = await res.json();
       const newSeg: TripSegment = { id: seg.id, name: seg.name, startDate: seg.start_date, endDate: seg.end_date, origin: seg.origin, destination: seg.destination, color: seg.color, assignedMemberIds: seg.assigned_member_ids || [] };
       onTripUpdate({ ...trip, segments: [...segments, newSeg] });
-      setSegName(""); setSegOrigin(""); setSegDest(""); setSegStart(""); setSegEnd(""); setSegColor("#00e5ff"); setSegAssigned([]); setShowAddSeg(false);
+      setSegName(""); setSegOrigin(""); setSegDest(""); setSegStart(""); setSegEnd(""); setSegColor("#00e5ff"); setSegAssigned([]); setSegIconTab('colors'); setShowAddSeg(false);
     } catch { showToast("Failed to add segment."); }
     setSegSaving(false);
   };
@@ -3139,14 +3150,49 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
                 </div>
               </div>
               <div style={{ marginBottom: 12 }}>
-                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>COLOR</div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  {segColors.map(c => (
-                    <button key={c} onClick={() => setSegColor(c)} style={{ width: 28, height: 28, borderRadius: "50%", background: c, border: segColor === c ? "3px solid #fff" : "3px solid transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      {segColor === c && <Icon d={icons.check} size={12} stroke="#fff" strokeWidth={3} />}
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>ICON</div>
+                {/* Preview */}
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: C.card3, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <SegmentIcon color={segColor} size={18} />
+                  </div>
+                  <span style={{ color: C.textSub, fontSize: 12 }}>Selected</span>
+                </div>
+                {/* Tab switcher */}
+                <div style={{ background: C.card3, borderRadius: 10, padding: 3, display: "flex", marginBottom: 10 }}>
+                  {(['colors', 'flags', 'emojis'] as const).map(t => (
+                    <button key={t} onClick={() => setSegIconTab(t)} style={{ flex: 1, padding: "7px", borderRadius: 8, border: "none", cursor: "pointer", background: segIconTab === t ? C.card : "transparent", color: segIconTab === t ? C.text : C.textMuted, fontWeight: segIconTab === t ? 700 : 400, fontSize: 11, fontFamily: "inherit", letterSpacing: 0.8 }}>
+                      {t.toUpperCase()}
                     </button>
                   ))}
                 </div>
+                {segIconTab === 'colors' && (
+                  <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 8 }}>
+                    {segColors.map(c => (
+                      <button key={c} onClick={() => setSegColor(c)} style={{ width: 28, height: 28, borderRadius: "50%", background: c, border: segColor === c ? "3px solid #fff" : "3px solid transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        {segColor === c && <Icon d={icons.check} size={12} stroke="#fff" strokeWidth={3} />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {segIconTab === 'flags' && (
+                  <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 4, maxHeight: 120, overflowY: "auto" }}>
+                    {SEG_FLAGS.map(f => (
+                      <button key={f} onClick={() => setSegColor(f)} style={{ width: 36, height: 36, borderRadius: 8, background: segColor === f ? C.card2 : "transparent", border: segColor === f ? `2px solid ${C.cyan}` : "2px solid transparent", cursor: "pointer", fontSize: 22, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {segIconTab === 'emojis' && (
+                  <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 4, maxHeight: 120, overflowY: "auto" }}>
+                    {SEG_EMOJIS.map(e => (
+                      <button key={e} onClick={() => setSegColor(e)} style={{ width: 36, height: 36, borderRadius: 8, background: segColor === e ? C.card2 : "transparent", border: segColor === e ? `2px solid ${C.cyan}` : "2px solid transparent", cursor: "pointer", fontSize: 20, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        {e}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               {accepted.length > 0 && (
                 <div style={{ marginBottom: 12 }}>
@@ -3178,7 +3224,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
             return (
               <Card key={seg.id} style={{ marginBottom: 10 }}>
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: "50%", background: seg.color, marginTop: 5, flexShrink: 0 }} />
+                  <div style={{ marginTop: 3, flexShrink: 0 }}><SegmentIcon color={seg.color} size={10} /></div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 700, fontSize: 15 }}>{seg.name}</div>
                     {(seg.origin || seg.destination) && (
