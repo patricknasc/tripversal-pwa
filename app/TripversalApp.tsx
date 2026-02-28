@@ -3603,8 +3603,105 @@ interface SocialPost {
 }
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
 
+interface PendingUpload {
+  id: string;
+  tripId: string;
+  userSub: string;
+  userName: string;
+  userAvatar?: string;
+  file: File;
+  caption?: string;
+  post: SocialPost;
+  xhr?: XMLHttpRequest;
+}
+
+class UploadManager {
+  tasks: PendingUpload[] = [];
+  listeners: ((type: 'progress' | 'success' | 'error', task: PendingUpload, serverPost?: SocialPost) => void)[] = [];
+
+  subscribe(cb: (type: 'progress' | 'success' | 'error', task: PendingUpload, serverPost?: SocialPost) => void) {
+    this.listeners.push(cb);
+    return () => { this.listeners = this.listeners.filter(l => l !== cb); };
+  }
+  notify(type: 'progress' | 'success' | 'error', task: PendingUpload, serverPost?: SocialPost) {
+    this.listeners.forEach(cb => cb(type, task, serverPost));
+  }
+
+  addAndStart(tripId: string, user: any, file: File, caption: string) {
+    const localUrl = URL.createObjectURL(file);
+    const tempId = crypto.randomUUID();
+    const post: SocialPost = {
+      id: tempId, tripId, userSub: user?.sub || '', userName: user?.name || 'Unknown',
+      userAvatar: user?.picture, mediaUrl: localUrl, localMediaUrl: localUrl,
+      mediaType: file.type.startsWith('video/') ? 'video' : 'photo',
+      caption: caption.trim() || undefined, reactions: [], myReaction: undefined,
+      viewCount: 0, viewedByMe: false, uploading: true, uploadProgress: 0, createdAt: new Date().toISOString(),
+    };
+    const task: PendingUpload = { id: tempId, tripId, userSub: post.userSub, userName: post.userName, userAvatar: post.userAvatar, file, caption: post.caption, post };
+    this.tasks = [task, ...this.tasks];
+    this.notify('progress', task);
+    this._start(task);
+  }
+
+  retry(id: string) {
+    const task = this.tasks.find(t => t.id === id);
+    if (!task) return;
+    task.post.uploadError = false;
+    task.post.uploadProgress = 0;
+    task.post.uploading = true;
+    this.notify('progress', task);
+    this._start(task);
+  }
+
+  dismiss(id: string) {
+    const task = this.tasks.find(t => t.id === id);
+    if (task?.post.localMediaUrl) URL.revokeObjectURL(task.post.localMediaUrl);
+    this.tasks = this.tasks.filter(t => t.id !== id);
+    this.notify('progress', task!);
+  }
+
+  _start(task: PendingUpload) {
+    const form = new FormData();
+    form.append('file', task.file);
+    form.append('userSub', task.userSub);
+    form.append('userName', task.userName);
+    if (task.userAvatar) form.append('userAvatar', task.userAvatar);
+    if (task.caption) form.append('caption', task.caption);
+
+    const xhr = new XMLHttpRequest();
+    task.xhr = xhr;
+    xhr.open('POST', `/api/trips/${task.tripId}/social`);
+    xhr.upload.onprogress = (ev) => {
+      if (!ev.lengthComputable) return;
+      task.post.uploadProgress = Math.round((ev.loaded / ev.total) * 100);
+      this.notify('progress', task);
+    };
+    xhr.onload = () => {
+      if (xhr.status === 201) {
+        const serverPost: SocialPost = JSON.parse(xhr.responseText);
+        if (task.post.localMediaUrl) URL.revokeObjectURL(task.post.localMediaUrl);
+        this.tasks = this.tasks.filter(t => t.id !== task.id);
+        this.notify('success', task, serverPost);
+      } else {
+        task.post.uploading = false;
+        task.post.uploadError = true;
+        this.notify('error', task);
+      }
+    };
+    xhr.onerror = () => {
+      task.post.uploading = false;
+      task.post.uploadError = true;
+      this.notify('error', task);
+    };
+    xhr.send(form);
+  }
+}
+
+const uploadManager = new UploadManager();
+
 const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
   const [posts, setPosts] = useState<SocialPost[]>([]);
+  const [managerTasks, setManagerTasks] = useState<PendingUpload[]>([]);
   const [loading, setLoading] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
   const [caption, setCaption] = useState('');
@@ -3622,6 +3719,22 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
   const [viewersLoading, setViewersLoading] = useState(false);
   // Track views within session (prevent duplicate calls)
   const viewedRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    setManagerTasks([...uploadManager.tasks]);
+    const unsub = uploadManager.subscribe((type, task, serverPost) => {
+      if (type === 'success' && serverPost) {
+        setPosts(prev => [serverPost, ...prev]);
+      }
+      setManagerTasks([...uploadManager.tasks]);
+    });
+    return unsub;
+  }, []);
+
+  const allPosts = [
+    ...managerTasks.filter(t => t.tripId === activeTripId).map(t => t.post),
+    ...posts
+  ];
 
   const fetchPosts = useCallback(async () => {
     if (!activeTripId || !isOnline) return;
@@ -3653,7 +3766,7 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
     }, { threshold: 0.5 });
     document.querySelectorAll('[data-post-id]').forEach(el => observer.observe(el));
     return () => observer.disconnect();
-  }, [posts.length, activeTripId, isOnline, user?.sub, user?.name]);
+  }, [allPosts.length, activeTripId, isOnline, user?.sub, user?.name]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -3665,45 +3778,8 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
   // Async XHR upload — non-blocking with progress
   const handleShare = () => {
     if (!file || !activeTripId) return;
-    const localUrl = URL.createObjectURL(file);
-    const tempId = crypto.randomUUID();
-    const optimistic: SocialPost = {
-      id: tempId, tripId: activeTripId, userSub: user?.sub || '', userName: user?.name || 'Unknown',
-      userAvatar: user?.picture, mediaUrl: localUrl, localMediaUrl: localUrl,
-      mediaType: file.type.startsWith('video/') ? 'video' : 'photo',
-      caption: caption.trim() || undefined, reactions: [], myReaction: undefined,
-      viewCount: 0, viewedByMe: false, uploading: true, uploadProgress: 0, createdAt: new Date().toISOString(),
-    };
-    setPosts(p => [optimistic, ...p]);
+    uploadManager.addAndStart(activeTripId, user, file, caption);
     setShowUpload(false); setFile(null); setPreviewUrl(null); setCaption('');
-
-    const form = new FormData();
-    form.append('file', file);
-    form.append('userSub', user?.sub || '');
-    form.append('userName', user?.name || 'Unknown');
-    if (user?.picture) form.append('userAvatar', user.picture);
-    if (optimistic.caption) form.append('caption', optimistic.caption);
-
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', `/api/trips/${activeTripId}/social`);
-    xhr.upload.onprogress = (ev) => {
-      if (!ev.lengthComputable) return;
-      const pct = Math.round((ev.loaded / ev.total) * 100);
-      setPosts(prev => prev.map(p => p.id === tempId ? { ...p, uploadProgress: pct } : p));
-    };
-    xhr.onload = () => {
-      if (xhr.status === 201) {
-        const post: SocialPost = JSON.parse(xhr.responseText);
-        setPosts(prev => prev.map(p => p.id === tempId ? { ...post, localMediaUrl: undefined } : p));
-        URL.revokeObjectURL(localUrl);
-      } else {
-        setPosts(prev => prev.map(p => p.id === tempId ? { ...p, uploading: false, uploadError: true } : p));
-      }
-    };
-    xhr.onerror = () => {
-      setPosts(prev => prev.map(p => p.id === tempId ? { ...p, uploading: false, uploadError: true } : p));
-    };
-    xhr.send(form);
   };
 
   const handleReact = async (postId: string, emoji: string) => {
@@ -3824,9 +3900,9 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
       )}
 
       {/* Feed */}
-      {loading && posts.length === 0 ? (
+      {loading && allPosts.length === 0 ? (
         <div style={{ textAlign: "center", padding: "60px 0", color: C.textMuted, fontSize: 13 }}>Loading...</div>
-      ) : posts.length === 0 ? (
+      ) : allPosts.length === 0 ? (
         <Card style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", padding: "50px 20px", gap: 14 }}>
           <div style={{ width: 72, height: 72, borderRadius: "50%", background: C.card3, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Icon d={icons.camera} size={32} stroke={C.textMuted} />
@@ -3834,7 +3910,7 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
           <div style={{ color: C.textMuted, fontSize: 14, textAlign: "center" }}>No posts yet. Be the first to share a moment!</div>
           <Btn onClick={() => setShowUpload(true)} icon={<Icon d={icons.plus} size={16} stroke="#000" />}>Post Memory</Btn>
         </Card>
-      ) : posts.map(post => {
+      ) : allPosts.map(post => {
         const counts: Record<string, number> = {};
         post.reactions.forEach(r => { counts[r.emoji] = (counts[r.emoji] || 0) + 1; });
         const isOwn = post.userSub === user?.sub;
@@ -3887,7 +3963,10 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
               {post.uploadError && (
                 <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", gap: 10 }}>
                   <div style={{ color: C.red, fontWeight: 700, fontSize: 14 }}>Upload failed</div>
-                  <button onClick={() => setPosts(prev => prev.filter(p => p.id !== post.id))} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 14px", color: C.text, cursor: "pointer", fontSize: 13 }}>Dismiss</button>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => uploadManager.retry(post.id)} style={{ background: C.cyan, border: "none", borderRadius: 8, padding: "6px 14px", color: "#000", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>Retry</button>
+                    <button onClick={() => uploadManager.dismiss(post.id)} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 14px", color: C.text, cursor: "pointer", fontSize: 13 }}>Dismiss</button>
+                  </div>
                 </div>
               )}
             </div>
