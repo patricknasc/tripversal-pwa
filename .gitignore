@@ -29,3 +29,6 @@ build/
 
 # Package archives
 *.tgz
+
+# AI / Agent folders
+.claude/

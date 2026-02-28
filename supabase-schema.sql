@@ -40,7 +40,9 @@ CREATE TABLE IF NOT EXISTS trip_segments (
   origin               TEXT,
   destination          TEXT,
   color                TEXT DEFAULT '#00e5ff',
+  visibility           TEXT DEFAULT 'public' CHECK (visibility IN ('public', 'private')),
   assigned_member_ids  UUID[] DEFAULT '{}',
+  invited_member_ids   UUID[] DEFAULT '{}',
   created_at           TIMESTAMPTZ DEFAULT NOW()
 );
 
