@@ -1,7 +1,25 @@
--- Voyasync PWA — Supabase schema
--- Run once in: Supabase Dashboard > SQL Editor > New Query
+-- Voyasync PWA — Supabase schema v2.7
+-- Idempotent: all statements use IF NOT EXISTS / ADD COLUMN IF NOT EXISTS
+-- Run in: Supabase Dashboard > SQL Editor  OR  psql $DATABASE_URL
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- ─── Users ──────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS users (
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  google_sub TEXT        UNIQUE NOT NULL,
+  name       TEXT,
+  email      TEXT,
+  avatar_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='users' AND policyname='service_role_all_users') THEN
+    CREATE POLICY "service_role_all_users" ON users FOR ALL USING (true);
+  END IF;
+END $$;
 
 -- ─── Trips ─────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS trips (

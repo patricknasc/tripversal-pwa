@@ -1397,19 +1397,23 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
     if (segments.length === 0) return;
 
     const today = localDateKey(new Date());
+    // Include past dates: from trip start (or up to 30 days ago) so historical days show weather
+    const pastBound = new Date(); pastBound.setDate(pastBound.getDate() - 30);
+    const tripStart = activeTrip.startDate;
+    const fetchStart = tripStart && tripStart > localDateKey(pastBound) ? tripStart : localDateKey(pastBound);
     const endD = new Date(); endD.setDate(endD.getDate() + 15);
     const endDate = localDateKey(endD);
-    const full15Days = new Set(getDatesRange(today, endDate));
+    const fullRange = new Set(getDatesRange(fetchStart, endDate));
 
     const queries: Array<{ loc: string; dates: Set<string> }> = [];
     const tripLoc = activeTrip.destination || segments[0]?.destination || segments[0]?.name;
     if (tripLoc) {
-      queries.push({ loc: tripLoc, dates: full15Days });
+      queries.push({ loc: tripLoc, dates: fullRange });
     }
     segments.forEach((seg: any) => {
       const loc = seg.destination || seg.name;
       if (loc) {
-        queries.push({ loc, dates: new Set(getDatesRange(seg.startDate ?? today, seg.endDate ?? seg.startDate ?? today)) });
+        queries.push({ loc, dates: new Set(getDatesRange(seg.startDate ?? fetchStart, seg.endDate ?? seg.startDate ?? today)) });
       }
     });
 
@@ -1435,7 +1439,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
 
         try {
           const wRes = await fetch(
-            `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&daily=temperature_2m_max,weathercode&timezone=auto&start_date=${today}&end_date=${endDate}`
+            `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&daily=temperature_2m_max,weathercode&timezone=auto&start_date=${fetchStart}&end_date=${endDate}`
           );
           const d = await wRes.json();
           if (!d.daily?.time) return null;

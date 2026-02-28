@@ -1,6 +1,6 @@
 # Voyasync — Arquitetura do Sistema
 
-> **Versão:** 2.6
+> **Versão:** 2.7
 > **Atualizado:** 2026-02-28
 > **Stack:** Next.js 14 (App Router) · Supabase (PostgreSQL) · React 18
 > **Convenção de nomes:** tabelas e colunas em `snake_case`; tipos TypeScript em `camelCase/PascalCase`
@@ -40,7 +40,10 @@ O sistema suporta viagens em grupo com:
 ```
 users  (perfil global, upsert no login)
   │
-  └─── user_budgets  (orçamentos pessoais, 1 ativo por viagem)
+  ├─── user_budgets  (orçamentos pessoais, 1 ativo por viagem)
+  ├─── user_medical_ids  (ficha médica, 1 por usuário, sharing toggle)
+  ├─── user_insurance    (seguro de viagem, 1 por usuário, sharing toggle)
+  └─── user_documents    (documentos pessoais — passaporte, etc., sharing toggle)
 
 trips
   │
@@ -57,7 +60,12 @@ trips
   ├─── itinerary_events  (eventos granulares: voo, hotel, refeição…)
   │         │
   │         └─── itinerary_event_attachments  (boarding pass, ingresso, PDF…)
-  └─── trip_activity  (feed de ações do grupo)
+  ├─── trip_activity  (feed de ações do grupo)
+  ├─── weather_forecasts  (snapshot climático por dia, por viagem)
+  ├─── social_posts       (fotos/vídeos do grupo via Supabase Storage)
+  │         └─── social_reactions  (reações emoji por post)
+  └─── itinerary_events
+            └─── itinerary_event_attachments
 ```
 
 ### 2.2 Script SQL completo
@@ -1425,6 +1433,61 @@ Array<{
 | GET | `/api/users/[sub]/budgets` | Lista orçamentos do usuário |
 | POST | `/api/users/[sub]/budgets` | Cria ou atualiza um orçamento (upsert por `id`) |
 | DELETE | `/api/users/[sub]/budgets` | Remove um orçamento (`{ id }` no body) |
+| GET | `/api/users/[sub]/medical` | Lê ficha médica do usuário |
+| PUT | `/api/users/[sub]/medical` | Upsert da ficha médica (inclui campo `sharing`) |
+| GET | `/api/users/[sub]/insurance` | Lê seguro de viagem do usuário |
+| PUT | `/api/users/[sub]/insurance` | Upsert do seguro (inclui campo `sharing`) |
+| GET | `/api/users/[sub]/documents` | Lista documentos do usuário (inclui campo `sharing`) |
+| POST | `/api/users/[sub]/documents` | Cria ou atualiza documento (upsert por `id`, inclui `sharing`) |
+| DELETE | `/api/users/[sub]/documents/[id]` | Remove documento |
+| GET | `/api/users/[sub]/shared-profile` | Retorna apenas dados marcados como `sharing=true` — usado pelo `MemberProfileModal` |
+
+### 8.7 Social Stream
+
+**Arquivos:** `app/api/trips/[id]/social/route.ts`, `.../[postId]/route.ts`, `.../[postId]/reactions/route.ts`
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/api/trips/[id]/social?callerSub=SUB` | Lista posts com reactions; `myReaction` filtrado por callerSub |
+| POST | `/api/trips/[id]/social` | Upload de foto/vídeo via FormData para Supabase Storage + insere em `social_posts` |
+| DELETE | `/api/trips/[id]/social/[postId]` | Remove post (verifica ownership) + deleta arquivo do Storage |
+| POST | `/api/trips/[id]/social/[postId]/reactions` | Toggle de reação — mesmo emoji remove, emoji diferente substitui, novo insere |
+
+**Upload FormData:**
+```
+POST /api/trips/[id]/social
+Content-Type: multipart/form-data
+
+file        → File (foto ou vídeo)
+userSub     → google_sub do remetente
+userName    → nome de exibição
+userAvatar  → URL do avatar
+caption     → legenda (opcional)
+```
+
+**Storage path:** `social-media/{tripId}/{userSub}/{uuid}.{ext}`
+
+O bucket `social-media` é criado automaticamente na primeira chamada de upload via `sb.storage.createBucket('social-media', { public: true })` (idempotente — ignora erro se já existir).
+
+### 8.8 Weather
+
+**Arquivo:** `app/api/trips/[id]/weather/route.ts`
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/api/trips/[id]/weather` | Retorna `Record<"YYYY-MM-DD", { temp, code }>` da tabela `weather_forecasts` |
+| POST | `/api/trips/[id]/weather` | Upsert do mapa climático (body = `Record<date, { temp, code }>`) |
+
+**Fluxo de hidratação no cliente:**
+1. Mount → lê `localStorage` → render imediato
+2. GET `/api/trips/[id]/weather` → merge com localStorage
+3. Open-Meteo forecast → `start_date = max(tripStart, 30_days_ago)` até `today+15d` — inclui **dados históricos** da API Open-Meteo (via ERA5 reanalysis para datas passadas)
+4. POST de volta ao servidor — atualiza `weather_forecasts`
+
+**Comportamento nos chips de dia (seletor horizontal):**
+- `wx` presente (passado ou futuro): ícone do clima + temperatura
+- `wx` ausente e `day >= today`: ícone `helpCircle` + `?°` (forecast pendente)
+- `wx` ausente e `day < today`: nenhum chip (dado histórico não disponível para esta localização)
 
 ---
 
@@ -1707,3 +1770,106 @@ WHERE (visibility = 'all' OR callerSub = ANY(visible_to) OR created_by = callerS
 - Eventos restritos exibem ícone 🔒 na timeline
 
 **Decisão pendente:** implementar quando houver demanda confirmada de uso. O schema atual suporta a adição sem breaking changes.
+
+---
+
+## 11. Funcionalidades — v2.7 (2026-02-28)
+
+### 11.1 Social Stream
+
+**Componente:** `SocialStreamScreen` (inline em `TripversalApp.tsx`)
+
+Feed de fotos e vídeos compartilhados entre os membros do grupo. **Exclusivo para quando online** — exibe banner de aviso quando offline.
+
+**Funcionalidades:**
+- Upload de foto ou vídeo (câmera ou galeria) com legenda opcional
+- Feed cronológico reverso com player de vídeo nativo (HTML5 `<video>`)
+- Reações emoji por post (toggle — mesmo emoji remove, emoji diferente substitui)
+- Deletar próprios posts (confirma antes)
+- Arquivos armazenados no Supabase Storage — `localStorage` **não** é usado para mídia
+
+**Propriedade `isOnline`:** recebida do AppShell via `effectiveIsOnline`. O componente testa antes de qualquer operação de rede.
+
+---
+
+### 11.2 Sharing de dados de segurança
+
+Qualquer dado de segurança pessoal pode ser compartilhado com membros aceitos do grupo usando o toggle "Share with travel crew".
+
+**Dados com sharing:**
+- `user_medical_ids.sharing` — ficha médica inteira (booleano)
+- `user_insurance.sharing` — seguro de viagem inteiro (booleano)
+- `user_documents.sharing` — por documento individual (booleano)
+
+**Fluxo de leitura:**
+```
+GET /api/users/[sub]/shared-profile
+→ Parallel fetch:
+    users (avatar, nome, email)
+    user_medical_ids WHERE sharing = true
+    user_insurance WHERE sharing = true
+    user_documents WHERE sharing = true ORDER BY created_at DESC
+→ Retorna { profile, medical, insurance, documents[] }
+```
+
+**Campos retornados para quem visualiza:** apenas dados não-sensíveis são expostos. Exemplo para insurance: `provider`, `policyNumber`, `emergencyPhone`, `coverageStart`, `coverageEnd`, `notes`. **Não** são retornados campos internos do banco.
+
+---
+
+### 11.3 `MemberProfileModal`
+
+**Componente:** `MemberProfileModal` (inline em `TripversalApp.tsx`, antes de `ManageCrewScreen`)
+
+Modal fullscreen que exibe o perfil compartilhado de um membro do grupo.
+
+**Disparador:** clicar no avatar ou nome de outro membro aceito na aba **CREW** do `ManageCrewScreen`.
+
+**Props:**
+```typescript
+{
+  googleSub: string;       // sub do membro a visualizar
+  fallbackName: string;    // nome exibido enquanto carrega
+  fallbackAvatar?: string; // avatar fallback
+  onClose: () => void;
+}
+```
+
+**Conteúdo renderizado:**
+1. Avatar + nome + email
+2. Medical ID (se `sharing = true`): tipo sanguíneo, contato de emergência, alergias, medicamentos, notas
+3. Insurance (se `sharing = true`): seguradora, nº da apólice, telefone de emergência (botão call), vigência, notas
+4. Documents (se `sharing = true`): lista com thumbnail → clique abre visualizador fullscreen
+
+**Estado de carregamento:** spinner enquanto a API responde. Mensagem "hasn't shared any safety information yet" se nenhum dado estiver disponível.
+
+---
+
+### 11.4 Weather histórico no Itinerário
+
+O fetch do Open-Meteo passou a incluir datas passadas a partir do início da viagem (ou até 30 dias atrás, o que for mais recente). A API Open-Meteo usa ERA5 reanalysis para datas anteriores à data atual — mesma URL do forecast, com `start_date` no passado.
+
+**Antes (bug):** `start_date = today` → apenas dados futuros eram buscados; dias passados ficavam sem ícone.
+
+**Depois (fix):** `start_date = max(trip.startDate, today - 30d)` → dados históricos também são buscados, armazenados em `weatherMap` e exibidos nos chips de dias passados.
+
+---
+
+### ADR-09: Social Stream exclusivo online
+
+**Decisão:** `SocialStreamScreen` não funciona offline. Não há cache local de fotos/vídeos.
+
+**Justificativa:** armazenar arquivos de mídia (fotos + vídeos) em `localStorage` é inviável — o espaço disponível (5-10 MB típico) seria rapidamente esgotado. O Supabase Storage é a única fonte de verdade. Sem acesso à rede, não é possível exibir o feed de forma útil.
+
+**Comportamento offline:** banner com ícone wifi + mensagem "Social Stream available when online". Nenhuma ação é bloqueada silenciosamente — o usuário recebe feedback explícito.
+
+---
+
+### ADR-10: Sharing por campo individual (documents) vs. por entidade (medical, insurance)
+
+**Contexto:** O usuário pode ter múltiplos documentos (passaporte, carteira de vacinação, CNH) mas apenas uma ficha médica e um seguro.
+
+**Decisão:**
+- `user_documents`: `sharing` por linha — o usuário escolhe quais documentos compartilhar individualmente.
+- `user_medical_ids` e `user_insurance`: `sharing` único para toda a entidade — é tudo ou nada, pois não faz sentido compartilhar apenas parte da ficha médica.
+
+**Consequência:** a API `shared-profile` aplica `.eq('sharing', true)` com `.single()` para medical/insurance e `.eq('sharing', true)` sem `.single()` para documents (retorna array filtrado).
