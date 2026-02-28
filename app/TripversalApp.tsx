@@ -493,7 +493,7 @@ function formatDateRange(start: string, end: string): string {
   return `${sStr} – ${eStr}`;
 }
 
-const INVITE_EVENTS_KEY = 'tripversal_invite_events';
+const INVITE_EVENTS_KEY = 'voyasync_invite_events';
 function pushInviteEvent(ev: InviteEvent) {
   try {
     const arr = getInviteEvents();
@@ -766,18 +766,18 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
 
   useEffect(() => {
     try {
-      const bs = localStorage.getItem('tripversal_budget');
+      const bs = localStorage.getItem('voyasync_budget');
       const b: TripBudget = bs ? JSON.parse(bs) : DEFAULT_BUDGET;
       setBudget(b);
 
-      const savedBs = localStorage.getItem('tripversal_saved_budgets');
+      const savedBs = localStorage.getItem('voyasync_saved_budgets');
       if (savedBs) {
         const parsed = JSON.parse(savedBs) as SavedBudget[];
         const active = parsed.find(sb => sb.activeTripId === activeTripId);
         setActiveSavedBudget(active || null);
       }
 
-      const es = localStorage.getItem('tripversal_expenses');
+      const es = localStorage.getItem('voyasync_expenses');
       const all: Expense[] = es ? JSON.parse(es) : [];
       const expenses: Expense[] = all
         .filter(e => !e.tripId || !activeTripId || e.tripId === activeTripId)
@@ -797,13 +797,13 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
         .then(r => r.ok ? r.json() : null)
         .then((rows: any[] | null) => {
           if (!rows) return;
-          const stored: Expense[] = (() => { try { const s = localStorage.getItem('tripversal_expenses'); return s ? JSON.parse(s) : []; } catch { return []; } })();
+          const stored: Expense[] = (() => { try { const s = localStorage.getItem('voyasync_expenses'); return s ? JSON.parse(s) : []; } catch { return []; } })();
           // If server is empty, upload expenses for this trip (one-time migration)
           if (rows.length === 0) {
             // Clean orphaned expenses (no tripId) from localStorage before migrating
             const cleaned = stored.filter(e => !!e.tripId);
             if (cleaned.length !== stored.length) {
-              localStorage.setItem('tripversal_expenses', JSON.stringify(cleaned));
+              localStorage.setItem('voyasync_expenses', JSON.stringify(cleaned));
             }
             cleaned.filter(e => e.tripId === activeTripId).forEach(e => {
               fetch(`/api/trips/${activeTripId}/expenses`, {
@@ -814,7 +814,7 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
             return; // keep localStorage as-is
           }
           const merged = mergeServerExpenses(stored, rows.map(rowToExpense), activeTripId);
-          localStorage.setItem('tripversal_expenses', JSON.stringify(merged));
+          localStorage.setItem('voyasync_expenses', JSON.stringify(merged));
           // Use same filter as initial render — includes expenses with no tripId
           const forTrip = merged.filter(e => !e.tripId || !activeTripId || e.tripId === activeTripId);
           const todayKey = localDateKey(new Date());
@@ -847,15 +847,15 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
   const saveHomeExpenses = (arr: Expense[]) => {
     const sorted = [...arr].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     setAllExpenses(sorted);
-    localStorage.setItem('tripversal_expenses', JSON.stringify(sorted));
+    localStorage.setItem('voyasync_expenses', JSON.stringify(sorted));
   };
   const handleHomeDelete = (id: string) => {
     const exp = allExpenses.find(e => e.id === id);
     if (exp) {
       try {
-        const prev = localStorage.getItem('tripversal_deleted_expenses');
+        const prev = localStorage.getItem('voyasync_deleted_expenses');
         const arr = prev ? JSON.parse(prev) : [];
-        localStorage.setItem('tripversal_deleted_expenses',
+        localStorage.setItem('voyasync_deleted_expenses',
           JSON.stringify([{ ...exp, deletedAt: new Date().toISOString() }, ...arr]));
       } catch { }
     }
@@ -1337,7 +1337,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
   // Load custom itinerary events
   useEffect(() => {
     if (!activeTripId) { setItinEvents([]); return; }
-    const lsKey = `tripversal_itin_${activeTripId}`;
+    const lsKey = `voyasync_itin_${activeTripId}`;
     try {
       const stored = localStorage.getItem(lsKey);
       if (stored) setItinEvents(JSON.parse(stored));
@@ -1357,7 +1357,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
   // 1. Initial Load: LocalStorage -> Cloud API
   useEffect(() => {
     if (!activeTripId) { setWeatherMap({}); return; }
-    const lsKey = `tripversal_weather_${activeTripId}`;
+    const lsKey = `voyasync_weather_${activeTripId}`;
     try {
       const stored = localStorage.getItem(lsKey);
       if (stored) setWeatherMap(JSON.parse(stored));
@@ -1442,7 +1442,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
       if (Object.keys(freshMap).length > 0) {
         setWeatherMap(prev => {
           const updated = { ...prev, ...freshMap };
-          localStorage.setItem(`tripversal_weather_${activeTripId}`, JSON.stringify(updated));
+          localStorage.setItem(`voyasync_weather_${activeTripId}`, JSON.stringify(updated));
           return updated;
         });
 
@@ -1532,7 +1532,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
 
   const saveItinEvents = (arr: ItineraryEventRecord[]) => {
     setItinEvents(arr);
-    if (activeTripId) localStorage.setItem(`tripversal_itin_${activeTripId}`, JSON.stringify(arr));
+    if (activeTripId) localStorage.setItem(`voyasync_itin_${activeTripId}`, JSON.stringify(arr));
   };
 
   const openAddForm = () => {
@@ -2054,7 +2054,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
 
   // --- New Budget & Payment Sources States ---
   const [savedBudgets, setSavedBudgets] = useState<SavedBudget[]>(() => {
-    try { const s = localStorage.getItem('tripversal_saved_budgets'); return s ? JSON.parse(s) : []; } catch { return []; }
+    try { const s = localStorage.getItem('voyasync_saved_budgets'); return s ? JSON.parse(s) : []; } catch { return []; }
   });
   const [showAddBudget, setShowAddBudget] = useState(false);
   const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
@@ -2076,9 +2076,9 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
 
   useEffect(() => {
     try {
-      const bs = localStorage.getItem('tripversal_budget');
+      const bs = localStorage.getItem('voyasync_budget');
       if (bs) setBudgetState(JSON.parse(bs));
-      const es = localStorage.getItem('tripversal_expenses');
+      const es = localStorage.getItem('voyasync_expenses');
       if (es) {
         const all = JSON.parse(es) as Expense[];
         const filtered = all.filter(e => !e.tripId || !activeTripId || e.tripId === activeTripId);
@@ -2086,9 +2086,9 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
       }
       // Read active SavedBudget for this trip
       if (activeTripId) {
-        const budgets: SavedBudget[] = JSON.parse(localStorage.getItem('tripversal_saved_budgets') || '[]');
+        const budgets: SavedBudget[] = JSON.parse(localStorage.getItem('voyasync_saved_budgets') || '[]');
         const found = budgets.find(b => b.activeTripId === activeTripId) ??
-          (() => { const id = localStorage.getItem(`tripversal_active_budget_${activeTripId}`); return id ? budgets.find(b => b.id === id) : undefined; })() ?? null;
+          (() => { const id = localStorage.getItem(`voyasync_active_budget_${activeTripId}`); return id ? budgets.find(b => b.id === id) : undefined; })() ?? null;
         setActiveSavedBudget(found ?? null);
       }
     } catch { }
@@ -2099,13 +2099,13 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
         .then(r => r.ok ? r.json() : null)
         .then((rows: any[] | null) => {
           if (!rows) return;
-          const stored: Expense[] = (() => { try { const s = localStorage.getItem('tripversal_expenses'); return s ? JSON.parse(s) : []; } catch { return []; } })();
+          const stored: Expense[] = (() => { try { const s = localStorage.getItem('voyasync_expenses'); return s ? JSON.parse(s) : []; } catch { return []; } })();
           // If server is empty, upload expenses for this trip (one-time migration)
           if (rows.length === 0) {
             // Clean orphaned expenses (no tripId) from localStorage before migrating
             const cleaned = stored.filter(e => !!e.tripId);
             if (cleaned.length !== stored.length) {
-              localStorage.setItem('tripversal_expenses', JSON.stringify(cleaned));
+              localStorage.setItem('voyasync_expenses', JSON.stringify(cleaned));
             }
             cleaned.filter(e => e.tripId === activeTripId).forEach(e => {
               fetch(`/api/trips/${activeTripId}/expenses`, {
@@ -2116,7 +2116,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
             return; // keep localStorage as-is
           }
           const merged = mergeServerExpenses(stored, rows.map(rowToExpense), activeTripId);
-          localStorage.setItem('tripversal_expenses', JSON.stringify(merged));
+          localStorage.setItem('voyasync_expenses', JSON.stringify(merged));
           // Same filter as initial render — includes expenses with no tripId
           setExpenses(merged.filter(e => !e.tripId || !activeTripId || e.tripId === activeTripId));
         })
@@ -2139,7 +2139,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
           createdAt: r.created_at,
         }));
         setSavedBudgets(serverBudgets);
-        localStorage.setItem('tripversal_saved_budgets', JSON.stringify(serverBudgets));
+        localStorage.setItem('voyasync_saved_budgets', JSON.stringify(serverBudgets));
         if (activeTripId) {
           const active = serverBudgets.find(b => b.activeTripId === activeTripId) ?? null;
           setActiveSavedBudget(active);
@@ -2150,7 +2150,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
 
   const saveBudgets = (budgets: SavedBudget[]) => {
     setSavedBudgets(budgets);
-    localStorage.setItem('tripversal_saved_budgets', JSON.stringify(budgets));
+    localStorage.setItem('voyasync_saved_budgets', JSON.stringify(budgets));
   };
 
   const syncBudget = (b: SavedBudget) => {
@@ -2181,8 +2181,8 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
     });
     saveBudgets(updated);
     updated.forEach(b => syncBudget(b));
-    if (budgetId) localStorage.setItem(`tripversal_active_budget_${activeTripId}`, budgetId);
-    else localStorage.removeItem(`tripversal_active_budget_${activeTripId}`);
+    if (budgetId) localStorage.setItem(`voyasync_active_budget_${activeTripId}`, budgetId);
+    else localStorage.removeItem(`voyasync_active_budget_${activeTripId}`);
     setActiveSavedBudget(updated.find(b => b.id === budgetId) ?? null);
   };
 
@@ -2236,7 +2236,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
 
   const saveBudgetSettings = (next: TripBudget) => {
     setBudgetState(next);
-    localStorage.setItem('tripversal_budget', JSON.stringify(next));
+    localStorage.setItem('voyasync_budget', JSON.stringify(next));
     if (activeTripId && user?.sub) {
       fetch(`/api/trips/${activeTripId}`, {
         method: 'PUT',
@@ -2289,15 +2289,15 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
   const saveExpenses = (arr: Expense[]) => {
     const sorted = [...arr].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     setExpenses(sorted);
-    localStorage.setItem('tripversal_expenses', JSON.stringify(sorted));
+    localStorage.setItem('voyasync_expenses', JSON.stringify(sorted));
   };
   const handleDelete = (id: string) => {
     const exp = expenses.find(e => e.id === id);
     if (exp) {
       try {
-        const prev = localStorage.getItem('tripversal_deleted_expenses');
+        const prev = localStorage.getItem('voyasync_deleted_expenses');
         const arr = prev ? JSON.parse(prev) : [];
-        localStorage.setItem('tripversal_deleted_expenses',
+        localStorage.setItem('voyasync_deleted_expenses',
           JSON.stringify([{ ...exp, deletedAt: new Date().toISOString() }, ...arr]));
       } catch { }
     }
@@ -3142,15 +3142,15 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
   const total = parseFloat(amount) || 0;
 
   const [budget] = useState<TripBudget>(() => {
-    try { const s = localStorage.getItem('tripversal_budget'); if (s) return JSON.parse(s); } catch { }
+    try { const s = localStorage.getItem('voyasync_budget'); if (s) return JSON.parse(s); } catch { }
     return DEFAULT_BUDGET;
   });
   const [activeSavedBudget] = useState<SavedBudget | null>(() => {
     try {
-      const bs: SavedBudget[] = JSON.parse(localStorage.getItem('tripversal_saved_budgets') || '[]');
+      const bs: SavedBudget[] = JSON.parse(localStorage.getItem('voyasync_saved_budgets') || '[]');
       const act = bs.find(b => b.activeTripId === activeTripId);
       if (act) return act;
-      const id = localStorage.getItem(`tripversal_active_budget_${activeTripId}`);
+      const id = localStorage.getItem(`voyasync_active_budget_${activeTripId}`);
       return id ? bs.find(b => b.id === id) || null : null;
     } catch { return null; }
   });
@@ -3181,7 +3181,7 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
 
   useEffect(() => {
     try {
-      const es = localStorage.getItem('tripversal_expenses');
+      const es = localStorage.getItem('voyasync_expenses');
       if (es) setAllExpenses(JSON.parse(es));
     } catch { }
     if (navigator.geolocation) {
@@ -3524,10 +3524,10 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
           tripId: activeTripId ?? undefined,
         };
         try {
-          const prev = localStorage.getItem('tripversal_expenses');
+          const prev = localStorage.getItem('voyasync_expenses');
           const arr: Expense[] = prev ? JSON.parse(prev) : [];
           const merged = [expense, ...arr].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-          localStorage.setItem('tripversal_expenses', JSON.stringify(merged));
+          localStorage.setItem('voyasync_expenses', JSON.stringify(merged));
         } catch { }
         setSaving(false);
         onBack();
@@ -3570,15 +3570,15 @@ const PhotosScreen = () => (
 );
 
 const SOSScreen = ({ user }: { user?: any }) => {
-  const [medical, setMedical] = useState<MedicalId>(() => { try { const s = localStorage.getItem('tripversal_medical_id'); return s ? JSON.parse(s) : DEFAULT_MEDICAL; } catch { return DEFAULT_MEDICAL; } });
+  const [medical, setMedical] = useState<MedicalId>(() => { try { const s = localStorage.getItem('voyasync_medical_id'); return s ? JSON.parse(s) : DEFAULT_MEDICAL; } catch { return DEFAULT_MEDICAL; } });
   const [editMedical, setEditMedical] = useState(false);
   const [medDraft, setMedDraft] = useState<MedicalId>(medical);
 
-  const [insurance, setInsurance] = useState<Insurance>(() => { try { const s = localStorage.getItem('tripversal_insurance'); return s ? JSON.parse(s) : DEFAULT_INSURANCE; } catch { return DEFAULT_INSURANCE; } });
+  const [insurance, setInsurance] = useState<Insurance>(() => { try { const s = localStorage.getItem('voyasync_insurance'); return s ? JSON.parse(s) : DEFAULT_INSURANCE; } catch { return DEFAULT_INSURANCE; } });
   const [editInsurance, setEditInsurance] = useState(false);
   const [insDraft, setInsDraft] = useState<Insurance>(insurance);
 
-  const [documents, setDocuments] = useState<TravelDocument[]>(() => { try { const s = localStorage.getItem('tripversal_documents'); return s ? JSON.parse(s) : []; } catch { return []; } });
+  const [documents, setDocuments] = useState<TravelDocument[]>(() => { try { const s = localStorage.getItem('voyasync_documents'); return s ? JSON.parse(s) : []; } catch { return []; } });
   const [showAddDoc, setShowAddDoc] = useState(false);
   const [docName, setDocName] = useState('');
   const [docType, setDocType] = useState('Passport');
@@ -3591,37 +3591,37 @@ const SOSScreen = ({ user }: { user?: any }) => {
     fetch(`/api/users/${user.sub}/medical`).then(r => r.ok ? r.json() : null).then(row => {
       if (!row) return;
       const m: MedicalId = { bloodType: row.blood_type || '', contactName: row.contact_name || '', contactPhone: row.contact_phone || '', allergies: row.allergies || '', medications: row.medications || '', notes: row.notes || '', sharing: row.sharing ?? true };
-      setMedical(m); setMedDraft(m); localStorage.setItem('tripversal_medical_id', JSON.stringify(m));
+      setMedical(m); setMedDraft(m); localStorage.setItem('voyasync_medical_id', JSON.stringify(m));
     }).catch(() => { });
     fetch(`/api/users/${user.sub}/insurance`).then(r => r.ok ? r.json() : null).then(row => {
       if (!row) return;
       const i: Insurance = { provider: row.provider || '', policyNumber: row.policy_number || '', emergencyPhone: row.emergency_phone || '', coverageStart: row.coverage_start || '', coverageEnd: row.coverage_end || '', notes: row.notes || '' };
-      setInsurance(i); setInsDraft(i); localStorage.setItem('tripversal_insurance', JSON.stringify(i));
+      setInsurance(i); setInsDraft(i); localStorage.setItem('voyasync_insurance', JSON.stringify(i));
     }).catch(() => { });
     fetch(`/api/users/${user.sub}/documents`).then(r => r.ok ? r.json() : null).then((rows: any[]) => {
       if (!rows || rows.length === 0) return;
       const docs: TravelDocument[] = rows.map(r => ({ id: r.id, name: r.name, docType: r.doc_type, dataUrl: r.file_data, createdAt: r.created_at }));
-      setDocuments(docs); localStorage.setItem('tripversal_documents', JSON.stringify(docs));
+      setDocuments(docs); localStorage.setItem('voyasync_documents', JSON.stringify(docs));
     }).catch(() => { });
   }, [user?.sub]);
 
   const saveMedical = (m: MedicalId) => {
-    setMedical(m); localStorage.setItem('tripversal_medical_id', JSON.stringify(m));
+    setMedical(m); localStorage.setItem('voyasync_medical_id', JSON.stringify(m));
     if (user?.sub) fetch(`/api/users/${user.sub}/medical`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(m) }).catch(() => { });
   };
   const saveInsurance = (i: Insurance) => {
-    setInsurance(i); localStorage.setItem('tripversal_insurance', JSON.stringify(i));
+    setInsurance(i); localStorage.setItem('voyasync_insurance', JSON.stringify(i));
     if (user?.sub) fetch(`/api/users/${user.sub}/insurance`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(i) }).catch(() => { });
   };
-  const saveDocs = (d: TravelDocument[]) => { setDocuments(d); localStorage.setItem('tripversal_documents', JSON.stringify(d)); };
+  const saveDocs = (d: TravelDocument[]) => { setDocuments(d); localStorage.setItem('voyasync_documents', JSON.stringify(d)); };
   const addDoc = (doc: TravelDocument) => {
     const next = [doc, ...documents];
-    setDocuments(next); localStorage.setItem('tripversal_documents', JSON.stringify(next));
+    setDocuments(next); localStorage.setItem('voyasync_documents', JSON.stringify(next));
     if (user?.sub) fetch(`/api/users/${user.sub}/documents`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: doc.id, name: doc.name, docType: doc.docType, fileData: doc.dataUrl }) }).catch(() => { });
   };
   const deleteDoc = (id: string) => {
     const next = documents.filter(d => d.id !== id);
-    setDocuments(next); localStorage.setItem('tripversal_documents', JSON.stringify(next));
+    setDocuments(next); localStorage.setItem('voyasync_documents', JSON.stringify(next));
     if (user?.sub) fetch(`/api/users/${user.sub}/documents/${id}`, { method: 'DELETE' }).catch(() => { });
   };
 
@@ -3811,7 +3811,7 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
   const [savedAt, setSavedAt] = useState<string | null>(null);
 
   const saveProfile = () => {
-    localStorage.setItem('tripversal_profile', JSON.stringify({ username, email, phone, avatarUrl }));
+    localStorage.setItem('voyasync_profile', JSON.stringify({ username, email, phone, avatarUrl }));
     const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     setSavedAt(time);
     setProfileSaved(true);
@@ -3819,7 +3819,7 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
   };
 
   useEffect(() => {
-    const stored = localStorage.getItem('tripversal_profile');
+    const stored = localStorage.getItem('voyasync_profile');
     if (stored) {
       try {
         const p = JSON.parse(stored);
@@ -3839,20 +3839,20 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
   const activeTrip: Trip | null = trips.find((t: Trip) => t.id === activeTripId) ?? null;
 
   // ── Safety data (moved from SOSScreen) ──
-  const [medical, setMedical] = useState<MedicalId>(() => { try { const s = localStorage.getItem('tripversal_medical_id'); return s ? JSON.parse(s) : DEFAULT_MEDICAL; } catch { return DEFAULT_MEDICAL; } });
+  const [medical, setMedical] = useState<MedicalId>(() => { try { const s = localStorage.getItem('voyasync_medical_id'); return s ? JSON.parse(s) : DEFAULT_MEDICAL; } catch { return DEFAULT_MEDICAL; } });
   const [editMedical, setEditMedical] = useState(false);
   const [medDraft, setMedDraft] = useState<MedicalId>(medical);
-  const [insurance, setInsurance] = useState<Insurance>(() => { try { const s = localStorage.getItem('tripversal_insurance'); return s ? JSON.parse(s) : DEFAULT_INSURANCE; } catch { return DEFAULT_INSURANCE; } });
+  const [insurance, setInsurance] = useState<Insurance>(() => { try { const s = localStorage.getItem('voyasync_insurance'); return s ? JSON.parse(s) : DEFAULT_INSURANCE; } catch { return DEFAULT_INSURANCE; } });
   const [editInsurance, setEditInsurance] = useState(false);
   const [insDraft, setInsDraft] = useState<Insurance>(insurance);
-  const [documents, setDocuments] = useState<TravelDocument[]>(() => { try { const s = localStorage.getItem('tripversal_documents'); return s ? JSON.parse(s) : []; } catch { return []; } });
+  const [documents, setDocuments] = useState<TravelDocument[]>(() => { try { const s = localStorage.getItem('voyasync_documents'); return s ? JSON.parse(s) : []; } catch { return []; } });
   const [showAddDoc, setShowAddDoc] = useState(false);
   const [docName, setDocName] = useState('');
   const [docType, setDocType] = useState('Passport');
   const [docDataUrl, setDocDataUrl] = useState<string | null>(null);
   const [viewDoc, setViewDoc] = useState<TravelDocument | null>(null);
   const [archivedInsurances, setArchivedInsurances] = useState<(Insurance & { archivedAt: string })[]>(() => {
-    try { return JSON.parse(localStorage.getItem('tripversal_insurance_archive') || '[]'); } catch { return []; }
+    try { return JSON.parse(localStorage.getItem('voyasync_insurance_archive') || '[]'); } catch { return []; }
   });
   const [showArchivedIns, setShowArchivedIns] = useState(false);
   const [showArchivedDocs, setShowArchivedDocs] = useState(false);
@@ -3862,36 +3862,36 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
     fetch(`/api/users/${user.sub}/medical`).then(r => r.ok ? r.json() : null).then(row => {
       if (!row) return;
       const m: MedicalId = { bloodType: row.blood_type || '', contactName: row.contact_name || '', contactPhone: row.contact_phone || '', allergies: row.allergies || '', medications: row.medications || '', notes: row.notes || '', sharing: row.sharing ?? true };
-      setMedical(m); setMedDraft(m); localStorage.setItem('tripversal_medical_id', JSON.stringify(m));
+      setMedical(m); setMedDraft(m); localStorage.setItem('voyasync_medical_id', JSON.stringify(m));
     }).catch(() => { });
     fetch(`/api/users/${user.sub}/insurance`).then(r => r.ok ? r.json() : null).then(row => {
       if (!row) return;
       const i: Insurance = { provider: row.provider || '', policyNumber: row.policy_number || '', emergencyPhone: row.emergency_phone || '', coverageStart: row.coverage_start || '', coverageEnd: row.coverage_end || '', notes: row.notes || '' };
-      setInsurance(i); setInsDraft(i); localStorage.setItem('tripversal_insurance', JSON.stringify(i));
+      setInsurance(i); setInsDraft(i); localStorage.setItem('voyasync_insurance', JSON.stringify(i));
     }).catch(() => { });
     fetch(`/api/users/${user.sub}/documents`).then(r => r.ok ? r.json() : null).then((rows: any[]) => {
       if (!rows || rows.length === 0) return;
       const docs: TravelDocument[] = rows.map(r => ({ id: r.id, name: r.name, docType: r.doc_type, dataUrl: r.file_data, createdAt: r.created_at }));
-      setDocuments(docs); localStorage.setItem('tripversal_documents', JSON.stringify(docs));
+      setDocuments(docs); localStorage.setItem('voyasync_documents', JSON.stringify(docs));
     }).catch(() => { });
   }, [user?.sub]);
 
   const saveMedical = (m: MedicalId) => {
-    setMedical(m); localStorage.setItem('tripversal_medical_id', JSON.stringify(m));
+    setMedical(m); localStorage.setItem('voyasync_medical_id', JSON.stringify(m));
     if (user?.sub) fetch(`/api/users/${user.sub}/medical`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(m) }).catch(() => { });
   };
   const saveInsurance = (i: Insurance) => {
-    setInsurance(i); localStorage.setItem('tripversal_insurance', JSON.stringify(i));
+    setInsurance(i); localStorage.setItem('voyasync_insurance', JSON.stringify(i));
     if (user?.sub) fetch(`/api/users/${user.sub}/insurance`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(i) }).catch(() => { });
   };
   const addDoc = (doc: TravelDocument) => {
     const next = [doc, ...documents];
-    setDocuments(next); localStorage.setItem('tripversal_documents', JSON.stringify(next));
+    setDocuments(next); localStorage.setItem('voyasync_documents', JSON.stringify(next));
     if (user?.sub) fetch(`/api/users/${user.sub}/documents`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: doc.id, name: doc.name, docType: doc.docType, fileData: doc.dataUrl }) }).catch(() => { });
   };
   const deleteDoc = (id: string) => {
     const next = documents.filter(d => d.id !== id);
-    setDocuments(next); localStorage.setItem('tripversal_documents', JSON.stringify(next));
+    setDocuments(next); localStorage.setItem('voyasync_documents', JSON.stringify(next));
     if (user?.sub) fetch(`/api/users/${user.sub}/documents/${id}`, { method: 'DELETE' }).catch(() => { });
   };
   const archiveInsurance = () => {
@@ -3899,18 +3899,18 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
     const entry = { ...insurance, archivedAt: new Date().toISOString() };
     const next = [entry, ...archivedInsurances];
     setArchivedInsurances(next);
-    localStorage.setItem('tripversal_insurance_archive', JSON.stringify(next));
+    localStorage.setItem('voyasync_insurance_archive', JSON.stringify(next));
     saveInsurance(DEFAULT_INSURANCE);
   };
   const archiveDoc = (id: string) => {
     const next = documents.map(d => d.id === id ? { ...d, archived: true, archivedAt: new Date().toISOString() } : d);
     setDocuments(next);
-    localStorage.setItem('tripversal_documents', JSON.stringify(next));
+    localStorage.setItem('voyasync_documents', JSON.stringify(next));
   };
   const unarchiveDoc = (id: string) => {
     const next = documents.map(d => d.id === id ? { ...d, archived: false, archivedAt: undefined } : d);
     setDocuments(next);
-    localStorage.setItem('tripversal_documents', JSON.stringify(next));
+    localStorage.setItem('voyasync_documents', JSON.stringify(next));
   };
   const settingsTextareaStyle: any = { background: C.card3, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", color: C.text, fontSize: 14, width: "100%", outline: "none", fontFamily: "inherit", resize: "none", boxSizing: "border-box" };
 
@@ -4123,7 +4123,7 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
               {ins.coverageStart && <div style={{ color: C.textSub, fontSize: 11 }}>Coverage: {ins.coverageStart} → {ins.coverageEnd || '?'}</div>}
               <div style={{ color: C.textSub, fontSize: 11, marginTop: 4 }}>Archived {new Date(ins.archivedAt).toLocaleDateString()}</div>
             </div>
-            <button onClick={() => { const next = archivedInsurances.filter((_, j) => j !== i); setArchivedInsurances(next); localStorage.setItem('tripversal_insurance_archive', JSON.stringify(next)); }} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "5px 7px", cursor: "pointer" }}>
+            <button onClick={() => { const next = archivedInsurances.filter((_, j) => j !== i); setArchivedInsurances(next); localStorage.setItem('voyasync_insurance_archive', JSON.stringify(next)); }} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "5px 7px", cursor: "pointer" }}>
               <Icon d={icons.trash} size={13} stroke={C.red} />
             </button>
           </div>
@@ -4238,9 +4238,9 @@ const TransactionHistoryScreen = ({ onBack }: any) => {
 
   useEffect(() => {
     try {
-      const es = localStorage.getItem('tripversal_expenses');
+      const es = localStorage.getItem('voyasync_expenses');
       if (es) setExpenses(JSON.parse(es));
-      const ds = localStorage.getItem('tripversal_deleted_expenses');
+      const ds = localStorage.getItem('voyasync_deleted_expenses');
       if (ds) setDeletedExpenses(JSON.parse(ds));
     } catch { }
   }, []);
@@ -4388,7 +4388,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
   const segColors = ["#00e5ff", "#30d158", "#ffd60a", "#ff3b30", "#f57c00", "#6a1b9a", "#1565c0", "#e91e8c"];
   // Segment attachments
   const [segAttachments, setSegAttachments] = useState<SegmentAttachment[]>(() => {
-    try { const s = localStorage.getItem(`tripversal_seg_att_${trip?.id}`); return s ? JSON.parse(s) : []; } catch { return []; }
+    try { const s = localStorage.getItem(`voyasync_seg_att_${trip?.id}`); return s ? JSON.parse(s) : []; } catch { return []; }
   });
   const [segIconTab, setSegIconTab] = useState<'colors' | 'flags' | 'emojis'>('colors');
   const [segError, setSegError] = useState<string | null>(null);
@@ -4412,7 +4412,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
 
   const saveSegAttachments = (atts: SegmentAttachment[]) => {
     setSegAttachments(atts);
-    localStorage.setItem(`tripversal_seg_att_${trip?.id}`, JSON.stringify(atts));
+    localStorage.setItem(`voyasync_seg_att_${trip?.id}`, JSON.stringify(atts));
   };
   const addSegAttachment = (att: SegmentAttachment) => {
     const next = [att, ...segAttachments];
@@ -5052,7 +5052,7 @@ const LoginScreen = ({ onLogin }: { onLogin: (user: any) => void }) => {
         });
         const data = await res.json();
         const u = { name: data.name, email: data.email, picture: data.picture, sub: data.sub };
-        localStorage.setItem('tripversal_user', JSON.stringify(u));
+        localStorage.setItem('voyasync_user', JSON.stringify(u));
         // Sync profile to server (fire-and-forget)
         fetch(`/api/users/${data.sub}/profile`, {
           method: 'POST',
@@ -5322,9 +5322,9 @@ function AppShell() {
       .then(r => r.ok ? r.json() : null)
       .catch(() => null);
     if (expRows) {
-      const stored: Expense[] = (() => { try { const s = localStorage.getItem('tripversal_expenses'); return s ? JSON.parse(s) : []; } catch { return []; } })();
+      const stored: Expense[] = (() => { try { const s = localStorage.getItem('voyasync_expenses'); return s ? JSON.parse(s) : []; } catch { return []; } })();
       const merged = mergeServerExpenses(stored, expRows.map(rowToExpense), activeTripId);
-      localStorage.setItem('tripversal_expenses', JSON.stringify(merged));
+      localStorage.setItem('voyasync_expenses', JSON.stringify(merged));
     }
   }, [user, activeTripId]);
 
@@ -5335,14 +5335,14 @@ function AppShell() {
 
   const switchActiveTrip = (id: string) => {
     setActiveTripId(id);
-    localStorage.setItem('tripversal_active_trip_id', id);
+    localStorage.setItem('voyasync_active_trip_id', id);
     const t = trips.find(tr => tr.id === id);
-    if (t?.budget) localStorage.setItem('tripversal_budget', JSON.stringify(t.budget));
+    if (t?.budget) localStorage.setItem('voyasync_budget', JSON.stringify(t.budget));
   };
 
   // Restore user from localStorage
   useEffect(() => {
-    const stored = localStorage.getItem('tripversal_user');
+    const stored = localStorage.getItem('voyasync_user');
     if (stored) {
       try { setUser(JSON.parse(stored)); } catch { }
     }
@@ -5360,11 +5360,11 @@ function AppShell() {
       .then((rows: any[]) => {
         const loaded = rows.map(rowToTrip);
         setTrips(loaded);
-        const storedId = localStorage.getItem('tripversal_active_trip_id');
+        const storedId = localStorage.getItem('voyasync_active_trip_id');
         const initial = loaded.find(t => t.id === storedId) ?? loaded[0];
         if (initial) {
           setActiveTripId(initial.id);
-          localStorage.setItem('tripversal_budget', JSON.stringify(initial.budget));
+          localStorage.setItem('voyasync_budget', JSON.stringify(initial.budget));
         }
       })
       .catch(() => { });
@@ -5372,15 +5372,15 @@ function AppShell() {
 
   // Sync activeTrip budget to localStorage whenever active trip changes
   useEffect(() => {
-    if (activeTrip?.budget) localStorage.setItem('tripversal_budget', JSON.stringify(activeTrip.budget));
+    if (activeTrip?.budget) localStorage.setItem('voyasync_budget', JSON.stringify(activeTrip.budget));
   }, [activeTripId]);
 
   const handleLogout = () => {
-    localStorage.removeItem('tripversal_user');
-    localStorage.removeItem('tripversal_profile');
-    localStorage.removeItem('tripversal_budget');
-    localStorage.removeItem('tripversal_expenses');
-    localStorage.removeItem('tripversal_active_trip_id');
+    localStorage.removeItem('voyasync_user');
+    localStorage.removeItem('voyasync_profile');
+    localStorage.removeItem('voyasync_budget');
+    localStorage.removeItem('voyasync_expenses');
+    localStorage.removeItem('voyasync_active_trip_id');
     setUser(null); setTrips([]); setActiveTripId(null);
   };
 
@@ -5397,7 +5397,7 @@ function AppShell() {
 
   const handleOpenExpense = () => {
     try {
-      const bs: SavedBudget[] = JSON.parse(localStorage.getItem('tripversal_saved_budgets') || '[]');
+      const bs: SavedBudget[] = JSON.parse(localStorage.getItem('voyasync_saved_budgets') || '[]');
       const hasBudget = bs.some(b => b.activeTripId === activeTripId);
       if (!hasBudget) { handleGoToBudget(); return; }
     } catch { }
@@ -5452,7 +5452,7 @@ function AppShell() {
           if (activeTripId === id) {
             const remaining = trips.filter(t => t.id !== id);
             if (remaining.length > 0) switchActiveTrip(remaining[0].id);
-            else { setActiveTripId(null); localStorage.removeItem('tripversal_active_trip_id'); }
+            else { setActiveTripId(null); localStorage.removeItem('voyasync_active_trip_id'); }
           }
         }}
         offlineSim={offlineSim}
@@ -5478,7 +5478,7 @@ function AppShell() {
           if (activeTripId === id) {
             const remaining = trips.filter(t => t.id !== id);
             if (remaining.length > 0) switchActiveTrip(remaining[0].id);
-            else { setActiveTripId(null); localStorage.removeItem('tripversal_active_trip_id'); }
+            else { setActiveTripId(null); localStorage.removeItem('voyasync_active_trip_id'); }
           }
         }}
       />; break;
@@ -5500,6 +5500,35 @@ function AppShell() {
       </div>
     </div>
   );
+}
+
+// One-time migration: rename localStorage keys from tripversal_ → voyasync_
+if (typeof window !== 'undefined') {
+  const oldKeys = [
+    'tripversal_user', 'tripversal_profile', 'tripversal_expenses',
+    'tripversal_deleted_expenses', 'tripversal_budget', 'tripversal_saved_budgets',
+    'tripversal_documents', 'tripversal_insurance', 'tripversal_insurance_archive',
+    'tripversal_medical_id', 'tripversal_invite_events', 'tripversal_active_trip_id',
+  ];
+  oldKeys.forEach(old => {
+    const val = localStorage.getItem(old);
+    if (val !== null) {
+      const next = old.replace('tripversal_', 'voyasync_');
+      if (localStorage.getItem(next) === null) localStorage.setItem(next, val);
+      localStorage.removeItem(old);
+    }
+  });
+  // Dynamic-prefix keys: tripversal_itin_, tripversal_weather_, tripversal_seg_att_, tripversal_active_budget_
+  const prefixes = ['tripversal_itin_', 'tripversal_weather_', 'tripversal_seg_att_', 'tripversal_active_budget_'];
+  Object.keys(localStorage).forEach(key => {
+    const prefix = prefixes.find(p => key.startsWith(p));
+    if (prefix) {
+      const val = localStorage.getItem(key)!;
+      const next = key.replace('tripversal_', 'voyasync_');
+      if (localStorage.getItem(next) === null) localStorage.setItem(next, val);
+      localStorage.removeItem(key);
+    }
+  });
 }
 
 export default function TripversalApp() {

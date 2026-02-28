@@ -1,4 +1,4 @@
--- Tripversal PWA — Supabase schema
+-- Voyasync PWA — Supabase schema
 -- Run once in: Supabase Dashboard > SQL Editor > New Query
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";

@@ -1,4 +1,4 @@
-# Tripversal — Arquitetura do Sistema
+# Voyasync — Arquitetura do Sistema
 
 > **Versão:** 2.6
 > **Atualizado:** 2026-02-28
@@ -864,7 +864,7 @@ const conflicts = detectSegmentConflicts(allSegments);
 | Camada | Arquivo | Quando dispara | Ação |
 |---|---|---|---|
 | **API (leitura)** | `GET /api/users/[sub]/segment-conflicts` | Ao carregar `ItineraryScreen` | Retorna `ConflictPair[]` para o client |
-| **Itinerary screen** | `app/TripversalApp.tsx` | Ao montar o componente / trocar `userSub` | 3 sinais visuais (ver seção 6.4) |
+| **Itinerary screen** | `app/VoyasyncApp.tsx` | Ao montar o componente / trocar `userSub` | 3 sinais visuais (ver seção 6.4) |
 | **API (escrita)** | `PUT /api/trips/[id]/segments/[segId]` *(futuro)* | Ao atribuir membro a segmento | Rodar `detectSegmentConflicts` e retornar `warnings` — não bloquear save |
 
 #### Tipos mirror no client
@@ -872,7 +872,7 @@ const conflicts = detectSegmentConflicts(allSegments);
 `ItineraryEvent` recebe campo `segmentId?: string` — populado por `segmentsToEvents()` — para cruzar com os `ConflictPair` sem precisar reprocessar IDs compostos.
 
 ```typescript
-// Em TripversalApp.tsx
+// Em VoyasyncApp.tsx
 interface ConflictSegment {
   id: string; trip_id: string; trip_name: string;
   name: string; start_date: string; end_date: string;
@@ -928,7 +928,7 @@ Positivo (verde) = você recebe. Negativo (amarelo) = você deve.
 
 ### 6.4 `ItineraryScreen`
 
-**Arquivo:** `app/TripversalApp.tsx` (componente inline)
+**Arquivo:** `app/VoyasyncApp.tsx` (componente inline)
 
 #### Props
 
@@ -1054,7 +1054,7 @@ Gera um feed `.ics` (iCalendar RFC 5545) a partir de `trip_segments` **e** `itin
 
 **De `itinerary_events`:**
 
-- UID estável: `evt-{id}@tripversal`
+- UID estável: `evt-{id}@voyasync`
 - `SEQUENCE` = segundos desde epoch do `updated_at` — permite atualização via re-import sem duplicar
 - `DESCRIPTION` = `notes + " | Ref: " + confirmation` quando disponíveis
 - `LOCATION` = campo `location` do evento
@@ -1065,7 +1065,7 @@ Headers da resposta: `Content-Type: text/calendar`, `Content-Disposition: attach
 
 ### 6.5 `WalletScreen`
 
-**Arquivo:** `app/TripversalApp.tsx` (componente inline)
+**Arquivo:** `app/VoyasyncApp.tsx` (componente inline)
 
 #### Funcionalidades
 
@@ -1077,9 +1077,9 @@ Headers da resposta: `Content-Type: text/calendar`, `Content-Disposition: attach
 
 ```typescript
 // Na montagem (useEffect [activeTripId]):
-const budgets: SavedBudget[] = JSON.parse(localStorage.getItem('tripversal_saved_budgets') || '[]');
+const budgets: SavedBudget[] = JSON.parse(localStorage.getItem('voyasync_saved_budgets') || '[]');
 const found = budgets.find(b => b.activeTripId === activeTripId)
-  ?? (budgets.find(b => b.id === localStorage.getItem(`tripversal_active_budget_${activeTripId}`)))
+  ?? (budgets.find(b => b.id === localStorage.getItem(`voyasync_active_budget_${activeTripId}`)))
   ?? null;
 setActiveSavedBudget(found);
 ```
@@ -1099,7 +1099,7 @@ const pctSpent = totalBudgetInBase > 0 ? Math.min(totalSpent / totalBudgetInBase
 
 ### 6.6 `GroupScreen`
 
-**Arquivo:** `app/TripversalApp.tsx` (componente inline)
+**Arquivo:** `app/VoyasyncApp.tsx` (componente inline)
 
 Tela de gestão das viagens do usuário. Acessada via ícone de grupo no AppShell.
 
@@ -1138,7 +1138,7 @@ Filtra o array de viagens. Se a viagem deletada era a ativa, ativa a primeira re
 
 ### 6.7 `ManageCrewScreen` — Aba Budget
 
-**Arquivo:** `app/TripversalApp.tsx` (componente inline)
+**Arquivo:** `app/VoyasyncApp.tsx` (componente inline)
 
 Tela de gerenciamento de membros de uma viagem específica. Agora tem duas abas:
 
@@ -1160,15 +1160,15 @@ interface SavedBudget {
 }
 ```
 
-Armazenado em `localStorage` com a chave `tripversal_saved_budgets`.
+Armazenado em `localStorage` com a chave `voyasync_saved_budgets`.
 
 #### Regra: um orçamento por viagem
 
 `activateBudget(budgetId, tripId)`:
 1. Remove `activeTripId` de qualquer orçamento que já estava ativo para esta viagem
 2. Define `activeTripId = tripId` no orçamento selecionado
-3. Atualiza `tripversal_saved_budgets` no localStorage
-4. Também escreve `localStorage.setItem('tripversal_active_budget_{tripId}', budgetId)` (fallback de lookup)
+3. Atualiza `voyasync_saved_budgets` no localStorage
+4. Também escreve `localStorage.setItem('voyasync_active_budget_{tripId}', budgetId)` (fallback de lookup)
 
 #### Leave Group
 
@@ -1180,7 +1180,7 @@ Botão disponível para membros não-admin (ou admin que não é o único). Cham
 
 ### 6.8 `HomeScreen` — Activity Feed
 
-**Arquivo:** `app/TripversalApp.tsx` (componente inline)
+**Arquivo:** `app/VoyasyncApp.tsx` (componente inline)
 
 A seção "RECENT ACTIVITY" da HomeScreen agora mescla três fontes:
 
@@ -1262,9 +1262,9 @@ const handleReconnect = useCallback(async () => {
   const expRows = await fetch(`/api/trips/${activeTripId}/expenses?callerSub=${user.sub}`)
     .then(r => r.ok ? r.json() : null).catch(() => null);
   if (expRows) {
-    const stored = JSON.parse(localStorage.getItem('tripversal_expenses') ?? '[]');
+    const stored = JSON.parse(localStorage.getItem('voyasync_expenses') ?? '[]');
     const merged = mergeServerExpenses(stored, expRows.map(rowToExpense), activeTripId);
-    localStorage.setItem('tripversal_expenses', JSON.stringify(merged));
+    localStorage.setItem('voyasync_expenses', JSON.stringify(merged));
   }
 }, [user, activeTripId]); // activeTripId nas deps
 
@@ -1484,12 +1484,12 @@ function mergeServerExpenses(stored: Expense[], server: Expense[], tripId: strin
 
 | Key localStorage | Motivo |
 |---|---|
-| `tripversal_active_trip_id` | UI state — local por design |
-| `tripversal_user` | Sessão Google — renovada pelo OAuth |
-| `tripversal_profile` | Out of scope |
+| `voyasync_active_trip_id` | UI state — local por design |
+| `voyasync_user` | Sessão Google — renovada pelo OAuth |
+| `voyasync_profile` | Out of scope |
 | `INVITE_EVENTS_KEY` | Notificação efêmera local |
-| `tripversal_deleted_expenses` | Log de auditoria local; o soft-delete no server é suficiente |
-| `tripversal_active_budget_{tripId}` | Fallback de lookup do SavedBudget ativo (cache local) |
+| `voyasync_deleted_expenses` | Log de auditoria local; o soft-delete no server é suficiente |
+| `voyasync_active_budget_{tripId}` | Fallback de lookup do SavedBudget ativo (cache local) |
 
 ### 9.5 Bugs de sync corrigidos (2026-02-27)
 
