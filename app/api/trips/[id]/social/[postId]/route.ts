@@ -1,6 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 
+export async function PUT(req: NextRequest, { params }: { params: { id: string; postId: string } }) {
+  const { userSub, caption } = await req.json();
+  const sb = getSupabaseAdmin();
+
+  const { data: post } = await sb
+    .from('social_posts')
+    .select('user_sub')
+    .eq('id', params.postId)
+    .single();
+
+  if (!post) return new NextResponse(null, { status: 404 });
+  if (post.user_sub !== userSub) return new NextResponse(null, { status: 403 });
+
+  const { data, error } = await sb
+    .from('social_posts')
+    .update({ caption: caption ?? null })
+    .eq('id', params.postId)
+    .select('caption')
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ caption: data.caption });
+}
+
 export async function DELETE(req: NextRequest, { params }: { params: { id: string; postId: string } }) {
   const { userSub } = await req.json();
   const sb = getSupabaseAdmin();

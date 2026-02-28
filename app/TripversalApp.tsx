@@ -3590,11 +3590,16 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
 
 
 // ─── Social Stream ──────────────────────────────────────────────────────────
-interface SocialReaction { id: string; post_id: string; user_sub: string; emoji: string; }
+interface SocialReaction { id: string; post_id: string; user_sub: string; emoji: string; user_name?: string; user_avatar?: string; }
+interface SocialViewer { user_sub: string; user_name?: string; created_at: string; }
 interface SocialPost {
   id: string; tripId: string; userSub: string; userName: string; userAvatar?: string;
   mediaUrl: string; mediaType: 'photo' | 'video'; caption?: string;
-  reactions: SocialReaction[]; myReaction?: string; createdAt: string;
+  reactions: SocialReaction[]; myReaction?: string;
+  viewCount: number; viewedByMe: boolean;
+  uploading?: boolean; uploadProgress?: number; uploadError?: boolean;
+  localMediaUrl?: string;
+  createdAt: string;
 }
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
 
@@ -3605,8 +3610,18 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
   const [caption, setCaption] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
   const [expandedPost, setExpandedPost] = useState<SocialPost | null>(null);
+  // Edit caption
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [editCaption, setEditCaption] = useState('');
+  // Reaction detail modal
+  const [reactionDetailPost, setReactionDetailPost] = useState<SocialPost | null>(null);
+  // Viewer modal
+  const [viewerPostId, setViewerPostId] = useState<string | null>(null);
+  const [viewers, setViewers] = useState<SocialViewer[]>([]);
+  const [viewersLoading, setViewersLoading] = useState(false);
+  // Track views within session (prevent duplicate calls)
+  const viewedRef = useRef<Set<string>>(new Set());
 
   const fetchPosts = useCallback(async () => {
     if (!activeTripId || !isOnline) return;
@@ -3619,6 +3634,27 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
 
   useEffect(() => { fetchPosts(); }, [fetchPosts]);
 
+  // IntersectionObserver — mark posts as viewed when 50% visible
+  useEffect(() => {
+    if (!isOnline || !user?.sub || !activeTripId) return;
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        const postId = (entry.target as HTMLElement).dataset.postId;
+        if (!postId || viewedRef.current.has(postId)) return;
+        viewedRef.current.add(postId);
+        fetch(`/api/trips/${activeTripId}/social/${postId}/views`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userSub: user.sub, userName: user.name }),
+        }).then(() => {
+          setPosts(prev => prev.map(p => p.id !== postId ? p : { ...p, viewedByMe: true, viewCount: p.viewedByMe ? p.viewCount : p.viewCount + 1 }));
+        }).catch(() => { });
+      });
+    }, { threshold: 0.5 });
+    document.querySelectorAll('[data-post-id]').forEach(el => observer.observe(el));
+    return () => observer.disconnect();
+  }, [posts.length, activeTripId, isOnline, user?.sub, user?.name]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
@@ -3626,40 +3662,68 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
     setPreviewUrl(URL.createObjectURL(f));
   };
 
-  const handleUpload = async () => {
-    if (!file || !activeTripId || uploading) return;
-    setUploading(true);
-    try {
-      const form = new FormData();
-      form.append('file', file);
-      form.append('userSub', user?.sub || '');
-      form.append('userName', user?.name || 'Unknown');
-      if (user?.picture) form.append('userAvatar', user.picture);
-      if (caption.trim()) form.append('caption', caption.trim());
-      const res = await fetch(`/api/trips/${activeTripId}/social`, { method: 'POST', body: form });
-      if (res.ok) {
-        const post = await res.json();
-        setPosts(p => [post, ...p]);
-        setShowUpload(false); setFile(null); setPreviewUrl(null); setCaption('');
+  // Async XHR upload — non-blocking with progress
+  const handleShare = () => {
+    if (!file || !activeTripId) return;
+    const localUrl = URL.createObjectURL(file);
+    const tempId = crypto.randomUUID();
+    const optimistic: SocialPost = {
+      id: tempId, tripId: activeTripId, userSub: user?.sub || '', userName: user?.name || 'Unknown',
+      userAvatar: user?.picture, mediaUrl: localUrl, localMediaUrl: localUrl,
+      mediaType: file.type.startsWith('video/') ? 'video' : 'photo',
+      caption: caption.trim() || undefined, reactions: [], myReaction: undefined,
+      viewCount: 0, viewedByMe: false, uploading: true, uploadProgress: 0, createdAt: new Date().toISOString(),
+    };
+    setPosts(p => [optimistic, ...p]);
+    setShowUpload(false); setFile(null); setPreviewUrl(null); setCaption('');
+
+    const form = new FormData();
+    form.append('file', file);
+    form.append('userSub', user?.sub || '');
+    form.append('userName', user?.name || 'Unknown');
+    if (user?.picture) form.append('userAvatar', user.picture);
+    if (optimistic.caption) form.append('caption', optimistic.caption);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `/api/trips/${activeTripId}/social`);
+    xhr.upload.onprogress = (ev) => {
+      if (!ev.lengthComputable) return;
+      const pct = Math.round((ev.loaded / ev.total) * 100);
+      setPosts(prev => prev.map(p => p.id === tempId ? { ...p, uploadProgress: pct } : p));
+    };
+    xhr.onload = () => {
+      if (xhr.status === 201) {
+        const post: SocialPost = JSON.parse(xhr.responseText);
+        setPosts(prev => prev.map(p => p.id === tempId ? { ...post, localMediaUrl: undefined } : p));
+        URL.revokeObjectURL(localUrl);
+      } else {
+        setPosts(prev => prev.map(p => p.id === tempId ? { ...p, uploading: false, uploadError: true } : p));
       }
-    } finally { setUploading(false); }
+    };
+    xhr.onerror = () => {
+      setPosts(prev => prev.map(p => p.id === tempId ? { ...p, uploading: false, uploadError: true } : p));
+    };
+    xhr.send(form);
   };
 
   const handleReact = async (postId: string, emoji: string) => {
     if (!isOnline || !user?.sub) return;
+    // Block reaction on uploading posts
+    const post = posts.find(p => p.id === postId);
+    if (post?.uploading) return;
     // Optimistic
     setPosts(prev => prev.map(p => {
       if (p.id !== postId) return p;
       const already = p.myReaction === emoji;
       const reactions = already
         ? p.reactions.filter(r => r.user_sub !== user.sub)
-        : [...p.reactions.filter(r => r.user_sub !== user.sub), { id: '', post_id: postId, user_sub: user.sub, emoji }];
+        : [...p.reactions.filter(r => r.user_sub !== user.sub), { id: '', post_id: postId, user_sub: user.sub, emoji, user_name: user.name, user_avatar: user.picture }];
       return { ...p, reactions, myReaction: already ? undefined : emoji };
     }));
     try {
       const res = await fetch(`/api/trips/${activeTripId}/social/${postId}/reactions`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userSub: user.sub, emoji }),
+        body: JSON.stringify({ userSub: user.sub, userName: user.name, userAvatar: user.picture, emoji }),
       });
       if (res.ok) {
         const reactions: SocialReaction[] = await res.json();
@@ -3672,11 +3736,33 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
 
   const handleDelete = async (postId: string) => {
     if (!isOnline) return;
+    if (!confirm('Delete this post? This cannot be undone.')) return;
     setPosts(prev => prev.filter(p => p.id !== postId));
     await fetch(`/api/trips/${activeTripId}/social/${postId}`, {
       method: 'DELETE', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userSub: user?.sub }),
     });
+  };
+
+  const handleEditSave = async (postId: string) => {
+    if (!isOnline) return;
+    const newCaption = editCaption.trim() || null;
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, caption: newCaption ?? undefined } : p));
+    setEditingPostId(null);
+    await fetch(`/api/trips/${activeTripId}/social/${postId}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userSub: user?.sub, caption: newCaption }),
+    });
+  };
+
+  const fetchViewers = async (postId: string) => {
+    setViewerPostId(postId);
+    setViewers([]);
+    setViewersLoading(true);
+    try {
+      const res = await fetch(`/api/trips/${activeTripId}/social/${postId}/views`);
+      if (res.ok) setViewers(await res.json());
+    } finally { setViewersLoading(false); }
   };
 
   if (!isOnline) return (
@@ -3733,7 +3819,7 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
             </label>
           )}
           <Input placeholder="Add a caption…" value={caption} onChange={setCaption} style={{ marginBottom: 12 }} />
-          <Btn style={{ width: "100%" }} onClick={handleUpload}>{uploading ? "Uploading…" : "Share"}</Btn>
+          <Btn style={{ width: "100%" }} disabled={!file} onClick={handleShare}>Share</Btn>
         </Card>
       )}
 
@@ -3751,8 +3837,11 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
       ) : posts.map(post => {
         const counts: Record<string, number> = {};
         post.reactions.forEach(r => { counts[r.emoji] = (counts[r.emoji] || 0) + 1; });
+        const isOwn = post.userSub === user?.sub;
+        const isUploading = !!post.uploading;
+        const isEditing = editingPostId === post.id;
         return (
-          <Card key={post.id} style={{ marginBottom: 12, padding: 0, overflow: "hidden" }}>
+          <Card key={post.id} data-post-id={post.id} style={{ marginBottom: 12, padding: 0, overflow: "hidden", opacity: isUploading ? 0.85 : 1 }}>
             {/* Post header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px 8px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -3762,34 +3851,89 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
                   <div style={{ color: C.textSub, fontSize: 11 }}>{new Date(post.createdAt).toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
                 </div>
               </div>
-              {post.userSub === user?.sub && (
-                <button onClick={() => handleDelete(post.id)} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}>
-                  <Icon d={icons.trash} size={13} stroke={C.red} />
-                </button>
-              )}
+              <div style={{ display: "flex", gap: 6 }}>
+                {isOwn && !isUploading && (
+                  <>
+                    <button onClick={() => { setEditingPostId(post.id); setEditCaption(post.caption || ''); }} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}>
+                      <Icon d={icons.edit} size={13} stroke={C.textMuted} />
+                    </button>
+                    <button onClick={() => handleDelete(post.id)} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}>
+                      <Icon d={icons.trash} size={13} stroke={C.red} />
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
+
             {/* Media */}
-            <div onClick={() => setExpandedPost(post)} style={{ cursor: "pointer" }}>
-              {post.mediaType === "video" ? (
-                <video src={post.mediaUrl} controls style={{ width: "100%", maxHeight: 360, objectFit: "cover", display: "block" }} onClick={e => e.stopPropagation()} />
-              ) : (
-                <img src={post.mediaUrl} style={{ width: "100%", maxHeight: 360, objectFit: "cover", display: "block" }} alt={post.caption || ""} />
+            <div style={{ position: "relative" }}>
+              <div onClick={() => !isUploading && setExpandedPost(post)} style={{ cursor: isUploading ? "default" : "pointer" }}>
+                {post.mediaType === "video" ? (
+                  <video src={post.localMediaUrl || post.mediaUrl} controls={!isUploading} style={{ width: "100%", maxHeight: 360, objectFit: "cover", display: "block" }} onClick={e => e.stopPropagation()} />
+                ) : (
+                  <img src={post.localMediaUrl || post.mediaUrl} style={{ width: "100%", maxHeight: 360, objectFit: "cover", display: "block" }} alt={post.caption || ""} />
+                )}
+              </div>
+              {/* Upload progress overlay */}
+              {isUploading && (
+                <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.55)", display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", gap: 10 }}>
+                  <div style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>Uploading… {post.uploadProgress ?? 0}%</div>
+                  <div style={{ width: "60%", height: 4, background: "rgba(255,255,255,0.2)", borderRadius: 4, overflow: "hidden" }}>
+                    <div style={{ width: `${post.uploadProgress ?? 0}%`, height: "100%", background: C.cyan, transition: "width 0.2s" }} />
+                  </div>
+                </div>
+              )}
+              {/* Upload error overlay */}
+              {post.uploadError && (
+                <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", gap: 10 }}>
+                  <div style={{ color: C.red, fontWeight: 700, fontSize: 14 }}>Upload failed</div>
+                  <button onClick={() => setPosts(prev => prev.filter(p => p.id !== post.id))} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 14px", color: C.text, cursor: "pointer", fontSize: 13 }}>Dismiss</button>
+                </div>
               )}
             </div>
-            {/* Caption */}
-            {post.caption && (
+
+            {/* Caption / edit */}
+            {isEditing ? (
+              <div style={{ padding: "10px 14px", display: "flex", gap: 8 }}>
+                <input
+                  autoFocus
+                  value={editCaption}
+                  onChange={e => setEditCaption(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleEditSave(post.id); if (e.key === 'Escape') setEditingPostId(null); }}
+                  style={{ flex: 1, background: C.card3, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none" }}
+                  placeholder="Edit caption…"
+                />
+                <button onClick={() => handleEditSave(post.id)} style={{ background: C.cyan, border: "none", borderRadius: 8, padding: "6px 12px", color: "#000", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Save</button>
+                <button onClick={() => setEditingPostId(null)} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 10px", color: C.textMuted, fontSize: 12, cursor: "pointer" }}>Cancel</button>
+              </div>
+            ) : post.caption ? (
               <div style={{ padding: "10px 14px 4px", fontSize: 14 }}>
                 <span style={{ fontWeight: 700 }}>{post.userName}</span> <span style={{ color: C.textSub }}>{post.caption}</span>
               </div>
-            )}
+            ) : null}
+
+            {/* Footer: views + reactions */}
+            <div style={{ padding: "6px 14px 4px", display: "flex", alignItems: "center", gap: 8 }}>
+              <button onClick={() => fetchViewers(post.id)} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: C.textMuted, fontSize: 12, padding: 0 }}>
+                <Icon d={icons.eye} size={14} stroke={post.viewedByMe ? C.cyan : C.textMuted} />
+                <span style={{ color: post.viewedByMe ? C.cyan : C.textMuted }}>{post.viewCount}</span>
+              </button>
+            </div>
+
             {/* Reactions */}
-            <div style={{ padding: "8px 14px 14px", display: "flex", gap: 6, flexWrap: "wrap" as const }}>
+            <div style={{ padding: "6px 14px 14px", display: "flex", gap: 6, flexWrap: "wrap" as const, alignItems: "center" }}>
               {REACTION_EMOJIS.map(emoji => (
-                <button key={emoji} onClick={() => handleReact(post.id, emoji)} style={{ background: post.myReaction === emoji ? `${C.cyan}25` : C.card3, border: `1.5px solid ${post.myReaction === emoji ? C.cyan : "transparent"}`, borderRadius: 20, padding: "5px 10px", fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit", transition: "border 0.15s" }}>
+                <button key={emoji} onClick={() => handleReact(post.id, emoji)} disabled={isUploading} style={{ background: post.myReaction === emoji ? `${C.cyan}25` : C.card3, border: `1.5px solid ${post.myReaction === emoji ? C.cyan : "transparent"}`, borderRadius: 20, padding: "5px 10px", fontSize: 15, cursor: isUploading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit", transition: "border 0.15s" }}>
                   <span>{emoji}</span>
                   {counts[emoji] ? <span style={{ fontSize: 11, color: C.textMuted, fontWeight: 700 }}>{counts[emoji]}</span> : null}
                 </button>
               ))}
+              {/* Reaction detail link */}
+              {post.reactions.length > 0 && (
+                <button onClick={() => setReactionDetailPost(post)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, fontSize: 11, marginLeft: 4 }}>
+                  Who reacted?
+                </button>
+              )}
             </div>
           </Card>
         );
@@ -3809,6 +3953,52 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
           {expandedPost.caption && (
             <div style={{ color: C.text, marginTop: 14, fontSize: 14, textAlign: "center", maxWidth: 380 }}>{expandedPost.caption}</div>
           )}
+        </div>
+      )}
+
+      {/* Reaction detail modal */}
+      {reactionDetailPost && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 400, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => setReactionDetailPost(null)}>
+          <div style={{ background: C.card, borderRadius: "20px 20px 0 0", padding: "20px 20px 40px", width: "100%", maxWidth: 480, maxHeight: "60vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 16 }}>Reactions</div>
+            {(() => {
+              const grouped: Record<string, SocialReaction[]> = {};
+              reactionDetailPost.reactions.forEach(r => { (grouped[r.emoji] = grouped[r.emoji] || []).push(r); });
+              return Object.entries(grouped).map(([emoji, list]) => (
+                <div key={emoji} style={{ marginBottom: 14 }}>
+                  <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 6 }}>{emoji} <span style={{ color: C.textMuted, fontSize: 13 }}>({list.length})</span></div>
+                  {list.map(r => (
+                    <div key={r.id || r.user_sub} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                      <Avatar name={r.user_name || r.user_sub} src={r.user_avatar} size={32} />
+                      <span style={{ fontSize: 14 }}>{r.user_name || r.user_sub}</span>
+                    </div>
+                  ))}
+                </div>
+              ));
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* Viewer modal */}
+      {viewerPostId && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 400, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => setViewerPostId(null)}>
+          <div style={{ background: C.card, borderRadius: "20px 20px 0 0", padding: "20px 20px 40px", width: "100%", maxWidth: 480, maxHeight: "55vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 16 }}>Viewed by</div>
+            {viewersLoading ? (
+              <div style={{ textAlign: "center", color: C.textMuted, fontSize: 13, padding: "20px 0" }}>Loading...</div>
+            ) : viewers.length === 0 ? (
+              <div style={{ color: C.textMuted, fontSize: 13 }}>No views yet.</div>
+            ) : viewers.map(v => (
+              <div key={v.user_sub} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                <Avatar name={v.user_name || v.user_sub} size={32} />
+                <div>
+                  <div style={{ fontSize: 14 }}>{v.user_name || v.user_sub}</div>
+                  <div style={{ fontSize: 11, color: C.textSub }}>{new Date(v.created_at).toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

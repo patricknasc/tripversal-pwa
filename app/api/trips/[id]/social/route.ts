@@ -7,7 +7,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
   const { data: posts, error } = await sb
     .from('social_posts')
-    .select('*, social_reactions(*)')
+    .select('*, social_reactions(*), social_post_views(user_sub)')
     .eq('trip_id', params.id)
     .order('created_at', { ascending: false });
 
@@ -26,6 +26,10 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     myReaction: callerSub
       ? (p.social_reactions ?? []).find((r: any) => r.user_sub === callerSub)?.emoji
       : undefined,
+    viewCount: (p.social_post_views ?? []).length,
+    viewedByMe: callerSub
+      ? (p.social_post_views ?? []).some((v: any) => v.user_sub === callerSub)
+      : false,
     createdAt: p.created_at,
   }));
 
@@ -71,6 +75,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   return NextResponse.json({
     id: data.id, tripId: data.trip_id, userSub: data.user_sub, userName: data.user_name,
     userAvatar: data.user_avatar, mediaUrl: data.media_url, mediaType: data.media_type,
-    caption: data.caption, reactions: [], myReaction: undefined, createdAt: data.created_at,
+    caption: data.caption, reactions: [], myReaction: undefined, viewCount: 0, viewedByMe: false, createdAt: data.created_at,
   }, { status: 201 });
 }
