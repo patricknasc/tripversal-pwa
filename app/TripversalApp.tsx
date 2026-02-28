@@ -200,6 +200,8 @@ interface TravelDocument {
   docType: string;
   dataUrl: string;
   createdAt: string;
+  archived?: boolean;
+  archivedAt?: string;
 }
 
 const DEFAULT_MEDICAL: MedicalId = { bloodType: '', contactName: '', contactPhone: '', allergies: '', medications: '', notes: '', sharing: true };
@@ -354,6 +356,10 @@ const icons: Record<string, any> = {
   arrowRight: "M5 12h14M12 5l7 7-7 7",
   clock: ["M12 22a10 10 0 100-20 10 10 0 000 20z", "M12 6v6l4 2"],
   calendar: ["M3 9h18", "M8 3v3", "M16 3v3", "M3 5a2 2 0 012-2h14a2 2 0 012 2v15a2 2 0 01-2 2H5a2 2 0 01-2-2V5z"],
+  chevronDown: "M6 9l6 6 6-6",
+  archive: ["M21 8v13H3V8", "M1 3h22v5H1z", "M10 12h4"],
+  rotateCcw: ["M1 4v6h6", "M3.51 15a9 9 0 102.13-9.36L1 10"],
+  logOut: ["M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4", "M16 17l5-5-5-5", "M21 12H9"],
 };
 
 const CATEGORY_ICONS: Record<EventCategory, string> = {
@@ -731,7 +737,7 @@ const BottomNav = ({ active, onNav }: any) => {
   );
 };
 
-const HomeScreen = ({ onNav, onAddExpense, onShowGroup, activeTripId, activeTrip, user }: any) => {
+const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTripId, activeTrip, user }: any) => {
   const [budget, setBudget] = useState<TripBudget>(DEFAULT_BUDGET);
   const [todaySpent, setTodaySpent] = useState(0);
   const [yesterdaySpent, setYesterdaySpent] = useState(0);
@@ -968,7 +974,7 @@ const HomeScreen = ({ onNav, onAddExpense, onShowGroup, activeTripId, activeTrip
               <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.red }} />
               <span style={{ color: C.textMuted, fontSize: 13, fontWeight: 600 }}>No budget set</span>
             </div>
-            <button onClick={() => onNav('wallet')} style={{ background: C.card, border: `1px solid ${C.cyan}`, color: C.cyan, borderRadius: 16, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Create one</button>
+            <button onClick={() => onCreateBudget ? onCreateBudget() : onNav('wallet')} style={{ background: C.card, border: `1px solid ${C.cyan}`, color: C.cyan, borderRadius: 16, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Create one</button>
           </div>
         )}
       </div>
@@ -1116,7 +1122,7 @@ const HomeScreen = ({ onNav, onAddExpense, onShowGroup, activeTripId, activeTrip
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0 }}>
                     <div style={{ color: C.textMuted, fontSize: 11 }}>{timeStr}</div>
-                    <div style={{ color: C.text, fontWeight: 700, fontSize: 14 }}>{currSym(exp.localCurrency)}{fmtAmt(getEffectiveLocal(exp))} <span style={{ color: C.textMuted, fontSize: 13, fontWeight: 400 }}>({currSym(exp.baseCurrency || budget.baseCurrency)}{fmtAmt(exp.baseAmount)})</span></div>
+                    <div style={{ color: C.text, fontWeight: 700, fontSize: 14 }}>{currSym(exp.localCurrency)}{fmtAmt(getEffectiveLocal(exp))}{exp.localCurrency !== (exp.baseCurrency || budget.baseCurrency) && <span style={{ color: C.textMuted, fontSize: 13, fontWeight: 400 }}> ({currSym(exp.baseCurrency || budget.baseCurrency)}{fmtAmt(exp.baseAmount)})</span>}</div>
                   </div>
                   <button onClick={e => { e.stopPropagation(); setSelectedActivityExp(exp); setHomeEditMode(false); setHomeConfirmDelete(false); }}
                     style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer", flexShrink: 0 }}>
@@ -1159,7 +1165,7 @@ const HomeScreen = ({ onNav, onAddExpense, onShowGroup, activeTripId, activeTrip
                   <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
                     <div style={{ background: C.card3, borderRadius: 12, padding: 12, flex: 1 }}>
                       <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>AMOUNT</div>
-                      <div style={{ fontWeight: 700, fontSize: 16 }}>{currSym(exp.localCurrency)}{fmtAmt(getEffectiveLocal(exp))} <span style={{ color: C.textMuted, fontSize: 14, fontWeight: 400 }}>({currSym(exp.baseCurrency || budget.baseCurrency)}{fmtAmt(exp.baseAmount)})</span></div>
+                      <div style={{ fontWeight: 700, fontSize: 16 }}>{currSym(exp.localCurrency)}{fmtAmt(getEffectiveLocal(exp))}{exp.localCurrency !== (exp.baseCurrency || budget.baseCurrency) && <span style={{ color: C.textMuted, fontSize: 14, fontWeight: 400 }}> ({currSym(exp.baseCurrency || budget.baseCurrency)}{fmtAmt(exp.baseAmount)})</span>}</div>
                     </div>
                     <div style={{ background: C.card3, borderRadius: 12, padding: 12, flex: 1 }}>
                       <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>SOURCE</div>
@@ -2023,7 +2029,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
   );
 };
 
-const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => {
+const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab = 'transactions' }: any) => {
   const [budget, setBudgetState] = useState<TripBudget>(DEFAULT_BUDGET);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [activeSavedBudget, setActiveSavedBudget] = useState<SavedBudget | null>(null);
@@ -2043,7 +2049,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
   const [editCambialRate, setEditCambialRate] = useState("1");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [visibleTxCount, setVisibleTxCount] = useState(10);
-  const [walletTab, setWalletTab] = useState<'transactions' | 'analytics' | 'budget'>('transactions');
+  const [walletTab, setWalletTab] = useState<'transactions' | 'analytics' | 'budget'>(initialTab);
   const txSentinelRef = useRef<HTMLDivElement>(null);
 
   // --- New Budget & Payment Sources States ---
@@ -3096,7 +3102,6 @@ const categories = [
   { id: "general", label: "GENERAL", icon: icons.moreH },
 ];
 
-const members = ["You", "Patrick", "Sarah"];
 
 function compressImage(file: File, maxPx = 800, quality = 0.7): Promise<string> {
   return new Promise(resolve => {
@@ -3117,13 +3122,22 @@ function compressImage(file: File, maxPx = 800, quality = 0.7): Promise<string> 
   });
 }
 
-const AddExpenseScreen = ({ onBack, activeTripId, user }: any) => {
+const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user }: any) => {
   const [amount, setAmount] = useState("0");
   const [cat, setCat] = useState("food");
   const [expType, setExpType] = useState("group");
   const [whoPaid, setWhoPaid] = useState("You");
   const [desc, setDesc] = useState("");
-  const [shares, setShares] = useState<Record<string, number>>({ You: 1, Patrick: 1, Sarah: 1 });
+  // Build member list from accepted crew (excluding current user who is always "You")
+  const members = [
+    "You",
+    ...((activeTrip?.crew || []) as TripMember[])
+      .filter((m: TripMember) => m.status === 'accepted' && m.googleSub !== user?.sub)
+      .map((m: TripMember) => m.name || m.email),
+  ];
+  const [shares, setShares] = useState<Record<string, number>>(() =>
+    Object.fromEntries(members.map(m => [m, 1]))
+  );
   const totalShares = Object.values(shares).reduce((a, b) => a + b, 0);
   const total = parseFloat(amount) || 0;
 
@@ -3234,7 +3248,10 @@ const AddExpenseScreen = ({ onBack, activeTripId, user }: any) => {
             You need to create and activate a budget before you can add expenses to this trip.
           </div>
         </div>
-        <Btn style={{ marginTop: 8 }} onClick={() => { onBack(); }}>Go Back</Btn>
+        <div style={{ display: "flex", gap: 10 }}>
+          <Btn variant="ghost" style={{ marginTop: 8 }} onClick={() => { onBack(); }}>Go Back</Btn>
+          <Btn style={{ marginTop: 8 }} onClick={() => { onBack(); onGoToBudget?.(); }}>Set Up Budget</Btn>
+        </div>
       </div>
     );
   }
@@ -3333,8 +3350,8 @@ const AddExpenseScreen = ({ onBack, activeTripId, user }: any) => {
                       const r = await fetchRate(localCurrency, budget.baseCurrency);
                       setCustomRateStr(String(r));
                     } catch { }
-                  }} style={{ background: C.card3, color: C.cyan, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontWeight: 700 }}>
-                    Reset API
+                  }} style={{ background: C.card3, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", display: "flex", alignItems: "center" }} title="Refresh rate from API">
+                    <Icon d={icons.refreshCw} size={14} stroke={C.cyan} />
                   </button>
                 </div>
               </div>
@@ -3834,6 +3851,11 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
   const [docType, setDocType] = useState('Passport');
   const [docDataUrl, setDocDataUrl] = useState<string | null>(null);
   const [viewDoc, setViewDoc] = useState<TravelDocument | null>(null);
+  const [archivedInsurances, setArchivedInsurances] = useState<(Insurance & { archivedAt: string })[]>(() => {
+    try { return JSON.parse(localStorage.getItem('tripversal_insurance_archive') || '[]'); } catch { return []; }
+  });
+  const [showArchivedIns, setShowArchivedIns] = useState(false);
+  const [showArchivedDocs, setShowArchivedDocs] = useState(false);
 
   useEffect(() => {
     if (!user?.sub) return;
@@ -3871,6 +3893,24 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
     const next = documents.filter(d => d.id !== id);
     setDocuments(next); localStorage.setItem('tripversal_documents', JSON.stringify(next));
     if (user?.sub) fetch(`/api/users/${user.sub}/documents/${id}`, { method: 'DELETE' }).catch(() => { });
+  };
+  const archiveInsurance = () => {
+    if (!insurance.provider) return;
+    const entry = { ...insurance, archivedAt: new Date().toISOString() };
+    const next = [entry, ...archivedInsurances];
+    setArchivedInsurances(next);
+    localStorage.setItem('tripversal_insurance_archive', JSON.stringify(next));
+    saveInsurance(DEFAULT_INSURANCE);
+  };
+  const archiveDoc = (id: string) => {
+    const next = documents.map(d => d.id === id ? { ...d, archived: true, archivedAt: new Date().toISOString() } : d);
+    setDocuments(next);
+    localStorage.setItem('tripversal_documents', JSON.stringify(next));
+  };
+  const unarchiveDoc = (id: string) => {
+    const next = documents.map(d => d.id === id ? { ...d, archived: false, archivedAt: undefined } : d);
+    setDocuments(next);
+    localStorage.setItem('tripversal_documents', JSON.stringify(next));
   };
   const settingsTextareaStyle: any = { background: C.card3, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", color: C.text, fontSize: 14, width: "100%", outline: "none", fontFamily: "inherit", resize: "none", boxSizing: "border-box" };
 
@@ -3963,11 +4003,6 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
           </div>
         ))}
       </Card>
-      <div style={{ color: C.textSub, fontSize: 11, textAlign: "center", marginTop: 20 }}>FamilyVoyage v1.1.0 latam • UUID: HW1DC1</div>
-      <div style={{ marginTop: 16, marginBottom: 8 }}>
-        <Btn variant="danger" style={{ width: "100%" }} onClick={onLogout} icon={<Icon d={icons.login} size={16} stroke={C.red} />}>Sign Out</Btn>
-      </div>
-
       {/* ── Medical ID ── */}
       <SectionLabel>SAFETY</SectionLabel>
       <Card style={{ marginBottom: 16, border: `1px solid ${C.red}20` }}>
@@ -4066,11 +4101,34 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
             {(insurance.coverageStart || insurance.coverageEnd) && <div style={{ background: C.card3, borderRadius: 12, padding: "10px 12px", marginBottom: 12, fontSize: 12, color: C.textMuted }}>Coverage: {insurance.coverageStart || '?'} → {insurance.coverageEnd || '?'}</div>}
             {insurance.notes && <div style={{ background: C.card3, borderRadius: 12, padding: "10px 12px", marginBottom: 12, fontSize: 13, color: C.textSub }}>{insurance.notes}</div>}
             {insurance.emergencyPhone && <Btn style={{ width: "100%", background: C.cyan, color: "#000" }} onClick={() => window.open(`tel:${insurance.emergencyPhone}`)} icon={<Icon d={icons.phone} size={16} stroke="#000" />}>CALL EMERGENCY ASSIST</Btn>}
+            <Btn variant="ghost" style={{ width: "100%", marginTop: 8, fontSize: 13 }} onClick={archiveInsurance} icon={<Icon d={icons.archive} size={14} stroke={C.textMuted} />}>Archive (save to history)</Btn>
           </>
         ) : (
           <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "16px 0" }}>Tap edit to add your travel insurance</div>
         )}
       </Card>
+
+      {archivedInsurances.length > 0 && (
+        <button onClick={() => setShowArchivedIns(v => !v)} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 12, cursor: "pointer", marginBottom: 12, padding: 0, display: "flex", alignItems: "center", gap: 6 }}>
+          <Icon d={showArchivedIns ? icons.chevronDown : icons.chevronRight} size={14} stroke={C.textMuted} />
+          {archivedInsurances.length} archived insurance{archivedInsurances.length > 1 ? 's' : ''}
+        </button>
+      )}
+      {showArchivedIns && archivedInsurances.map((ins, i) => (
+        <Card key={i} style={{ marginBottom: 8, opacity: 0.65, border: `1px solid ${C.border}` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>{ins.provider}</div>
+              {ins.policyNumber && <div style={{ color: C.textMuted, fontSize: 12 }}>{ins.policyNumber}</div>}
+              {ins.coverageStart && <div style={{ color: C.textSub, fontSize: 11 }}>Coverage: {ins.coverageStart} → {ins.coverageEnd || '?'}</div>}
+              <div style={{ color: C.textSub, fontSize: 11, marginTop: 4 }}>Archived {new Date(ins.archivedAt).toLocaleDateString()}</div>
+            </div>
+            <button onClick={() => { const next = archivedInsurances.filter((_, j) => j !== i); setArchivedInsurances(next); localStorage.setItem('tripversal_insurance_archive', JSON.stringify(next)); }} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "5px 7px", cursor: "pointer" }}>
+              <Icon d={icons.trash} size={13} stroke={C.red} />
+            </button>
+          </div>
+        </Card>
+      ))}
 
       {/* ── Critical Documents ── */}
       <SectionLabel icon="fileText" action={
@@ -4105,12 +4163,12 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
         </Card>
       )}
 
-      {documents.length === 0 && !showAddDoc ? (
+      {documents.filter(d => !d.archived).length === 0 && !showAddDoc ? (
         <Card style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", padding: 40, gap: 12, marginBottom: 16 }}>
           <div style={{ width: 60, height: 60, borderRadius: "50%", background: C.card3, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon d={icons.fileText} size={28} stroke={C.textMuted} /></div>
           <div style={{ color: C.textMuted, fontSize: 13, textAlign: "center" }}>Store copies of passports, visas, and insurance cards for offline access.</div>
         </Card>
-      ) : documents.map(doc => (
+      ) : documents.filter(d => !d.archived).map(doc => (
         <Card key={doc.id} style={{ marginBottom: 8, cursor: "pointer" }} onClick={() => setViewDoc(doc)}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ width: 52, height: 52, borderRadius: 10, overflow: "hidden", flexShrink: 0 }}><img src={doc.dataUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div>
@@ -4118,7 +4176,32 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
               <div style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{doc.name}</div>
               <div style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{doc.docType} · {new Date(doc.createdAt).toLocaleDateString()}</div>
             </div>
-            <button onClick={e => { e.stopPropagation(); deleteDoc(doc.id); }} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}><Icon d={icons.trash} size={14} stroke={C.red} /></button>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button onClick={e => { e.stopPropagation(); archiveDoc(doc.id); }} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }} title="Archive"><Icon d={icons.archive} size={14} stroke={C.textMuted} /></button>
+              <button onClick={e => { e.stopPropagation(); deleteDoc(doc.id); }} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}><Icon d={icons.trash} size={14} stroke={C.red} /></button>
+            </div>
+          </div>
+        </Card>
+      ))}
+
+      {documents.filter(d => d.archived).length > 0 && (
+        <button onClick={() => setShowArchivedDocs(v => !v)} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 12, cursor: "pointer", marginBottom: 12, padding: 0, display: "flex", alignItems: "center", gap: 6 }}>
+          <Icon d={showArchivedDocs ? icons.chevronDown : icons.chevronRight} size={14} stroke={C.textMuted} />
+          {documents.filter(d => d.archived).length} archived document{documents.filter(d => d.archived).length > 1 ? 's' : ''}
+        </button>
+      )}
+      {showArchivedDocs && documents.filter(d => d.archived).map(doc => (
+        <Card key={doc.id} style={{ marginBottom: 8, cursor: "pointer", opacity: 0.65, border: `1px solid ${C.border}` }} onClick={() => setViewDoc(doc)}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 52, height: 52, borderRadius: 10, overflow: "hidden", flexShrink: 0 }}><img src={doc.dataUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{doc.name}</div>
+              <div style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{doc.docType} · Archived</div>
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button onClick={e => { e.stopPropagation(); unarchiveDoc(doc.id); }} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }} title="Unarchive"><Icon d={icons.rotateCcw} size={14} stroke={C.cyan} /></button>
+              <button onClick={e => { e.stopPropagation(); deleteDoc(doc.id); }} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}><Icon d={icons.trash} size={14} stroke={C.red} /></button>
+            </div>
           </div>
         </Card>
       ))}
@@ -4134,6 +4217,16 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
           </div>
         </div>
       )}
+
+      {/* ── Sign Out ── */}
+      <div style={{ marginTop: 32, marginBottom: 8 }}>
+        <Btn
+          variant="ghost"
+          style={{ width: "100%", color: C.red, border: `1px solid ${C.red}40` }}
+          icon={<Icon d={icons.logOut} size={16} stroke={C.red} />}
+          onClick={onLogout}
+        >Sign Out</Btn>
+      </div>
     </div>
   );
 };
@@ -5207,6 +5300,7 @@ function AppShell() {
   const [showSettings, setShowSettings] = useState(false);
   const [showManageCrew, setShowManageCrew] = useState(false);
   const [showAddExpense, setShowAddExpense] = useState(false);
+  const [walletInitTab, setWalletInitTab] = useState<'transactions' | 'analytics' | 'budget'>('transactions');
   const [showHistory, setShowHistory] = useState(false);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [activeTripId, setActiveTripId] = useState<string | null>(null);
@@ -5296,6 +5390,20 @@ function AppShell() {
     setShowSettings(false); setShowManageCrew(false); setShowAddExpense(false); setShowHistory(false); setTab(t);
   };
 
+  const handleGoToBudget = () => {
+    setWalletInitTab('budget');
+    handleNav('wallet');
+  };
+
+  const handleOpenExpense = () => {
+    try {
+      const bs: SavedBudget[] = JSON.parse(localStorage.getItem('tripversal_saved_budgets') || '[]');
+      const hasBudget = bs.some(b => b.activeTripId === activeTripId);
+      if (!hasBudget) { handleGoToBudget(); return; }
+    } catch { }
+    setShowAddExpense(true);
+  };
+
   let content;
   if (pendingInviteToken) {
     content = (
@@ -5315,7 +5423,7 @@ function AppShell() {
       />
     );
   } else if (showAddExpense) {
-    content = <AddExpenseScreen onBack={() => setShowAddExpense(false)} activeTripId={activeTripId} user={user} />;
+    content = <AddExpenseScreen onBack={() => setShowAddExpense(false)} onGoToBudget={handleGoToBudget} activeTripId={activeTripId} activeTrip={activeTrip} user={user} />;
   } else if (showHistory) {
     content = <TransactionHistoryScreen onBack={() => setShowHistory(false)} />;
   } else if (showManageCrew) {
@@ -5354,9 +5462,9 @@ function AppShell() {
     );
   } else {
     switch (tab) {
-      case "home": content = <HomeScreen onNav={handleNav} onAddExpense={() => setShowAddExpense(true)} onShowGroup={() => handleNav("group")} activeTripId={activeTripId} activeTrip={activeTrip} user={user} />; break;
+      case "home": content = <HomeScreen onNav={handleNav} onAddExpense={handleOpenExpense} onCreateBudget={handleGoToBudget} onShowGroup={() => handleNav("group")} activeTripId={activeTripId} activeTrip={activeTrip} user={user} />; break;
       case "itinerary": content = <ItineraryScreen activeTripId={activeTripId} activeTrip={activeTrip} userSub={user?.sub} />; break;
-      case "wallet": content = <WalletScreen onAddExpense={() => setShowAddExpense(true)} activeTripId={activeTripId} user={user} trips={trips} />; break;
+      case "wallet": content = <WalletScreen key={walletInitTab} initialTab={walletInitTab} onAddExpense={handleOpenExpense} activeTripId={activeTripId} user={user} trips={trips} />; break;
       case "photos": content = <PhotosScreen />; break;
       case "group": content = <GroupScreen
         trips={trips}
