@@ -1,7 +1,7 @@
 # Tripversal — Arquitetura do Sistema
 
-> **Versão:** 2.5
-> **Atualizado:** 2026-02-27
+> **Versão:** 2.6
+> **Atualizado:** 2026-02-28
 > **Stack:** Next.js 14 (App Router) · Supabase (PostgreSQL) · React 18
 > **Convenção de nomes:** tabelas e colunas em `snake_case`; tipos TypeScript em `camelCase/PascalCase`
 
@@ -38,6 +38,10 @@ O sistema suporta viagens em grupo com:
 ### 2.1 Diagrama de Entidades
 
 ```
+users  (perfil global, upsert no login)
+  │
+  └─── user_budgets  (orçamentos pessoais, 1 ativo por viagem)
+
 trips
   │
   ├─── trip_participants  (1 por membro por viagem)
@@ -61,6 +65,38 @@ trips
 ```sql
 -- ─── Extensions ──────────────────────────────────────────────────────────────
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- ─── users ───────────────────────────────────────────────────────────────────
+-- Tabela global de perfis de usuário. Upsert no login via Google OAuth.
+-- Permite lookup cross-trip sem depender do google_sub como FK direto.
+CREATE TABLE IF NOT EXISTS users (
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  google_sub TEXT        UNIQUE NOT NULL,
+  name       TEXT,
+  email      TEXT,
+  avatar_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role_all_users" ON users FOR ALL USING (true);
+
+-- ─── user_budgets ─────────────────────────────────────────────────────────────
+-- Orçamentos pessoais por usuário. Cada orçamento pode ser ativado para uma viagem.
+-- Um usuário pode ter vários orçamentos; no máximo 1 ativo por viagem.
+CREATE TABLE IF NOT EXISTS user_budgets (
+  id             TEXT        PRIMARY KEY,  -- UUID gerado no cliente
+  google_sub     TEXT        NOT NULL,
+  name           TEXT        NOT NULL,
+  currency       TEXT        NOT NULL,
+  amount         NUMERIC(12,2) NOT NULL,
+  active_trip_id UUID        REFERENCES trips(id) ON DELETE SET NULL,
+  created_at     TIMESTAMPTZ DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_user_budgets_sub ON user_budgets(google_sub);
+ALTER TABLE user_budgets ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role_all_user_budgets" ON user_budgets FOR ALL USING (true);
 
 -- ─── trips ───────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS trips (
@@ -437,6 +473,45 @@ Tokens de convite com validade de 7 dias enviados por email via Resend.
 | `token` | TEXT UNIQUE | Token único para o link de convite |
 | `expires_at` | TIMESTAMPTZ | Expiração (padrão: +7 dias) |
 | `used_at` | TIMESTAMPTZ | Quando foi usado (null = não usado) |
+
+---
+
+### `users`
+
+Perfil global de cada usuário, populado via upsert no login Google OAuth.
+
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `id` | UUID PK | Identificador interno único |
+| `google_sub` | TEXT UNIQUE | Subject JWT do Google (`sub` claim) — estável por design do OpenID Connect |
+| `name` | TEXT | Nome de exibição (Google) |
+| `email` | TEXT | Email da conta Google |
+| `avatar_url` | TEXT | URL do avatar Google |
+| `created_at` | TIMESTAMPTZ | Primeiro login |
+| `updated_at` | TIMESTAMPTZ | Última atualização de perfil |
+
+> Embora `google_sub` seja considerado estável pelo Google, ter um `id UUID` interno permite migração futura sem quebrar FKs. Ver nota em §10 sobre estabilidade do `google_sub`.
+
+---
+
+### `user_budgets`
+
+Orçamentos pessoais de viagem. Cada orçamento pertence a um usuário e pode ser ativado para uma viagem específica.
+
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `id` | TEXT PK | UUID gerado no cliente (permite upsert idempotente) |
+| `google_sub` | TEXT | Dono do orçamento |
+| `name` | TEXT | Nome de exibição (ex: "Europa 2026", "Orçamento Conservador") |
+| `currency` | TEXT | Moeda do orçamento (ISO 4217) |
+| `amount` | NUMERIC | Valor total alocado |
+| `active_trip_id` | UUID FK → `trips` | Viagem onde este orçamento está ativo (`NULL` = inativo) |
+| `created_at` | TIMESTAMPTZ | Criação |
+| `updated_at` | TIMESTAMPTZ | Última atualização |
+
+**Invariante:** no máximo 1 `user_budgets` com `active_trip_id = X` por `google_sub`. Garantido pelo `activateBudget()` no cliente, que limpa outros antes de ativar.
+
+**Orçamento diário:** calculado dinamicamente em runtime. Não armazenado. Fórmula: `amount / tripDays`, onde `tripDays = (end_date - start_date) + 1`.
 
 ---
 
@@ -1345,6 +1420,11 @@ Array<{
 | Método | Rota | Descrição |
 |---|---|---|
 | GET | `/api/users/[sub]/segment-conflicts` | Conflitos cross-trip de segmentos para o usuário |
+| POST | `/api/users/[sub]/profile` | Upsert do perfil do usuário (chamado no login) |
+| GET | `/api/users/[sub]/profile` | Busca perfil do usuário |
+| GET | `/api/users/[sub]/budgets` | Lista orçamentos do usuário |
+| POST | `/api/users/[sub]/budgets` | Cria ou atualiza um orçamento (upsert por `id`) |
+| DELETE | `/api/users/[sub]/budgets` | Remove um orçamento (`{ id }` no body) |
 
 ---
 
@@ -1395,6 +1475,10 @@ function mergeServerExpenses(stored: Expense[], server: Expense[], tripId: strin
 | Deletar evento itinerário | ✅ soft-delete local | ✅ soft-delete em background | ItineraryScreen.handleDeleteEvent |
 | Hydrate itinerário ao montar | ✅ localStorage primeiro | ✅ GET + substituição | ItineraryScreen useEffect [activeTripId] |
 | Activity feed | — | ✅ GET /activity | HomeScreen useEffect [activeTripId] |
+| Criar/editar/deletar orçamento | ✅ síncrono | ✅ POST/DELETE em background | ManageCrewScreen.handleAddBudget / handleDeleteBudget |
+| Ativar orçamento | ✅ síncrono | ✅ POST de todos afetados | ManageCrewScreen.activateBudget |
+| Hydrate orçamentos ao montar | ✅ localStorage primeiro | ✅ GET /api/users/[sub]/budgets | ManageCrewScreen useEffect [user.sub] |
+| Perfil do usuário | localStorage | ✅ POST /api/users/[sub]/profile no login | LoginScreen.onSuccess |
 
 ### 9.4 Dados intencionalmente sem espelho no servidor
 
@@ -1405,8 +1489,7 @@ function mergeServerExpenses(stored: Expense[], server: Expense[], tripId: strin
 | `tripversal_profile` | Out of scope |
 | `INVITE_EVENTS_KEY` | Notificação efêmera local |
 | `tripversal_deleted_expenses` | Log de auditoria local; o soft-delete no server é suficiente |
-| `tripversal_saved_budgets` | `SavedBudget` — localStorage-only, ver ADR-06 |
-| `tripversal_active_budget_{tripId}` | Fallback de lookup do SavedBudget ativo |
+| `tripversal_active_budget_{tripId}` | Fallback de lookup do SavedBudget ativo (cache local) |
 
 ### 9.5 Bugs de sync corrigidos (2026-02-27)
 
@@ -1570,21 +1653,57 @@ Uma imagem comprimida ainda tem ~60-80 KB. Com dezenas de despesas por viagem e 
 
 ---
 
-### ADR-06: `SavedBudget` em localStorage (sem espelho no servidor)
+### ADR-06: `user_budgets` sincronizado na nuvem (via `users` table)
 
-**Contexto:** O sistema de orçamento anterior usava `budget.sources` no JSONB da tabela `trips`. A nova abstração `SavedBudget` permite criar orçamentos reutilizáveis e ativá-los por viagem.
+**Contexto:** Orçamentos pessoais (`SavedBudget`) eram localStorage-only, o que causava perda de dados ao trocar de dispositivo.
 
-**Decisão:** `SavedBudget` é armazenado exclusivamente em `localStorage` (chave `tripversal_saved_budgets`). Não há tabela no banco.
+**Decisão (v2.6):** Migrado para Supabase via tabela `user_budgets` + API `GET/POST/DELETE /api/users/[sub]/budgets`. O localStorage continua como cache imediato (localStorage-first), mas o servidor é a fonte de verdade para sync cross-device.
 
-**Justificativa:**
+**Fluxo:**
+1. Mount: localStorage → render imediato → GET /api/users/[sub]/budgets → atualiza state + localStorage
+2. Criar/editar orçamento: localStorage → POST (fire-and-forget)
+3. Deletar orçamento: localStorage → DELETE (fire-and-forget)
+4. Ativar orçamento: localStorage → POST de todos os budgets afetados (fire-and-forget)
 
-1. **Escopo de uso:** orçamentos pessoais são privados a cada usuário. Não precisam ser compartilhados com outros membros da viagem.
-2. **Complexidade vs. benefício:** criar uma tabela no banco requer migration + API routes + sync bidirecional. O ganho cross-device é real mas marginal — orçamento é configurado uma vez por dispositivo.
-3. **Consistência com o padrão existente:** `budget.baseCurrency`, `budget.dailyLimit` etc. também vivem em localStorage. `SavedBudget` segue o mesmo padrão.
+**Invariante de ativação:** `activateBudget()` garante no máximo 1 budget com `activeTripId = X` por usuário, tanto no estado local quanto no servidor.
 
-**Consequências:**
+**Orçamento diário:** não armazenado — calculado dinamicamente: `dailyBudget = budget.amount / tripDays`.
 
-- Trocar de dispositivo requer recriar os orçamentos. O histórico de gastos (expenses) é synced — apenas o orçamento precisa ser configurado novamente.
-- Se no futuro for necessário sync cross-device, criar tabela `user_budgets (id, google_sub, name, currency, amount, created_at)` e associar à viagem via tabela de junção.
+---
 
-**Invariante de ativação:** um orçamento pode estar ativo em no máximo uma viagem (`activeTripId`). A função `activateBudget` garante isso removendo `activeTripId` de todos os outros orçamentos antes de definir o novo.
+### ADR-07: Nota sobre estabilidade do `google_sub`
+
+**Contexto:** O campo `google_sub` (claim `sub` do JWT Google) é usado como identificador de usuário em `trip_members`, `trip_activity`, `user_budgets`, etc.
+
+**Garantia oficial:** Google garante que `sub` é estável e imutável para uma conta Google específica, conforme o OpenID Connect spec. Não há mecanismo documentado de mudança.
+
+**Mitigação preventiva:** A tabela `users` introduz um `id UUID` interno. No futuro, se houver necessidade de migrar identidades (ex.: merge de contas, mudança de provedor OAuth), basta atualizar o `google_sub` na tabela `users` sem alterar FKs internas.
+
+**Estado atual:** as tabelas existentes (`trip_members`, `trip_activity`, etc.) ainda usam `google_sub` diretamente como TEXT. A migração para `users.id` como FK é o próximo passo arquitetural quando o volume justificar.
+
+---
+
+### ADR-08: Eventos restritos (design planejado, não implementado)
+
+**Requisito:** membros devem poder criar eventos visíveis apenas para si ou para um subgrupo.
+
+**Design proposto:**
+
+Adicionar à tabela `itinerary_events`:
+```sql
+visibility   TEXT    NOT NULL DEFAULT 'all' CHECK (visibility IN ('all', 'restricted')),
+visible_to   TEXT[]  DEFAULT '{}',  -- array de google_sub dos membros autorizados
+```
+
+**Lógica do GET:**
+```sql
+WHERE (visibility = 'all' OR callerSub = ANY(visible_to) OR created_by = callerSub)
+  AND deleted_at IS NULL
+```
+
+**UI:**
+- Toggle "Visible to all" / "Restricted" no formulário de evento
+- Quando restricted: multi-select dos membros aceitos da viagem
+- Eventos restritos exibem ícone 🔒 na timeline
+
+**Decisão pendente:** implementar quando houver demanda confirmada de uso. O schema atual suporta a adição sem breaking changes.

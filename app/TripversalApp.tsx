@@ -198,7 +198,7 @@ function calcSummary(budget: TripBudget, expenses: Expense[]) {
 }
 
 const CURRENCY_SYMBOLS: Record<Currency, string> = {
-  EUR: "€", USD: "$", BRL: "R$", GBP: "£", COP: "$",
+  EUR: "€", USD: "$", BRL: "R$", GBP: "£", COP: "COL$",
 };
 const currSym = (c: Currency) => CURRENCY_SYMBOLS[c] ?? c;
 
@@ -700,6 +700,7 @@ const HomeScreen = ({ onNav, onAddExpense, onShowGroup, activeTripId, activeTrip
   const [allExpenses, setAllExpenses] = useState<Expense[]>([]);
   const [inviteEvents, setInviteEvents] = useState<InviteEvent[]>([]);
   const [serverActivity, setServerActivity] = useState<TripActivityItem[]>([]);
+  const [upcomingEvents, setUpcomingEvents] = useState<ItineraryEventRecord[]>([]);
   const [visibleCount, setVisibleCount] = useState(10);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [selectedActivityExp, setSelectedActivityExp] = useState<Expense | null>(null);
@@ -739,12 +740,17 @@ const HomeScreen = ({ onNav, onAddExpense, onShowGroup, activeTripId, activeTrip
         .then((rows: any[] | null) => {
           if (!rows) return;
           const stored: Expense[] = (() => { try { const s = localStorage.getItem('tripversal_expenses'); return s ? JSON.parse(s) : []; } catch { return []; } })();
-          // If server is empty, upload any existing localStorage expenses (one-time migration)
+          // If server is empty, upload expenses for this trip (one-time migration)
           if (rows.length === 0) {
-            stored.filter(e => !e.tripId || e.tripId === activeTripId).forEach(e => {
+            // Clean orphaned expenses (no tripId) from localStorage before migrating
+            const cleaned = stored.filter(e => !!e.tripId);
+            if (cleaned.length !== stored.length) {
+              localStorage.setItem('tripversal_expenses', JSON.stringify(cleaned));
+            }
+            cleaned.filter(e => e.tripId === activeTripId).forEach(e => {
               fetch(`/api/trips/${activeTripId}/expenses`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ callerSub, ...expenseToRow({ ...e, tripId: activeTripId }) }),
+                body: JSON.stringify({ callerSub, ...expenseToRow(e) }),
               }).catch(() => {});
             });
             return; // keep localStorage as-is
@@ -765,6 +771,15 @@ const HomeScreen = ({ onNav, onAddExpense, onShowGroup, activeTripId, activeTrip
       fetch(`/api/trips/${activeTripId}/activity?callerSub=${encodeURIComponent(user.sub)}&limit=10`)
         .then(r => r.ok ? r.json() : [])
         .then((rows: TripActivityItem[]) => setServerActivity(rows))
+        .catch(() => {});
+      // Fetch upcoming itinerary events (next 5)
+      fetch(`/api/trips/${activeTripId}/itinerary?callerSub=${encodeURIComponent(user.sub)}`)
+        .then(r => r.ok ? r.json() : [])
+        .then((evts: ItineraryEventRecord[]) => {
+          const now = new Date().toISOString();
+          const upcoming = evts.filter(e => e.startDt >= now).slice(0, 5);
+          setUpcomingEvents(upcoming);
+        })
         .catch(() => {});
     }
   }, [activeTripId]);
@@ -925,6 +940,7 @@ const HomeScreen = ({ onNav, onAddExpense, onShowGroup, activeTripId, activeTrip
             ...allExpenses.map(e => ({ kind: 'expense' as const, at: e.date, data: e })),
             ...inviteEvents.map(ev => ({ kind: 'event' as const, at: ev.at, data: ev })),
             ...serverActivity.map(a => ({ kind: 'activity' as const, at: a.created_at, data: a })),
+            ...upcomingEvents.map(e => ({ kind: 'upcoming' as const, at: e.startDt, data: e })),
           ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 
           if (activityItems.length === 0) return (
@@ -934,6 +950,28 @@ const HomeScreen = ({ onNav, onAddExpense, onShowGroup, activeTripId, activeTrip
           );
 
           return activityItems.slice(0, visibleCount).map(item => {
+            if (item.kind === 'upcoming') {
+              const e = item.data as ItineraryEventRecord;
+              const evtEmojis: Record<string, string> = { flight:'✈️', train:'🚂', bus:'🚌', car:'🚗', ferry:'⛴️', hotel_in:'🏨', hotel_out:'🛏️', tour:'🗺️', meal:'🍽️', event:'🎭', place:'📍', other:'📌' };
+              const emoji = evtEmojis[e.type] || '📅';
+              const dt = new Date(e.startDt);
+              const isToday = localDateKey(dt) === localDateKey(new Date());
+              return (
+                <Card key={`up-${e.id}`} style={{ marginBottom: 8, borderLeft: `3px solid ${C.cyan}` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: C.card3, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 18 }}>{emoji}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{e.title}</div>
+                      <div style={{ color: C.textMuted, fontSize: 12 }}>{e.location || 'Itinerary'}</div>
+                    </div>
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div style={{ fontSize: 11, color: isToday ? C.cyan : C.textMuted, fontWeight: isToday ? 700 : 400 }}>{isToday ? 'Today' : dt.toLocaleDateString("en", { month: "short", day: "numeric" })}</div>
+                      <div style={{ fontSize: 10, color: C.textSub }}>{dt.toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}</div>
+                    </div>
+                  </div>
+                </Card>
+              );
+            }
             if (item.kind === 'activity') {
               const a = item.data as TripActivityItem;
               const actionLabel = a.action === 'event_created' ? 'added' : a.action === 'event_updated' ? 'updated' : 'removed';
@@ -1378,7 +1416,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
         }).catch(() => {});
       }
     } else {
-      savedId = Date.now().toString();
+      savedId = crypto.randomUUID();
       const newRec: ItineraryEventRecord = {
         id: savedId, tripId: activeTripId!, type: evtType, title: evtTitle.trim(), startDt, endDt,
         location: evtLocation || undefined, notes: evtNotes || undefined,
@@ -1807,12 +1845,17 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
         .then((rows: any[] | null) => {
           if (!rows) return;
           const stored: Expense[] = (() => { try { const s = localStorage.getItem('tripversal_expenses'); return s ? JSON.parse(s) : []; } catch { return []; } })();
-          // If server is empty, upload existing localStorage expenses (one-time migration)
+          // If server is empty, upload expenses for this trip (one-time migration)
           if (rows.length === 0) {
-            stored.filter(e => !e.tripId || e.tripId === activeTripId).forEach(e => {
+            // Clean orphaned expenses (no tripId) from localStorage before migrating
+            const cleaned = stored.filter(e => !!e.tripId);
+            if (cleaned.length !== stored.length) {
+              localStorage.setItem('tripversal_expenses', JSON.stringify(cleaned));
+            }
+            cleaned.filter(e => e.tripId === activeTripId).forEach(e => {
               fetch(`/api/trips/${activeTripId}/expenses`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ callerSub, ...expenseToRow({ ...e, tripId: activeTripId }) }),
+                body: JSON.stringify({ callerSub, ...expenseToRow(e) }),
               }).catch(() => {});
             });
             return; // keep localStorage as-is
@@ -1893,6 +1936,12 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
   const remaining = totalBudgetInBase - totalSpent;
   const pctSpent = totalBudgetInBase > 0 ? Math.min(totalSpent / totalBudgetInBase, 1) : 0;
 
+  // Daily budget: total / trip duration (recalculated whenever budget or trip changes)
+  const tripDays = activeTrip
+    ? Math.max(1, Math.round((new Date(activeTrip.endDate + 'T12:00:00').getTime() - new Date(activeTrip.startDate + 'T12:00:00').getTime()) / (1000 * 60 * 60 * 24)) + 1)
+    : 0;
+  const dailyBudget = tripDays > 0 && totalBudgetInBase > 0 ? totalBudgetInBase / tripDays : 0;
+
   // 14-day daily trend
   const today = new Date();
   const dayData = Array.from({ length: 14 }, (_, i) => {
@@ -1937,6 +1986,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
             <div style={{ textAlign: "right", flexShrink: 0 }}>
               <div style={{ fontSize: 11, color: C.textMuted }}>Budget</div>
               <div style={{ fontSize: 13, fontWeight: 700, color: C.cyan }}>{activeSavedBudget.currency} {activeSavedBudget.amount.toLocaleString()}</div>
+              {dailyBudget > 0 && <div style={{ fontSize: 10, color: C.textSub }}>{currSym(budgetCurrency)}{fmtAmt(dailyBudget, 0)}/day · {tripDays}d</div>}
             </div>
           ) : (
             <div style={{ fontSize: 11, color: C.textSub, fontStyle: "italic" }}>No budget set</div>
@@ -2565,7 +2615,7 @@ const AddExpenseScreen = ({ onBack, activeTripId, user }: any) => {
             localToBaseRate = await fetchRate(localCurrency, budget.baseCurrency);
         } catch {}
         const expense: Expense = {
-          id: Date.now().toString(),
+          id: crypto.randomUUID(),
           description: desc || categories.find(c => c.id === cat)?.label || cat,
           category: cat,
           date: new Date(`${expDate || localDateKey(new Date())}T${expTime || '12:00'}:00`).toISOString(),
@@ -2819,7 +2869,7 @@ const SOSScreen = ({ user }: { user?: any }) => {
           )}
           <div style={{ display: "flex", gap: 10 }}>
             <Btn variant="ghost" style={{ flex: 1 }} onClick={() => setShowAddDoc(false)}>Cancel</Btn>
-            <Btn style={{ flex: 1 }} onClick={() => { if (!docName.trim() || !docDataUrl) return; const doc: TravelDocument = { id: Date.now().toString(), name: docName.trim(), docType, dataUrl: docDataUrl, createdAt: new Date().toISOString() }; addDoc(doc); setShowAddDoc(false); }}>Add</Btn>
+            <Btn style={{ flex: 1 }} onClick={() => { if (!docName.trim() || !docDataUrl) return; const doc: TravelDocument = { id: crypto.randomUUID(), name: docName.trim(), docType, dataUrl: docDataUrl, createdAt: new Date().toISOString() }; addDoc(doc); setShowAddDoc(false); }}>Add</Btn>
           </div>
         </Card>
       )}
@@ -2937,7 +2987,7 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
       }
     } catch {}
     const src: PaymentSource = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       name: srcName.trim(),
       type: srcType,
       currency: srcCurrency,
@@ -3263,7 +3313,7 @@ const InviteAcceptScreen = ({ token, user, onDone, onDecline }: any) => {
       if (!res.ok) throw new Error();
       const tripRow = await res.json();
       const trip = rowToTrip(tripRow);
-      pushInviteEvent({ id: Date.now().toString(), type: 'accepted', email: user.email, name: user.name, tripName: trip.name, at: new Date().toISOString() });
+      pushInviteEvent({ id: crypto.randomUUID(), type: 'accepted', email: user.email, name: user.name, tripName: trip.name, at: new Date().toISOString() });
       onDone(trip);
     } catch { setState('valid'); }
   };
@@ -3421,7 +3471,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
       });
       if (!res.ok) throw new Error();
       const { member } = await res.json();
-      pushInviteEvent({ id: Date.now().toString(), type: 'invited', email: inviteEmail.trim(), tripName: trip.name, at: new Date().toISOString() });
+      pushInviteEvent({ id: crypto.randomUUID(), type: 'invited', email: inviteEmail.trim(), tripName: trip.name, at: new Date().toISOString() });
       onTripUpdate({ ...trip, crew: [...crew.filter((m: TripMember) => m.email !== member.email), { id: member.id, email: member.email, role: 'member', status: 'pending', invitedAt: member.invited_at }] });
       setInviteEmail("");
       showToast("Invite sent!");
@@ -3466,9 +3516,50 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
     } catch { showToast("Failed to leave group."); }
   };
 
+  // Hydrate budgets from server on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!user?.sub) return;
+    fetch(`/api/users/${user.sub}/budgets`)
+      .then(r => r.ok ? r.json() : null)
+      .then((rows: any[] | null) => {
+        if (!rows || rows.length === 0) return;
+        const serverBudgets: SavedBudget[] = rows.map(r => ({
+          id: r.id, name: r.name, currency: r.currency,
+          amount: Number(r.amount),
+          activeTripId: r.active_trip_id ?? undefined,
+          createdAt: r.created_at,
+        }));
+        setSavedBudgets(serverBudgets);
+        localStorage.setItem('tripversal_saved_budgets', JSON.stringify(serverBudgets));
+        const active = serverBudgets.find(b => b.activeTripId === trip?.id);
+        if (active) setActiveBudgetId(active.id);
+      })
+      .catch(() => {});
+  }, [user?.sub]);
+
   const saveBudgets = (budgets: SavedBudget[]) => {
     setSavedBudgets(budgets);
     localStorage.setItem('tripversal_saved_budgets', JSON.stringify(budgets));
+  };
+
+  // Sync a single budget to server (fire-and-forget)
+  const syncBudget = (b: SavedBudget) => {
+    if (!user?.sub) return;
+    fetch(`/api/users/${user.sub}/budgets`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: b.id, name: b.name, currency: b.currency, amount: b.amount, activeTripId: b.activeTripId }),
+    }).catch(() => {});
+  };
+
+  const deleteBudgetFromServer = (budgetId: string) => {
+    if (!user?.sub) return;
+    fetch(`/api/users/${user.sub}/budgets`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: budgetId }),
+    }).catch(() => {});
   };
 
   const activateBudget = (budgetId: string | null) => {
@@ -3482,6 +3573,8 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
       return b;
     });
     saveBudgets(updated);
+    // Sync affected budgets to server
+    updated.forEach(b => syncBudget(b));
     if (budgetId) localStorage.setItem(`tripversal_active_budget_${trip?.id}`, budgetId);
     else localStorage.removeItem(`tripversal_active_budget_${trip?.id}`);
   };
@@ -3490,11 +3583,13 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
     if (!budgetName.trim() || !budgetAmount) return;
     const b: SavedBudget = { id: crypto.randomUUID(), name: budgetName.trim(), currency: budgetCurrency, amount: parseFloat(budgetAmount), createdAt: new Date().toISOString() };
     saveBudgets([b, ...savedBudgets]);
+    syncBudget(b);
     setBudgetName(''); setBudgetCurrency('USD'); setBudgetAmount(''); setShowAddBudget(false);
   };
 
   const handleDeleteBudget = (budgetId: string) => {
     saveBudgets(savedBudgets.filter(b => b.id !== budgetId));
+    deleteBudgetFromServer(budgetId);
     if (activeBudgetId === budgetId) activateBudget(null);
   };
 
@@ -3933,7 +4028,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
                             if (!attName.trim()) { setAttError("File name is required."); return; }
                             if (!attDataUrl) { setAttError("Please capture or upload a file."); return; }
                             setAttError(null);
-                            const att: SegmentAttachment = { id: Date.now().toString(), segmentId: seg.id, tripId: trip.id, name: attName.trim(), fileData: attDataUrl, createdAt: new Date().toISOString() };
+                            const att: SegmentAttachment = { id: crypto.randomUUID(), segmentId: seg.id, tripId: trip.id, name: attName.trim(), fileData: attDataUrl, createdAt: new Date().toISOString() };
                             addSegAttachment(att); setAddAttSegId(null);
                           }} style={{ flex: 1, background: C.cyan, border: "none", borderRadius: 10, padding: "8px", color: "#000", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit" }}>Save</button>
                         </div>
@@ -4049,6 +4144,12 @@ const LoginScreen = ({ onLogin }: { onLogin: (user: any) => void }) => {
         const data = await res.json();
         const u = { name: data.name, email: data.email, picture: data.picture, sub: data.sub };
         localStorage.setItem('tripversal_user', JSON.stringify(u));
+        // Sync profile to server (fire-and-forget)
+        fetch(`/api/users/${data.sub}/profile`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: data.name, email: data.email, avatarUrl: data.picture }),
+        }).catch(() => {});
         onLogin(u);
       } catch (e) {
         console.error('Failed to fetch user info', e);
