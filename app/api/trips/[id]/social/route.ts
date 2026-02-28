@@ -40,8 +40,45 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const sb = getSupabaseAdmin();
 
   // Ensure bucket exists (no-op if already created)
-  await sb.storage.createBucket('social-media', { public: true }).catch(() => {});
+  await sb.storage.createBucket('social-media', { public: true }).catch(() => { });
 
+  const isJson = req.headers.get('content-type')?.includes('application/json');
+  if (isJson) {
+    const body = await req.json();
+    if (body.action === 'get_url') {
+      const ext = body.ext || 'bin';
+      const userSub = body.userSub || 'anon';
+      const path = `${params.id}/${userSub}/${crypto.randomUUID()}.${ext}`;
+
+      const { data, error } = await sb.storage.from('social-media').createSignedUploadUrl(path);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+      return NextResponse.json({ ...data, path });
+    }
+
+    if (body.action === 'finalize') {
+      const { path, userSub, userName, userAvatar, caption, mediaType } = body;
+      const { data: { publicUrl } } = sb.storage.from('social-media').getPublicUrl(path);
+
+      const { data, error } = await sb
+        .from('social_posts')
+        .insert({ trip_id: params.id, user_sub: userSub, user_name: userName, user_avatar: userAvatar, media_url: publicUrl, media_type: mediaType, caption })
+        .select()
+        .single();
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+      return NextResponse.json({
+        id: data.id, tripId: data.trip_id, userSub: data.user_sub, userName: data.user_name,
+        userAvatar: data.user_avatar, mediaUrl: data.media_url, mediaType: data.media_type,
+        caption: data.caption, reactions: [], myReaction: undefined, viewCount: 0, viewedByMe: false, createdAt: data.created_at,
+      }, { status: 201 });
+    }
+
+    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+  }
+
+  // Fallback for FormData (old behavior, just in case)
   const form = await req.formData();
   const file = form.get('file') as File | null;
   const userSub = (form.get('userSub') as string) ?? '';

@@ -1367,6 +1367,21 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
     }
   }, [activeTripId]);
 
+  const segEvents: ItineraryEvent[] = activeTrip ? segmentsToEvents(activeTrip.segments) : [];
+  const activeItinEvents = itinEvents.filter(e => !e.deletedAt);
+  const customEventDates = activeItinEvents.map(e => localDateKey(new Date(e.startDt)));
+
+  const eventDates = segEvents.map(e => e.date);
+  const segmentRangeDates = activeTrip?.segments.flatMap(seg =>
+    seg.startDate ? getDatesRange(seg.startDate, seg.endDate ?? seg.startDate) : []
+  ) ?? [];
+  const forecastRange = getDatesRange(todayKey, localDateKey(new Date(now.getTime() + 15 * 86400000)));
+
+  const allDates = activeTrip
+    ? [...getDatesRange(activeTrip.startDate, activeTrip.endDate), ...eventDates, ...customEventDates, ...segmentRangeDates, ...forecastRange]
+    : [todayKey, ...customEventDates, ...forecastRange];
+  const dateRange = Array.from(new Set(allDates)).sort();
+
   // 1. Initial Load: LocalStorage -> Cloud API
   useEffect(() => {
     if (!activeTripId) { setWeatherMap({}); return; }
@@ -1390,40 +1405,29 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
   }, [activeTripId]);
 
   // 2. Refresh: Open-Meteo -> LocalStorage -> Cloud API
-  // Strategy: past dates already cached are NEVER re-fetched (historical data is immutable).
-  // Future dates are always re-fetched (forecast changes daily).
   useEffect(() => {
     if (!activeTripId || !activeTrip) return;
     const segments = (activeTrip.segments || []).filter((s: any) => s.destination || s.name);
-    if (segments.length === 0) return;
-
+    // Even if no segments, we might have custom event dates to fetch
     const today = localDateKey(new Date());
     const endD = new Date(); endD.setDate(endD.getDate() + 15);
     const endDate = localDateKey(endD);
 
-    // Read cache directly from localStorage — avoids React state timing issues (effect runs
-    // concurrently with the state update from the load effect above).
     let cachedMap: Record<string, { temp: number; code: number }> = {};
     try {
       const s = localStorage.getItem(`voyasync_weather_${activeTripId}`);
       if (s) cachedMap = JSON.parse(s);
     } catch { }
 
-    // Determine the earliest past date that is missing from cache.
-    // We look back to trip start date or 30 days, whichever is more recent.
     const pastBound = new Date(); pastBound.setDate(pastBound.getDate() - 30);
-    const historyStart = activeTrip.startDate && activeTrip.startDate > localDateKey(pastBound)
-      ? activeTrip.startDate : localDateKey(pastBound);
-    const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayKey = localDateKey(yesterday);
-    const missingPast = historyStart <= yesterdayKey
-      ? getDatesRange(historyStart, yesterdayKey).filter(d => !cachedMap[d])
-      : [];
+    const pastBoundStr = localDateKey(pastBound);
 
-    // fetchStart: earliest uncached past date, or today if history is complete.
-    // This means after the first fetch, subsequent page loads only hit the forecast window.
+    // Find missing past dates strictly from what is needed in dateRange
+    const missingPast = dateRange
+      .filter(d => d < today && d >= pastBoundStr && !cachedMap[d]);
+
     const fetchStart = missingPast.length > 0 ? missingPast[0] : today;
-    const fullRange = new Set(getDatesRange(fetchStart, endDate));
+    const fullRange = new Set(dateRange.filter(d => d >= fetchStart && d <= endDate));
 
     const queries: Array<{ loc: string; dates: Set<string> }> = [];
     const tripLoc = activeTrip.destination || segments[0]?.destination || segments[0]?.name;
@@ -1508,23 +1512,6 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
     const m = Math.floor((diffMs % 3_600_000) / 60_000);
     setCountdown({ title: next.title, remaining: h > 0 ? `${h}h ${m}m` : `${m}m` });
   }, [now, itinEvents]);
-
-  const segEvents: ItineraryEvent[] = activeTrip ? segmentsToEvents(activeTrip.segments) : [];
-  const activeItinEvents = itinEvents.filter(e => !e.deletedAt);
-  const customEventDates = activeItinEvents.map(e => localDateKey(new Date(e.startDt)));
-
-  const eventDates = segEvents.map(e => e.date);
-  // Include every day within each segment's date range (not just event trigger days)
-  const segmentRangeDates = activeTrip?.segments.flatMap(seg =>
-    seg.startDate ? getDatesRange(seg.startDate, seg.endDate ?? seg.startDate) : []
-  ) ?? [];
-  // Also include the next 15 days from today to ensure weather coverage for upcoming trip prep
-  const forecastRange = getDatesRange(todayKey, localDateKey(new Date(now.getTime() + 15 * 86400000)));
-
-  const allDates = activeTrip
-    ? [...getDatesRange(activeTrip.startDate, activeTrip.endDate), ...eventDates, ...customEventDates, ...segmentRangeDates, ...forecastRange]
-    : [todayKey, ...customEventDates, ...forecastRange];
-  const dateRange = Array.from(new Set(allDates)).sort();
 
   useEffect(() => {
     if (!activeTrip) { setSelectedDay(localDateKey(new Date())); return; }
@@ -3660,40 +3647,66 @@ class UploadManager {
     this.notify('progress', task!);
   }
 
-  _start(task: PendingUpload) {
-    const form = new FormData();
-    form.append('file', task.file);
-    form.append('userSub', task.userSub);
-    form.append('userName', task.userName);
-    if (task.userAvatar) form.append('userAvatar', task.userAvatar);
-    if (task.caption) form.append('caption', task.caption);
+  async _start(task: PendingUpload) {
+    try {
+      const mediaType = task.post.mediaType;
+      const ext = task.file.name.split('.').pop() || (mediaType === 'video' ? 'mp4' : 'jpg');
 
-    const xhr = new XMLHttpRequest();
-    task.xhr = xhr;
-    xhr.open('POST', `/api/trips/${task.tripId}/social`);
-    xhr.upload.onprogress = (ev) => {
-      if (!ev.lengthComputable) return;
-      task.post.uploadProgress = Math.round((ev.loaded / ev.total) * 100);
-      this.notify('progress', task);
-    };
-    xhr.onload = () => {
-      if (xhr.status === 201) {
-        const serverPost: SocialPost = JSON.parse(xhr.responseText);
-        if (task.post.localMediaUrl) URL.revokeObjectURL(task.post.localMediaUrl);
-        this.tasks = this.tasks.filter(t => t.id !== task.id);
-        this.notify('success', task, serverPost);
-      } else {
-        task.post.uploading = false;
-        task.post.uploadError = true;
+      const getUrlRes = await fetch(`/api/trips/${task.tripId}/social`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'get_url', ext, userSub: task.userSub })
+      });
+      if (!getUrlRes.ok) throw new Error('Failed to get upload URL');
+      const { signedUrl, path } = await getUrlRes.json();
+
+      const xhr = new XMLHttpRequest();
+      task.xhr = xhr;
+      xhr.open('PUT', signedUrl);
+      xhr.setRequestHeader('Content-Type', task.file.type || 'application/octet-stream');
+
+      xhr.upload.onprogress = (ev) => {
+        if (!ev.lengthComputable) return;
+        task.post.uploadProgress = Math.round((ev.loaded / ev.total) * 100);
+        this.notify('progress', task);
+      };
+
+      xhr.onload = async () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          const finRes = await fetch(`/api/trips/${task.tripId}/social`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'finalize', path, userSub: task.userSub,
+              userName: task.userName, userAvatar: task.userAvatar,
+              caption: task.caption, mediaType
+            })
+          });
+          if (finRes.ok) {
+            const serverPost: SocialPost = await finRes.json();
+            if (task.post.localMediaUrl) URL.revokeObjectURL(task.post.localMediaUrl);
+            this.tasks = this.tasks.filter(t => t.id !== task.id);
+            this.notify('success', task, serverPost);
+          } else {
+            task.post.uploading = false; task.post.uploadError = true;
+            this.notify('error', task);
+          }
+        } else {
+          task.post.uploading = false; task.post.uploadError = true;
+          this.notify('error', task);
+        }
+      };
+
+      xhr.onerror = () => {
+        task.post.uploading = false; task.post.uploadError = true;
         this.notify('error', task);
-      }
-    };
-    xhr.onerror = () => {
-      task.post.uploading = false;
-      task.post.uploadError = true;
+      };
+
+      xhr.send(task.file);
+    } catch (e) {
+      task.post.uploading = false; task.post.uploadError = true;
       this.notify('error', task);
-    };
-    xhr.send(form);
+    }
   }
 }
 
