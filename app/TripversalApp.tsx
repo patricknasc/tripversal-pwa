@@ -1972,6 +1972,77 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
   // SVG donut params
   const R = 54, CX = 70, CY = 70, CIRC = 2 * Math.PI * R;
 
+  // ── Burndown chart data ──────────────────────────────────────────────────────
+  const burndownDays: { key: string; isToday: boolean; isPast: boolean; spend: number }[] = [];
+  if (totalBudgetInBase > 0 && activeTrip) {
+    const start = new Date(activeTrip.startDate + 'T00:00:00');
+    const end = new Date(activeTrip.endDate + 'T00:00:00');
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const cur = new Date(start);
+    while (cur <= end) {
+      const key = localDateKey(cur);
+      const isPast = cur <= today;
+      const isToday = key === localDateKey(today);
+      const spend = expenses.filter(e => localDateKey(new Date(e.date)) === key).reduce((s, e) => s + e.baseAmount, 0);
+      burndownDays.push({ key, isToday, isPast, spend });
+      cur.setDate(cur.getDate() + 1);
+    }
+  }
+  // SVG chart area: viewBox "0 0 310 130", chart x: 36–300, y: 10–105
+  const BD_X0 = 36, BD_X1 = 300, BD_Y0 = 10, BD_Y1 = 105;
+  const bdW = BD_X1 - BD_X0, bdH = BD_Y1 - BD_Y0;
+  const bdN = Math.max(burndownDays.length - 1, 1);
+  const bdX = (i: number) => BD_X0 + (i / bdN) * bdW;
+  const bdY = (rem: number) => BD_Y1 - (Math.max(0, rem) / totalBudgetInBase) * bdH;
+
+  // Ideal line: straight from totalBudget → 0
+  const idealPoints = burndownDays.map((_, i) => {
+    const idealRem = totalBudgetInBase * (1 - i / bdN);
+    return `${bdX(i).toFixed(1)},${bdY(idealRem).toFixed(1)}`;
+  }).join(' ');
+
+  // Actual line: cumulative spend, past days only
+  let cumulativeSpent = 0;
+  const actualPoints: string[] = [];
+  let todayX = -1;
+  burndownDays.forEach((d, i) => {
+    if (d.isToday) todayX = bdX(i);
+    if (d.isPast) {
+      cumulativeSpent += d.spend;
+      actualPoints.push(`${bdX(i).toFixed(1)},${bdY(totalBudgetInBase - cumulativeSpent).toFixed(1)}`);
+    }
+  });
+
+  // ── Balances data ─────────────────────────────────────────────────────────────
+  // Net debts from the current user's perspective (by name matching)
+  const myName = user?.name;
+  // debtMap[person][currency] > 0 → person owes me; < 0 → I owe person
+  const debtMap: Record<string, Record<string, number>> = {};
+  expenses.filter(e => e.type === 'group' && e.whoPaid && e.splits).forEach(exp => {
+    const currency = exp.localCurrency;
+    const payer = exp.whoPaid!;
+    if (payer === myName) {
+      // I paid — others owe me their share
+      Object.entries(exp.splits!).forEach(([person, share]) => {
+        if (person === myName) return;
+        debtMap[person] = debtMap[person] || {};
+        debtMap[person][currency] = (debtMap[person][currency] || 0) + (share as number);
+      });
+    } else if (myName && exp.splits![myName] != null) {
+      // Someone else paid — I owe them my share
+      debtMap[payer] = debtMap[payer] || {};
+      debtMap[payer][currency] = (debtMap[payer][currency] || 0) - (exp.splits![myName] as number);
+    }
+  });
+  // Flatten into a sorted list (largest amounts first)
+  const balanceRows: { person: string; currency: string; amount: number }[] = [];
+  Object.entries(debtMap).forEach(([person, currencies]) => {
+    Object.entries(currencies).forEach(([currency, amount]) => {
+      if (Math.abs(amount) > 0.001) balanceRows.push({ person, currency, amount });
+    });
+  });
+  balanceRows.sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
+
   return (
     <div style={{ padding: "0 20px 100px" }}>
       {/* ── Active trip banner ── */}
@@ -2179,6 +2250,103 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
               })}
             </div>
           </Card>
+
+          {/* ── Burndown Chart ── */}
+          {burndownDays.length > 1 && totalBudgetInBase > 0 && (
+            <Card style={{ marginBottom: 16 }}>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 2 }}>Budget Burndown</div>
+              <div style={{ color: C.textMuted, fontSize: 11, marginBottom: 10, display: "flex", gap: 14 }}>
+                <span><span style={{ color: C.textSub }}>— </span>Ideal</span>
+                <span><span style={{ color: C.cyan }}>— </span>Actual</span>
+              </div>
+              <svg viewBox="0 0 310 130" style={{ width: "100%", overflow: "visible" }}>
+                {/* Y grid lines */}
+                {[0, 0.25, 0.5, 0.75, 1].map(frac => {
+                  const y = BD_Y1 - frac * bdH;
+                  return (
+                    <g key={frac}>
+                      <line x1={BD_X0} y1={y} x2={BD_X1} y2={y} stroke={C.card3} strokeWidth={1} />
+                      <text x={BD_X0 - 4} y={y + 4} textAnchor="end" fill={C.textSub} fontSize={7} fontFamily="-apple-system,sans-serif">
+                        {frac === 0 ? '0' : frac === 1 ? (totalBudgetInBase >= 1000 ? `${(totalBudgetInBase/1000).toFixed(0)}k` : fmtAmt(totalBudgetInBase, 0)) : ''}
+                      </text>
+                    </g>
+                  );
+                })}
+                {/* Ideal line */}
+                {idealPoints && <polyline points={idealPoints} fill="none" stroke={C.textSub} strokeWidth={1.5} strokeDasharray="4 3" />}
+                {/* Actual line */}
+                {actualPoints.length > 1 && (
+                  <polyline points={actualPoints.join(' ')} fill="none" stroke={C.cyan} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                )}
+                {/* Actual dot (last point) */}
+                {actualPoints.length > 0 && (() => {
+                  const last = actualPoints[actualPoints.length - 1].split(',');
+                  return <circle cx={last[0]} cy={last[1]} r={3.5} fill={C.cyan} />;
+                })()}
+                {/* Today marker */}
+                {todayX >= 0 && (
+                  <line x1={todayX} y1={BD_Y0} x2={todayX} y2={BD_Y1} stroke={C.yellow} strokeWidth={1} strokeDasharray="3 2" />
+                )}
+                {/* X axis labels */}
+                <text x={BD_X0} y={BD_Y1 + 14} textAnchor="middle" fill={C.textSub} fontSize={7} fontFamily="-apple-system,sans-serif">
+                  {new Date(activeTrip!.startDate + 'T12:00:00').toLocaleDateString("en", { month: "short", day: "numeric" })}
+                </text>
+                <text x={BD_X1} y={BD_Y1 + 14} textAnchor="middle" fill={C.textSub} fontSize={7} fontFamily="-apple-system,sans-serif">
+                  {new Date(activeTrip!.endDate + 'T12:00:00').toLocaleDateString("en", { month: "short", day: "numeric" })}
+                </text>
+                {todayX >= 0 && todayX > BD_X0 + 20 && todayX < BD_X1 - 20 && (
+                  <text x={todayX} y={BD_Y1 + 14} textAnchor="middle" fill={C.yellow} fontSize={7} fontFamily="-apple-system,sans-serif">Today</text>
+                )}
+              </svg>
+              {/* Over budget warning */}
+              {cumulativeSpent > totalBudgetInBase && (
+                <div style={{ color: C.red, fontSize: 11, marginTop: 6, fontWeight: 600 }}>
+                  ⚠ Over budget by {currSym(budgetCurrency)}{fmtAmt(cumulativeSpent - totalBudgetInBase)}
+                </div>
+              )}
+            </Card>
+          )}
+
+          {/* ── Balances ── */}
+          {balanceRows.length > 0 && (
+            <Card style={{ marginBottom: 16 }}>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 14 }}>Balances</div>
+              {balanceRows.map((row, i) => {
+                const isReceive = row.amount > 0;
+                const sym = CURRENCY_SYMBOLS[row.currency as Currency] ?? row.currency;
+                return (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: C.card3, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 15 }}>
+                      {row.person.charAt(0).toUpperCase()}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>
+                        {isReceive ? `${row.person} owes you` : `You owe ${row.person}`}
+                      </div>
+                      <div style={{ fontSize: 10, color: C.textMuted }}>{row.currency}</div>
+                    </div>
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 15, color: isReceive ? C.green : C.yellow }}>
+                        {isReceive ? '+' : '-'}{sym}{fmtAmt(Math.abs(row.amount))}
+                      </div>
+                      <div style={{ fontSize: 10, color: C.textSub }}>{isReceive ? 'RECEIVE' : 'PAY'}</div>
+                    </div>
+                  </div>
+                );
+              })}
+              {(() => {
+                const totalOwed = balanceRows.filter(r => r.amount > 0).reduce((s, r) => s + r.amount, 0);
+                const totalOwing = balanceRows.filter(r => r.amount < 0).reduce((s, r) => s + r.amount, 0);
+                if (totalOwed === 0 && totalOwing === 0) return null;
+                return (
+                  <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10, marginTop: 4, display: "flex", justifyContent: "space-between" }}>
+                    {totalOwed > 0 && <div style={{ color: C.green, fontSize: 12 }}>To receive: {fmtAmt(totalOwed)}</div>}
+                    {totalOwing < 0 && <div style={{ color: C.yellow, fontSize: 12 }}>To pay: {fmtAmt(Math.abs(totalOwing))}</div>}
+                  </div>
+                );
+              })()}
+            </Card>
+          )}
 
           {expenses.length === 0 && (
             <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "20px 0" }}>No expenses yet — analytics will appear here.</div>
