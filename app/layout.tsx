@@ -5,7 +5,6 @@ export const metadata: Metadata = {
   description: 'Family travel companion app',
   manifest: '/manifest.json',
   appleWebApp: {
-    capable: true,
     statusBarStyle: 'black-translucent',
     title: 'Voyasync',
   },

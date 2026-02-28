@@ -31,9 +31,9 @@ export async function POST(req: NextRequest, { params }: { params: { sub: string
     name,
     currency,
     amount,
-    active_trip_id: activeTripId ?? null,
-    budget_type: budgetType ?? 'simple',
-    sources: sources ? JSON.stringify(sources) : null,
+    active_trip_id: activeTripId || null,
+    budget_type: budgetType || 'simple',
+    sources: sources ? sources : null,
     updated_at: new Date().toISOString(),
   };
 

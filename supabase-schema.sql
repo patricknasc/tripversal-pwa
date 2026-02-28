@@ -131,6 +131,13 @@ CREATE INDEX IF NOT EXISTS expenses_trip_active ON expenses(trip_id) WHERE delet
 ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "service_role_all_expenses" ON expenses FOR ALL USING (true);
 
+-- Migration for tax and discount fields in expenses
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS tax_amount NUMERIC DEFAULT 0 NOT NULL;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS tax_type TEXT DEFAULT 'fixed' CHECK (tax_type IN ('fixed', 'percentage'));
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS discount_amount NUMERIC DEFAULT 0 NOT NULL;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS discount_type TEXT DEFAULT 'fixed' CHECK (discount_type IN ('fixed', 'percentage'));
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS cambial_rate NUMERIC DEFAULT 1 NOT NULL;
+
 -- ─── User Medical IDs ────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS user_medical_ids (
   google_sub      TEXT        PRIMARY KEY,
