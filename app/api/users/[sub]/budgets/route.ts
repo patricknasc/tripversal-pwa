@@ -12,6 +12,7 @@ export async function GET(_req: NextRequest, { params }: { params: { sub: string
 
   const mapped = (data ?? []).map(row => ({
     ...row,
+    budgetType: row.budget_type,
     sources: row.sources ? (typeof row.sources === 'string' ? JSON.parse(row.sources) : row.sources) : undefined
   }));
   return NextResponse.json(mapped);
@@ -19,7 +20,7 @@ export async function GET(_req: NextRequest, { params }: { params: { sub: string
 
 export async function POST(req: NextRequest, { params }: { params: { sub: string } }) {
   const body = await req.json();
-  const { id, name, currency, amount, activeTripId, sources } = body;
+  const { id, name, currency, amount, activeTripId, budgetType, sources } = body;
   if (!id || !name || !currency || amount == null)
     return NextResponse.json({ error: 'id, name, currency, amount required' }, { status: 400 });
 
@@ -31,6 +32,7 @@ export async function POST(req: NextRequest, { params }: { params: { sub: string
     currency,
     amount,
     active_trip_id: activeTripId ?? null,
+    budget_type: budgetType ?? 'simple',
     sources: sources ? JSON.stringify(sources) : null,
     updated_at: new Date().toISOString(),
   };

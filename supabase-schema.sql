@@ -220,6 +220,7 @@ CREATE TABLE IF NOT EXISTS user_budgets (
   currency       TEXT NOT NULL,
   amount         NUMERIC NOT NULL,
   active_trip_id UUID REFERENCES trips(id) ON DELETE SET NULL,
+  budget_type    TEXT DEFAULT 'simple',
   sources        JSONB,
   created_at     TIMESTAMPTZ DEFAULT NOW(),
   updated_at     TIMESTAMPTZ DEFAULT NOW()
