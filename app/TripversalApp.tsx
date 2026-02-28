@@ -713,7 +713,7 @@ const BottomNav = ({ active, onNav }: any) => {
     { id: "itinerary", icon: icons.map },
     { id: "wallet", icon: icons.wallet },
     { id: "photos", icon: icons.camera },
-    { id: "sos", icon: icons.shield },
+    { id: "group", icon: icons.users },
   ];
   return (
     <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: "#111113", borderTop: `1px solid ${C.border}30`, display: "flex", padding: "10px 0 24px", zIndex: 100 }}>
@@ -3821,6 +3821,59 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
 
   const activeTrip: Trip | null = trips.find((t: Trip) => t.id === activeTripId) ?? null;
 
+  // ── Safety data (moved from SOSScreen) ──
+  const [medical, setMedical] = useState<MedicalId>(() => { try { const s = localStorage.getItem('tripversal_medical_id'); return s ? JSON.parse(s) : DEFAULT_MEDICAL; } catch { return DEFAULT_MEDICAL; } });
+  const [editMedical, setEditMedical] = useState(false);
+  const [medDraft, setMedDraft] = useState<MedicalId>(medical);
+  const [insurance, setInsurance] = useState<Insurance>(() => { try { const s = localStorage.getItem('tripversal_insurance'); return s ? JSON.parse(s) : DEFAULT_INSURANCE; } catch { return DEFAULT_INSURANCE; } });
+  const [editInsurance, setEditInsurance] = useState(false);
+  const [insDraft, setInsDraft] = useState<Insurance>(insurance);
+  const [documents, setDocuments] = useState<TravelDocument[]>(() => { try { const s = localStorage.getItem('tripversal_documents'); return s ? JSON.parse(s) : []; } catch { return []; } });
+  const [showAddDoc, setShowAddDoc] = useState(false);
+  const [docName, setDocName] = useState('');
+  const [docType, setDocType] = useState('Passport');
+  const [docDataUrl, setDocDataUrl] = useState<string | null>(null);
+  const [viewDoc, setViewDoc] = useState<TravelDocument | null>(null);
+
+  useEffect(() => {
+    if (!user?.sub) return;
+    fetch(`/api/users/${user.sub}/medical`).then(r => r.ok ? r.json() : null).then(row => {
+      if (!row) return;
+      const m: MedicalId = { bloodType: row.blood_type || '', contactName: row.contact_name || '', contactPhone: row.contact_phone || '', allergies: row.allergies || '', medications: row.medications || '', notes: row.notes || '', sharing: row.sharing ?? true };
+      setMedical(m); setMedDraft(m); localStorage.setItem('tripversal_medical_id', JSON.stringify(m));
+    }).catch(() => { });
+    fetch(`/api/users/${user.sub}/insurance`).then(r => r.ok ? r.json() : null).then(row => {
+      if (!row) return;
+      const i: Insurance = { provider: row.provider || '', policyNumber: row.policy_number || '', emergencyPhone: row.emergency_phone || '', coverageStart: row.coverage_start || '', coverageEnd: row.coverage_end || '', notes: row.notes || '' };
+      setInsurance(i); setInsDraft(i); localStorage.setItem('tripversal_insurance', JSON.stringify(i));
+    }).catch(() => { });
+    fetch(`/api/users/${user.sub}/documents`).then(r => r.ok ? r.json() : null).then((rows: any[]) => {
+      if (!rows || rows.length === 0) return;
+      const docs: TravelDocument[] = rows.map(r => ({ id: r.id, name: r.name, docType: r.doc_type, dataUrl: r.file_data, createdAt: r.created_at }));
+      setDocuments(docs); localStorage.setItem('tripversal_documents', JSON.stringify(docs));
+    }).catch(() => { });
+  }, [user?.sub]);
+
+  const saveMedical = (m: MedicalId) => {
+    setMedical(m); localStorage.setItem('tripversal_medical_id', JSON.stringify(m));
+    if (user?.sub) fetch(`/api/users/${user.sub}/medical`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(m) }).catch(() => { });
+  };
+  const saveInsurance = (i: Insurance) => {
+    setInsurance(i); localStorage.setItem('tripversal_insurance', JSON.stringify(i));
+    if (user?.sub) fetch(`/api/users/${user.sub}/insurance`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(i) }).catch(() => { });
+  };
+  const addDoc = (doc: TravelDocument) => {
+    const next = [doc, ...documents];
+    setDocuments(next); localStorage.setItem('tripversal_documents', JSON.stringify(next));
+    if (user?.sub) fetch(`/api/users/${user.sub}/documents`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: doc.id, name: doc.name, docType: doc.docType, fileData: doc.dataUrl }) }).catch(() => { });
+  };
+  const deleteDoc = (id: string) => {
+    const next = documents.filter(d => d.id !== id);
+    setDocuments(next); localStorage.setItem('tripversal_documents', JSON.stringify(next));
+    if (user?.sub) fetch(`/api/users/${user.sub}/documents/${id}`, { method: 'DELETE' }).catch(() => { });
+  };
+  const settingsTextareaStyle: any = { background: C.card3, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", color: C.text, fontSize: 14, width: "100%", outline: "none", fontFamily: "inherit", resize: "none", boxSizing: "border-box" };
+
   const onAvatarChange = (e: any) => {
     const f = e.target.files && e.target.files[0];
     if (f) {
@@ -3914,6 +3967,173 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
       <div style={{ marginTop: 16, marginBottom: 8 }}>
         <Btn variant="danger" style={{ width: "100%" }} onClick={onLogout} icon={<Icon d={icons.login} size={16} stroke={C.red} />}>Sign Out</Btn>
       </div>
+
+      {/* ── Medical ID ── */}
+      <SectionLabel>SAFETY</SectionLabel>
+      <Card style={{ marginBottom: 16, border: `1px solid ${C.red}20` }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Icon d={icons.heart} size={18} stroke={C.red} fill={`${C.red}30`} />
+            <span style={{ fontWeight: 700, fontSize: 16 }}>My Medical ID</span>
+          </div>
+          {!editMedical ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Toggle value={medical.sharing} onChange={(v: boolean) => saveMedical({ ...medical, sharing: v })} />
+              <span style={{ color: C.cyan, fontSize: 11, fontWeight: 700 }}>SHARING</span>
+              <button onClick={() => { setMedDraft(medical); setEditMedical(true); }} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}><Icon d={icons.edit} size={15} stroke={C.textMuted} /></button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", gap: 8 }}>
+              <Btn variant="ghost" style={{ padding: "6px 14px", fontSize: 13 }} onClick={() => setEditMedical(false)}>Cancel</Btn>
+              <Btn style={{ padding: "6px 14px", fontSize: 13 }} onClick={() => { saveMedical(medDraft); setEditMedical(false); }}>Save</Btn>
+            </div>
+          )}
+        </div>
+        {editMedical ? (
+          <>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>BLOOD TYPE</div>
+              <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 6 }}>
+                {BLOOD_TYPES.map(bt => <button key={bt} onClick={() => setMedDraft(d => ({ ...d, bloodType: bt }))} style={{ background: medDraft.bloodType === bt ? C.red : C.card3, color: medDraft.bloodType === bt ? "#fff" : C.textMuted, border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{bt}</button>)}
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>CONTACT NAME</div><Input placeholder="e.g. Mom" value={medDraft.contactName} onChange={(v: string) => setMedDraft(d => ({ ...d, contactName: v }))} /></div>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>CONTACT PHONE</div><Input placeholder="+55 11 9…" value={medDraft.contactPhone} onChange={(v: string) => setMedDraft(d => ({ ...d, contactPhone: v }))} /></div>
+            </div>
+            <div style={{ marginBottom: 10 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>ALLERGIES</div><textarea rows={2} value={medDraft.allergies} onChange={e => setMedDraft(d => ({ ...d, allergies: e.target.value }))} placeholder="e.g. Penicillin, Peanuts" style={settingsTextareaStyle} /></div>
+            <div style={{ marginBottom: 10 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>MEDICATIONS</div><textarea rows={2} value={medDraft.medications} onChange={e => setMedDraft(d => ({ ...d, medications: e.target.value }))} placeholder="e.g. Metformin 500mg" style={settingsTextareaStyle} /></div>
+            <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>MEDICAL NOTES</div><textarea rows={2} value={medDraft.notes} onChange={e => setMedDraft(d => ({ ...d, notes: e.target.value }))} placeholder="Other info for emergency responders" style={settingsTextareaStyle} /></div>
+          </>
+        ) : (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+              <div style={{ background: C.card3, borderRadius: 12, padding: 12 }}>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>BLOOD TYPE</div>
+                <div style={{ fontWeight: 800, fontSize: 22, color: medical.bloodType ? C.red : C.textSub }}>{medical.bloodType || '—'}</div>
+              </div>
+              <div style={{ background: C.card3, borderRadius: 12, padding: 12 }}>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>EMERGENCY CONTACT</div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{medical.contactName || '—'}</div>
+                {medical.contactPhone && <a href={`tel:${medical.contactPhone}`} style={{ color: C.cyan, fontSize: 12, textDecoration: "none" }}>{medical.contactPhone}</a>}
+              </div>
+            </div>
+            {medical.allergies && <div style={{ background: C.card3, borderRadius: 12, padding: 12, marginBottom: 8 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>ALLERGIES</div><div style={{ fontSize: 13 }}>{medical.allergies}</div></div>}
+            {medical.medications && <div style={{ background: C.card3, borderRadius: 12, padding: 12, marginBottom: 8 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>MEDICATIONS</div><div style={{ fontSize: 13 }}>{medical.medications}</div></div>}
+            {medical.notes && <div style={{ background: C.card3, borderRadius: 12, padding: 12 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>MEDICAL NOTES</div><div style={{ fontSize: 13 }}>{medical.notes}</div></div>}
+            {!medical.bloodType && !medical.contactName && <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "8px 0" }}>Tap edit to fill in your Medical ID</div>}
+          </>
+        )}
+      </Card>
+
+      {/* ── Travel Insurance ── */}
+      <SectionLabel>TRAVEL INSURANCE</SectionLabel>
+      <Card style={{ marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: editInsurance ? 14 : 0 }}>
+          <span style={{ fontWeight: 700, fontSize: 15 }}>Insurance</span>
+          {!editInsurance ? (
+            <button onClick={() => { setInsDraft(insurance); setEditInsurance(true); }} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}><Icon d={icons.edit} size={15} stroke={C.textMuted} /></button>
+          ) : (
+            <div style={{ display: "flex", gap: 8 }}>
+              <Btn variant="ghost" style={{ padding: "6px 14px", fontSize: 13 }} onClick={() => setEditInsurance(false)}>Cancel</Btn>
+              <Btn style={{ padding: "6px 14px", fontSize: 13 }} onClick={() => { saveInsurance(insDraft); setEditInsurance(false); }}>Save</Btn>
+            </div>
+          )}
+        </div>
+        {editInsurance ? (
+          <>
+            <Input placeholder="Provider (e.g. Allianz)" value={insDraft.provider} onChange={(v: string) => setInsDraft(d => ({ ...d, provider: v }))} style={{ marginBottom: 10 }} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>POLICY NUMBER</div><Input placeholder="e.g. AZ-9920" value={insDraft.policyNumber} onChange={(v: string) => setInsDraft(d => ({ ...d, policyNumber: v }))} /></div>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>EMERGENCY PHONE</div><Input placeholder="+1 800…" value={insDraft.emergencyPhone} onChange={(v: string) => setInsDraft(d => ({ ...d, emergencyPhone: v }))} /></div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>COVERAGE START</div><Card style={{ padding: 10 }}><input type="date" value={insDraft.coverageStart} onChange={e => setInsDraft(d => ({ ...d, coverageStart: e.target.value }))} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} /></Card></div>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>COVERAGE END</div><Card style={{ padding: 10 }}><input type="date" value={insDraft.coverageEnd} onChange={e => setInsDraft(d => ({ ...d, coverageEnd: e.target.value }))} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} /></Card></div>
+            </div>
+            <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>NOTES</div><textarea rows={2} value={insDraft.notes} onChange={e => setInsDraft(d => ({ ...d, notes: e.target.value }))} placeholder="Coverage limits, exclusions…" style={settingsTextareaStyle} /></div>
+          </>
+        ) : insurance.provider ? (
+          <>
+            <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4, marginTop: 12 }}>PROVIDER</div>
+            <div style={{ fontWeight: 800, fontSize: 22, marginBottom: 14 }}>{insurance.provider}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", marginBottom: 12 }}>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>POLICY NUMBER</div><Badge color={C.textMuted} bg={C.card3}>{insurance.policyNumber || '—'}</Badge></div>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>EMERGENCY PHONE</div>
+                {insurance.emergencyPhone ? <a href={`tel:${insurance.emergencyPhone}`} style={{ color: C.cyan, fontWeight: 700, textDecoration: "none" }}>{insurance.emergencyPhone}</a> : <span style={{ color: C.textSub }}>—</span>}
+              </div>
+            </div>
+            {(insurance.coverageStart || insurance.coverageEnd) && <div style={{ background: C.card3, borderRadius: 12, padding: "10px 12px", marginBottom: 12, fontSize: 12, color: C.textMuted }}>Coverage: {insurance.coverageStart || '?'} → {insurance.coverageEnd || '?'}</div>}
+            {insurance.notes && <div style={{ background: C.card3, borderRadius: 12, padding: "10px 12px", marginBottom: 12, fontSize: 13, color: C.textSub }}>{insurance.notes}</div>}
+            {insurance.emergencyPhone && <Btn style={{ width: "100%", background: C.cyan, color: "#000" }} onClick={() => window.open(`tel:${insurance.emergencyPhone}`)} icon={<Icon d={icons.phone} size={16} stroke="#000" />}>CALL EMERGENCY ASSIST</Btn>}
+          </>
+        ) : (
+          <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "16px 0" }}>Tap edit to add your travel insurance</div>
+        )}
+      </Card>
+
+      {/* ── Critical Documents ── */}
+      <SectionLabel icon="fileText" action={
+        <button onClick={() => { setShowAddDoc(true); setDocName(''); setDocType('Passport'); setDocDataUrl(null); }} style={{ width: 32, height: 32, borderRadius: 10, background: C.card3, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon d={icons.plus} size={16} /></button>
+      }>CRITICAL DOCUMENTS</SectionLabel>
+
+      {showAddDoc && (
+        <Card style={{ marginBottom: 12, border: `1px solid ${C.cyan}30` }}>
+          <div style={{ fontWeight: 700, marginBottom: 12 }}>Add Document</div>
+          <Input placeholder="Document name (e.g. Passport)" value={docName} onChange={setDocName} style={{ marginBottom: 10 }} />
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TYPE</div>
+            <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 6 }}>
+              {DOC_TYPES.map(t => <button key={t} onClick={() => setDocType(t)} style={{ background: docType === t ? C.cyan : C.card3, color: docType === t ? "#000" : C.textMuted, border: "none", borderRadius: 8, padding: "5px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{t}</button>)}
+            </div>
+          </div>
+          <input type="file" accept="image/*" id="settingsDocInput" style={{ display: "none" }} onChange={async e => { const f = e.target.files?.[0]; if (f) { const c = await compressImage(f); setDocDataUrl(c); } }} />
+          {docDataUrl ? (
+            <div style={{ position: "relative", marginBottom: 12 }}>
+              <img src={docDataUrl} style={{ width: "100%", borderRadius: 12, maxHeight: 160, objectFit: "cover" }} />
+              <button onClick={() => setDocDataUrl(null)} style={{ position: "absolute", top: 8, right: 8, background: C.redDim, border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon d={icons.x} size={14} stroke={C.red} /></button>
+            </div>
+          ) : (
+            <label htmlFor="settingsDocInput" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, border: `2px dashed ${C.border}`, borderRadius: 12, padding: 16, cursor: "pointer", marginBottom: 12, color: C.textMuted, fontSize: 13 }}>
+              <Icon d={icons.camera} size={18} stroke={C.textMuted} /> Capture or upload
+            </label>
+          )}
+          <div style={{ display: "flex", gap: 10 }}>
+            <Btn variant="ghost" style={{ flex: 1 }} onClick={() => setShowAddDoc(false)}>Cancel</Btn>
+            <Btn style={{ flex: 1 }} onClick={() => { if (!docName.trim() || !docDataUrl) return; const doc: TravelDocument = { id: crypto.randomUUID(), name: docName.trim(), docType, dataUrl: docDataUrl, createdAt: new Date().toISOString() }; addDoc(doc); setShowAddDoc(false); }}>Add</Btn>
+          </div>
+        </Card>
+      )}
+
+      {documents.length === 0 && !showAddDoc ? (
+        <Card style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", padding: 40, gap: 12, marginBottom: 16 }}>
+          <div style={{ width: 60, height: 60, borderRadius: "50%", background: C.card3, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon d={icons.fileText} size={28} stroke={C.textMuted} /></div>
+          <div style={{ color: C.textMuted, fontSize: 13, textAlign: "center" }}>Store copies of passports, visas, and insurance cards for offline access.</div>
+        </Card>
+      ) : documents.map(doc => (
+        <Card key={doc.id} style={{ marginBottom: 8, cursor: "pointer" }} onClick={() => setViewDoc(doc)}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 52, height: 52, borderRadius: 10, overflow: "hidden", flexShrink: 0 }}><img src={doc.dataUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{doc.name}</div>
+              <div style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{doc.docType} · {new Date(doc.createdAt).toLocaleDateString()}</div>
+            </div>
+            <button onClick={e => { e.stopPropagation(); deleteDoc(doc.id); }} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}><Icon d={icons.trash} size={14} stroke={C.red} /></button>
+          </div>
+        </Card>
+      ))}
+
+      {viewDoc && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 400, display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ width: "100%", maxWidth: 400 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <div><div style={{ fontWeight: 700, fontSize: 16 }}>{viewDoc.name}</div><div style={{ color: C.textMuted, fontSize: 12 }}>{viewDoc.docType}</div></div>
+              <button onClick={() => setViewDoc(null)} style={{ background: C.card3, border: "none", borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><Icon d={icons.x} size={18} stroke={C.text} /></button>
+            </div>
+            <img src={viewDoc.dataUrl} style={{ width: "100%", borderRadius: 16, maxHeight: "70vh", objectFit: "contain" }} />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -4857,9 +5077,11 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
   return (
     <div style={{ padding: "0 0 100px" }}>
       <div style={{ padding: "16px 20px 12px", display: "flex", alignItems: "center", gap: 14 }}>
-        <button onClick={onBack} style={{ background: C.card3, border: "none", borderRadius: 12, width: 38, height: 38, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
-          <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={C.text} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
-        </button>
+        {onBack && (
+          <button onClick={onBack} style={{ background: C.card3, border: "none", borderRadius: 12, width: 38, height: 38, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+            <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={C.text} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+          </button>
+        )}
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>Group</div>
           <div style={{ color: C.textMuted, fontSize: 12, letterSpacing: 1 }}>{(trips as Trip[]).length} TRIP{(trips as Trip[]).length !== 1 ? 'S' : ''}</div>
@@ -4984,7 +5206,6 @@ function AppShell() {
   const [tab, setTab] = useState("home");
   const [showSettings, setShowSettings] = useState(false);
   const [showManageCrew, setShowManageCrew] = useState(false);
-  const [showGroup, setShowGroup] = useState(false);
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -5072,7 +5293,7 @@ function AppShell() {
   if (!user) return <LoginScreen onLogin={setUser} />;
 
   const handleNav = (t: string) => {
-    setShowSettings(false); setShowManageCrew(false); setShowGroup(false); setShowAddExpense(false); setShowHistory(false); setTab(t);
+    setShowSettings(false); setShowManageCrew(false); setShowAddExpense(false); setShowHistory(false); setTab(t);
   };
 
   let content;
@@ -5090,26 +5311,6 @@ function AppShell() {
         onDecline={() => {
           setPendingInviteToken(null);
           window.history.replaceState({}, '', '/');
-        }}
-      />
-    );
-  } else if (showGroup) {
-    content = (
-      <GroupScreen
-        trips={trips}
-        activeTripId={activeTripId}
-        user={user}
-        onBack={() => setShowGroup(false)}
-        onSwitchTrip={(id: string) => { switchActiveTrip(id); }}
-        onTripUpdate={(updated: Trip) => setTrips(p => p.map(t => t.id === updated.id ? updated : t))}
-        onTripCreate={(trip: Trip) => { setTrips(p => [...p, trip]); switchActiveTrip(trip.id); }}
-        onTripDelete={(id: string) => {
-          setTrips(p => p.filter(t => t.id !== id));
-          if (activeTripId === id) {
-            const remaining = trips.filter(t => t.id !== id);
-            if (remaining.length > 0) switchActiveTrip(remaining[0].id);
-            else { setActiveTripId(null); localStorage.removeItem('tripversal_active_trip_id'); }
-          }
         }}
       />
     );
@@ -5153,16 +5354,31 @@ function AppShell() {
     );
   } else {
     switch (tab) {
-      case "home": content = <HomeScreen onNav={handleNav} onAddExpense={() => setShowAddExpense(true)} onShowGroup={() => setShowGroup(true)} activeTripId={activeTripId} activeTrip={activeTrip} user={user} />; break;
+      case "home": content = <HomeScreen onNav={handleNav} onAddExpense={() => setShowAddExpense(true)} onShowGroup={() => handleNav("group")} activeTripId={activeTripId} activeTrip={activeTrip} user={user} />; break;
       case "itinerary": content = <ItineraryScreen activeTripId={activeTripId} activeTrip={activeTrip} userSub={user?.sub} />; break;
       case "wallet": content = <WalletScreen onAddExpense={() => setShowAddExpense(true)} activeTripId={activeTripId} user={user} trips={trips} />; break;
       case "photos": content = <PhotosScreen />; break;
-      case "sos": content = <SOSScreen user={user} />; break;
+      case "group": content = <GroupScreen
+        trips={trips}
+        activeTripId={activeTripId}
+        user={user}
+        onSwitchTrip={(id: string) => { switchActiveTrip(id); }}
+        onTripUpdate={(updated: Trip) => setTrips(p => p.map(t => t.id === updated.id ? updated : t))}
+        onTripCreate={(trip: Trip) => { setTrips(p => [...p, trip]); switchActiveTrip(trip.id); }}
+        onTripDelete={(id: string) => {
+          setTrips(p => p.filter(t => t.id !== id));
+          if (activeTripId === id) {
+            const remaining = trips.filter(t => t.id !== id);
+            if (remaining.length > 0) switchActiveTrip(remaining[0].id);
+            else { setActiveTripId(null); localStorage.removeItem('tripversal_active_trip_id'); }
+          }
+        }}
+      />; break;
       default: content = null;
     }
   }
 
-  const activeTab = showSettings || showManageCrew || showGroup || showAddExpense || showHistory || pendingInviteToken ? null : tab;
+  const activeTab = showSettings || showManageCrew || showAddExpense || showHistory || pendingInviteToken ? null : tab;
 
   return (
     <div style={{ background: "#000", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>

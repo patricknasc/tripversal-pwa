@@ -182,6 +182,8 @@ CREATE TABLE IF NOT EXISTS itinerary_events (
   confirmation TEXT,
   extras       JSONB,
   weather      JSONB,
+  visibility   TEXT        NOT NULL DEFAULT 'all',  -- 'all' | 'restricted'
+  visible_to   JSONB       NOT NULL DEFAULT '[]',    -- array of google_subs
   created_by   TEXT        NOT NULL,
   updated_by   TEXT,
   deleted_at   TIMESTAMPTZ,
@@ -189,6 +191,9 @@ CREATE TABLE IF NOT EXISTS itinerary_events (
   updated_at   TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS itinerary_events_trip ON itinerary_events(trip_id) WHERE deleted_at IS NULL;
+-- Migration: add visibility columns if table already exists
+ALTER TABLE itinerary_events ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'all';
+ALTER TABLE itinerary_events ADD COLUMN IF NOT EXISTS visible_to JSONB NOT NULL DEFAULT '[]';
 ALTER TABLE itinerary_events ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "service_role_all_itinerary" ON itinerary_events FOR ALL USING (true);
 
