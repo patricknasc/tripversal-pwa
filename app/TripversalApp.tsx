@@ -193,6 +193,7 @@ interface Insurance {
   coverageStart: string;
   coverageEnd: string;
   notes: string;
+  sharing: boolean;
 }
 interface TravelDocument {
   id: string;
@@ -202,10 +203,11 @@ interface TravelDocument {
   createdAt: string;
   archived?: boolean;
   archivedAt?: string;
+  sharing?: boolean;
 }
 
 const DEFAULT_MEDICAL: MedicalId = { bloodType: '', contactName: '', contactPhone: '', allergies: '', medications: '', notes: '', sharing: true };
-const DEFAULT_INSURANCE: Insurance = { provider: '', policyNumber: '', emergencyPhone: '', coverageStart: '', coverageEnd: '', notes: '' };
+const DEFAULT_INSURANCE: Insurance = { provider: '', policyNumber: '', emergencyPhone: '', coverageStart: '', coverageEnd: '', notes: '', sharing: false };
 const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 const DOC_TYPES = ['Passport', 'Visa', 'Insurance Card', 'Vaccination', 'Driver License', 'Other'];
 
@@ -3813,7 +3815,7 @@ const SOSScreen = ({ user }: { user?: any }) => {
     }).catch(() => { });
     fetch(`/api/users/${user.sub}/insurance`).then(r => r.ok ? r.json() : null).then(row => {
       if (!row) return;
-      const i: Insurance = { provider: row.provider || '', policyNumber: row.policy_number || '', emergencyPhone: row.emergency_phone || '', coverageStart: row.coverage_start || '', coverageEnd: row.coverage_end || '', notes: row.notes || '' };
+      const i: Insurance = { provider: row.provider || '', policyNumber: row.policy_number || '', emergencyPhone: row.emergency_phone || '', coverageStart: row.coverage_start || '', coverageEnd: row.coverage_end || '', notes: row.notes || '', sharing: row.sharing ?? false };
       setInsurance(i); setInsDraft(i); localStorage.setItem('voyasync_insurance', JSON.stringify(i));
     }).catch(() => { });
     fetch(`/api/users/${user.sub}/documents`).then(r => r.ok ? r.json() : null).then((rows: any[]) => {
@@ -4084,7 +4086,7 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
     }).catch(() => { });
     fetch(`/api/users/${user.sub}/insurance`).then(r => r.ok ? r.json() : null).then(row => {
       if (!row) return;
-      const i: Insurance = { provider: row.provider || '', policyNumber: row.policy_number || '', emergencyPhone: row.emergency_phone || '', coverageStart: row.coverage_start || '', coverageEnd: row.coverage_end || '', notes: row.notes || '' };
+      const i: Insurance = { provider: row.provider || '', policyNumber: row.policy_number || '', emergencyPhone: row.emergency_phone || '', coverageStart: row.coverage_start || '', coverageEnd: row.coverage_end || '', notes: row.notes || '', sharing: row.sharing ?? false };
       setInsurance(i); setInsDraft(i); localStorage.setItem('voyasync_insurance', JSON.stringify(i));
     }).catch(() => { });
     fetch(`/api/users/${user.sub}/documents`).then(r => r.ok ? r.json() : null).then((rows: any[]) => {
@@ -4105,12 +4107,18 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
   const addDoc = (doc: TravelDocument) => {
     const next = [doc, ...documents];
     setDocuments(next); localStorage.setItem('voyasync_documents', JSON.stringify(next));
-    if (user?.sub) fetch(`/api/users/${user.sub}/documents`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: doc.id, name: doc.name, docType: doc.docType, fileData: doc.dataUrl }) }).catch(() => { });
+    if (user?.sub) fetch(`/api/users/${user.sub}/documents`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: doc.id, name: doc.name, docType: doc.docType, fileData: doc.dataUrl, sharing: doc.sharing ?? false }) }).catch(() => { });
   };
   const deleteDoc = (id: string) => {
     const next = documents.filter(d => d.id !== id);
     setDocuments(next); localStorage.setItem('voyasync_documents', JSON.stringify(next));
     if (user?.sub) fetch(`/api/users/${user.sub}/documents/${id}`, { method: 'DELETE' }).catch(() => { });
+  };
+  const updateDocSharing = (id: string, sharing: boolean) => {
+    const next = documents.map(d => d.id === id ? { ...d, sharing } : d);
+    setDocuments(next); localStorage.setItem('voyasync_documents', JSON.stringify(next));
+    const doc = next.find(d => d.id === id);
+    if (doc && user?.sub) fetch(`/api/users/${user.sub}/documents`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: doc.id, name: doc.name, docType: doc.docType, fileData: doc.dataUrl, sharing }) }).catch(() => { });
   };
   const archiveInsurance = () => {
     if (!insurance.provider) return;
@@ -4320,6 +4328,13 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
             {insurance.notes && <div style={{ background: C.card3, borderRadius: 12, padding: "10px 12px", marginBottom: 12, fontSize: 13, color: C.textSub }}>{insurance.notes}</div>}
             {insurance.emergencyPhone && <Btn style={{ width: "100%", background: C.cyan, color: "#000" }} onClick={() => window.open(`tel:${insurance.emergencyPhone}`)} icon={<Icon d={icons.phone} size={16} stroke="#000" />}>CALL EMERGENCY ASSIST</Btn>}
             <Btn variant="ghost" style={{ width: "100%", marginTop: 8, fontSize: 13 }} onClick={archiveInsurance} icon={<Icon d={icons.archive} size={14} stroke={C.textMuted} />}>Archive (save to history)</Btn>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>Share with travel crew</div>
+                <div style={{ fontSize: 11, color: C.textMuted }}>Visible to accepted group members</div>
+              </div>
+              <Toggle value={insurance.sharing} onChange={(v: boolean) => saveInsurance({ ...insurance, sharing: v })} />
+            </div>
           </>
         ) : (
           <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "16px 0" }}>Tap edit to add your travel insurance</div>
@@ -4387,8 +4402,8 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
           <div style={{ color: C.textMuted, fontSize: 13, textAlign: "center" }}>Store copies of passports, visas, and insurance cards for offline access.</div>
         </Card>
       ) : documents.filter(d => !d.archived).map(doc => (
-        <Card key={doc.id} style={{ marginBottom: 8, cursor: "pointer" }} onClick={() => setViewDoc(doc)}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <Card key={doc.id} style={{ marginBottom: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }} onClick={() => setViewDoc(doc)}>
             <div style={{ width: 52, height: 52, borderRadius: 10, overflow: "hidden", flexShrink: 0 }}><img src={doc.dataUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{doc.name}</div>
@@ -4398,6 +4413,10 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
               <button onClick={e => { e.stopPropagation(); archiveDoc(doc.id); }} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }} title="Archive"><Icon d={icons.archive} size={14} stroke={C.textMuted} /></button>
               <button onClick={e => { e.stopPropagation(); deleteDoc(doc.id); }} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}><Icon d={icons.trash} size={14} stroke={C.red} /></button>
             </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10, paddingTop: 8, borderTop: `1px solid ${C.border}` }}>
+            <span style={{ fontSize: 12, color: C.textMuted }}>Share with travel crew</span>
+            <Toggle value={doc.sharing ?? false} onChange={(v: boolean) => updateDocSharing(doc.id, v)} />
           </div>
         </Card>
       ))}
@@ -4584,6 +4603,145 @@ const InviteAcceptScreen = ({ token, user, onDone, onDecline }: any) => {
   );
 };
 
+// ─── Member Profile Modal ────────────────────────────────────────────────────
+interface SharedProfile {
+  profile: { google_sub: string; name: string; email: string; avatar_url?: string } | null;
+  medical: { bloodType?: string; contactName?: string; contactPhone?: string; allergies?: string; medications?: string; notes?: string } | null;
+  insurance: { provider?: string; policyNumber?: string; emergencyPhone?: string; coverageStart?: string; coverageEnd?: string; notes?: string } | null;
+  documents: { id: string; name: string; docType: string; dataUrl: string; createdAt: string }[];
+}
+
+const MemberProfileModal = ({ googleSub, fallbackName, fallbackAvatar, onClose }: { googleSub: string; fallbackName: string; fallbackAvatar?: string; onClose: () => void }) => {
+  const [data, setData] = useState<SharedProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [viewDoc, setViewDoc] = useState<{ name: string; docType: string; dataUrl: string } | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/users/${googleSub}/shared-profile`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { setData(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [googleSub]);
+
+  const name = data?.profile?.name || fallbackName;
+  const avatar = data?.profile?.avatar_url || fallbackAvatar;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 300, background: C.bg, display: "flex", flexDirection: "column", maxWidth: 430, margin: "0 auto" }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px", borderBottom: `1px solid ${C.border}30`, flexShrink: 0 }}>
+        <button onClick={onClose} style={{ background: C.card3, border: "none", borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+          <Icon d={icons.arrowLeft} size={18} stroke={C.text} />
+        </button>
+        <span style={{ fontWeight: 700, fontSize: 16 }}>Member Profile</span>
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", padding: "20px 20px 60px" }}>
+        {/* Avatar + name */}
+        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 28 }}>
+          <Avatar name={name} src={avatar} size={72} />
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 22 }}>{name}</div>
+            {data?.profile?.email && <div style={{ color: C.textMuted, fontSize: 13, marginTop: 2 }}>{data.profile.email}</div>}
+          </div>
+        </div>
+
+        {loading ? (
+          <div style={{ color: C.textMuted, fontSize: 13, textAlign: "center", paddingTop: 40 }}>Loading…</div>
+        ) : !data ? (
+          <div style={{ color: C.textMuted, fontSize: 13, textAlign: "center", paddingTop: 40 }}>Could not load profile.</div>
+        ) : (
+          <>
+            {/* Medical ID */}
+            {data.medical && (
+              <>
+                <SectionLabel>MEDICAL ID</SectionLabel>
+                <Card style={{ marginBottom: 16, border: `1px solid ${C.red}20` }}>
+                  {data.medical.bloodType && (
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>BLOOD TYPE</div>
+                      <Badge color={C.red} bg={`${C.red}20`}>{data.medical.bloodType}</Badge>
+                    </div>
+                  )}
+                  {data.medical.contactName && (
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>EMERGENCY CONTACT</div>
+                      <div style={{ fontWeight: 600 }}>{data.medical.contactName}</div>
+                      {data.medical.contactPhone && <a href={`tel:${data.medical.contactPhone}`} style={{ color: C.cyan, fontSize: 13, textDecoration: "none" }}>{data.medical.contactPhone}</a>}
+                    </div>
+                  )}
+                  {data.medical.allergies && <div style={{ background: C.card3, borderRadius: 10, padding: "8px 12px", marginBottom: 8, fontSize: 13 }}><span style={{ color: C.textMuted, fontSize: 11 }}>ALLERGIES  </span>{data.medical.allergies}</div>}
+                  {data.medical.medications && <div style={{ background: C.card3, borderRadius: 10, padding: "8px 12px", marginBottom: 8, fontSize: 13 }}><span style={{ color: C.textMuted, fontSize: 11 }}>MEDICATIONS  </span>{data.medical.medications}</div>}
+                  {data.medical.notes && <div style={{ background: C.card3, borderRadius: 10, padding: "8px 12px", fontSize: 13, color: C.textSub }}>{data.medical.notes}</div>}
+                </Card>
+              </>
+            )}
+
+            {/* Insurance */}
+            {data.insurance && (
+              <>
+                <SectionLabel>TRAVEL INSURANCE</SectionLabel>
+                <Card style={{ marginBottom: 16 }}>
+                  <div style={{ fontWeight: 800, fontSize: 20, marginBottom: 12 }}>{data.insurance.provider}</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", marginBottom: 10 }}>
+                    <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>POLICY</div><Badge color={C.textMuted} bg={C.card3}>{data.insurance.policyNumber || '—'}</Badge></div>
+                    <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>EMERGENCY PHONE</div>
+                      {data.insurance.emergencyPhone
+                        ? <a href={`tel:${data.insurance.emergencyPhone}`} style={{ color: C.cyan, fontWeight: 700, textDecoration: "none", fontSize: 13 }}>{data.insurance.emergencyPhone}</a>
+                        : <span style={{ color: C.textSub }}>—</span>}
+                    </div>
+                  </div>
+                  {(data.insurance.coverageStart || data.insurance.coverageEnd) && <div style={{ background: C.card3, borderRadius: 10, padding: "8px 12px", fontSize: 12, color: C.textMuted, marginBottom: 8 }}>Coverage: {data.insurance.coverageStart || '?'} → {data.insurance.coverageEnd || '?'}</div>}
+                  {data.insurance.notes && <div style={{ background: C.card3, borderRadius: 10, padding: "8px 12px", fontSize: 13, color: C.textSub, marginBottom: 8 }}>{data.insurance.notes}</div>}
+                  {data.insurance.emergencyPhone && <Btn style={{ width: "100%", background: C.cyan, color: "#000" }} onClick={() => window.open(`tel:${data.insurance!.emergencyPhone}`)} icon={<Icon d={icons.phone} size={16} stroke="#000" />}>CALL EMERGENCY ASSIST</Btn>}
+                </Card>
+              </>
+            )}
+
+            {/* Documents */}
+            {data.documents.length > 0 && (
+              <>
+                <SectionLabel>DOCUMENTS</SectionLabel>
+                {data.documents.map(doc => (
+                  <Card key={doc.id} style={{ marginBottom: 8, cursor: "pointer" }} onClick={() => setViewDoc(doc)}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ width: 52, height: 52, borderRadius: 10, overflow: "hidden", flexShrink: 0 }}><img src={doc.dataUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>{doc.name}</div>
+                        <div style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{doc.docType}</div>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </>
+            )}
+
+            {!data.medical && !data.insurance && data.documents.length === 0 && (
+              <div style={{ color: C.textMuted, fontSize: 13, textAlign: "center", padding: "40px 0", fontStyle: "italic" }}>
+                {name} hasn't shared any safety information yet.
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Document expand overlay */}
+      {viewDoc && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 400, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={() => setViewDoc(null)}>
+          <button onClick={() => setViewDoc(null)} style={{ position: "absolute", top: 20, right: 20, background: C.card3, border: "none", borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+            <Icon d={icons.x} size={18} stroke={C.text} />
+          </button>
+          <div style={{ width: "100%", maxWidth: 400 }}>
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{viewDoc.name}</div>
+            <div style={{ color: C.textMuted, fontSize: 12, marginBottom: 12 }}>{viewDoc.docType}</div>
+            <img src={viewDoc.dataUrl} style={{ width: "100%", borderRadius: 16, maxHeight: "70vh", objectFit: "contain" }} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
   const [crewTab, setCrewTab] = useState<'crew' | 'segments' | 'budget'>('crew');
   const [inviteEmail, setInviteEmail] = useState("");
@@ -4592,6 +4750,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
   const [menuMemberId, setMenuMemberId] = useState<string | null>(null);
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [viewMemberSub, setViewMemberSub] = useState<{ sub: string; name: string; avatar?: string } | null>(null);
   // Budget tab moved to WalletScreen
   // Segment form
   const [showAddSeg, setShowAddSeg] = useState(false);
@@ -4832,10 +4991,15 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
               {accepted.map((m: TripMember) => (
                 <Card key={m.id} style={{ marginBottom: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <Avatar name={m.name || m.email} src={m.avatarUrl} size={42} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{m.name || m.email}</div>
-                      <div style={{ color: C.textMuted, fontSize: 11 }}>{m.email}</div>
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0, cursor: m.googleSub && m.googleSub !== user?.sub ? "pointer" : "default" }}
+                      onClick={() => { if (m.googleSub && m.googleSub !== user?.sub) setViewMemberSub({ sub: m.googleSub, name: m.name || m.email, avatar: m.avatarUrl }); }}
+                    >
+                      <Avatar name={m.name || m.email} src={m.avatarUrl} size={42} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{m.name || m.email}</div>
+                        <div style={{ color: C.textMuted, fontSize: 11 }}>{m.email}</div>
+                      </div>
                     </div>
                     <Badge color={m.role === 'admin' ? C.cyan : C.textMuted} bg={m.role === 'admin' ? "#003d45" : C.card3}>{m.role.toUpperCase()}</Badge>
                     {isAdmin && m.googleSub !== user?.sub && (
@@ -5256,6 +5420,15 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
         <>
 
         </>
+      )}
+
+      {viewMemberSub && (
+        <MemberProfileModal
+          googleSub={viewMemberSub.sub}
+          fallbackName={viewMemberSub.name}
+          fallbackAvatar={viewMemberSub.avatar}
+          onClose={() => setViewMemberSub(null)}
+        />
       )}
     </div>
   );

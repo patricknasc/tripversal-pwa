@@ -22,6 +22,7 @@ export async function PUT(req: NextRequest, { params }: { params: { sub: string 
     coverage_start: body.coverageStart || null,
     coverage_end: body.coverageEnd || null,
     notes: body.notes ?? null,
+    sharing: body.sharing ?? false,
     updated_at: new Date().toISOString(),
   };
   const { data, error } = await getSupabaseAdmin()

@@ -277,3 +277,6 @@ CREATE TABLE IF NOT EXISTS social_reactions (
 CREATE INDEX IF NOT EXISTS social_reactions_post ON social_reactions(post_id);
 ALTER TABLE social_reactions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "service_role_all_social_reactions" ON social_reactions FOR ALL USING (true);
+-- ─── Sharing columns (run once via migration) ────────────────────────────────
+ALTER TABLE user_insurance ADD COLUMN IF NOT EXISTS sharing BOOLEAN DEFAULT FALSE;
+ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS sharing BOOLEAN DEFAULT FALSE;

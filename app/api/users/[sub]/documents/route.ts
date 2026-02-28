@@ -4,7 +4,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 export async function GET(_req: NextRequest, { params }: { params: { sub: string } }) {
   const { data, error } = await getSupabaseAdmin()
     .from('user_documents')
-    .select('id, google_sub, name, doc_type, file_data, created_at')
+    .select('id, google_sub, name, doc_type, file_data, created_at, sharing')
     .eq('google_sub', params.sub)
     .order('created_at', { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -19,6 +19,7 @@ export async function POST(req: NextRequest, { params }: { params: { sub: string
     name: body.name,
     doc_type: body.docType,
     file_data: body.fileData,
+    sharing: body.sharing ?? false,
   };
   const { data, error } = await getSupabaseAdmin()
     .from('user_documents')
