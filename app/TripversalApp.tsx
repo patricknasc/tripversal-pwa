@@ -1390,19 +1390,39 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
   }, [activeTripId]);
 
   // 2. Refresh: Open-Meteo -> LocalStorage -> Cloud API
-  // Weather from Open-Meteo using segment destinations
+  // Strategy: past dates already cached are NEVER re-fetched (historical data is immutable).
+  // Future dates are always re-fetched (forecast changes daily).
   useEffect(() => {
     if (!activeTripId || !activeTrip) return;
     const segments = (activeTrip.segments || []).filter((s: any) => s.destination || s.name);
     if (segments.length === 0) return;
 
     const today = localDateKey(new Date());
-    // Include past dates: from trip start (or up to 30 days ago) so historical days show weather
-    const pastBound = new Date(); pastBound.setDate(pastBound.getDate() - 30);
-    const tripStart = activeTrip.startDate;
-    const fetchStart = tripStart && tripStart > localDateKey(pastBound) ? tripStart : localDateKey(pastBound);
     const endD = new Date(); endD.setDate(endD.getDate() + 15);
     const endDate = localDateKey(endD);
+
+    // Read cache directly from localStorage — avoids React state timing issues (effect runs
+    // concurrently with the state update from the load effect above).
+    let cachedMap: Record<string, { temp: number; code: number }> = {};
+    try {
+      const s = localStorage.getItem(`voyasync_weather_${activeTripId}`);
+      if (s) cachedMap = JSON.parse(s);
+    } catch { }
+
+    // Determine the earliest past date that is missing from cache.
+    // We look back to trip start date or 30 days, whichever is more recent.
+    const pastBound = new Date(); pastBound.setDate(pastBound.getDate() - 30);
+    const historyStart = activeTrip.startDate && activeTrip.startDate > localDateKey(pastBound)
+      ? activeTrip.startDate : localDateKey(pastBound);
+    const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayKey = localDateKey(yesterday);
+    const missingPast = historyStart <= yesterdayKey
+      ? getDatesRange(historyStart, yesterdayKey).filter(d => !cachedMap[d])
+      : [];
+
+    // fetchStart: earliest uncached past date, or today if history is complete.
+    // This means after the first fetch, subsequent page loads only hit the forecast window.
+    const fetchStart = missingPast.length > 0 ? missingPast[0] : today;
     const fullRange = new Set(getDatesRange(fetchStart, endDate));
 
     const queries: Array<{ loc: string; dates: Set<string> }> = [];
@@ -1413,7 +1433,8 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
     segments.forEach((seg: any) => {
       const loc = seg.destination || seg.name;
       if (loc) {
-        queries.push({ loc, dates: new Set(getDatesRange(seg.startDate ?? fetchStart, seg.endDate ?? seg.startDate ?? today)) });
+        const segStart = seg.startDate ?? fetchStart;
+        queries.push({ loc, dates: new Set(getDatesRange(segStart, seg.endDate ?? segStart)) });
       }
     });
 
@@ -1445,9 +1466,10 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
           if (!d.daily?.time) return null;
           const entries: Record<string, { temp: number; code: number }> = {};
           d.daily.time.forEach((date: string, i: number) => {
-            if (dates.has(date)) {
-              entries[date] = { temp: Math.round(d.daily.temperature_2m_max[i]), code: d.daily.weathercode[i] };
-            }
+            if (!dates.has(date)) return;
+            // Past dates already in cache are immutable — skip to avoid redundant writes
+            if (date < today && cachedMap[date]) return;
+            entries[date] = { temp: Math.round(d.daily.temperature_2m_max[i]), code: d.daily.weathercode[i] };
           });
           return entries;
         } catch { return null; }
@@ -1463,7 +1485,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
           return updated;
         });
 
-        // Sync fresh data to cloud
+        // Sync only truly new data to cloud (not what was already cached)
         fetch(`/api/trips/${activeTripId}/weather`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
