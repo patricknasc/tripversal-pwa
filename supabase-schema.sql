@@ -298,3 +298,20 @@ CREATE POLICY "service_role_all_social_reactions" ON social_reactions FOR ALL US
 -- ─── Sharing columns (run once via migration) ────────────────────────────────
 ALTER TABLE user_insurance ADD COLUMN IF NOT EXISTS sharing BOOLEAN DEFAULT FALSE;
 ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS sharing BOOLEAN DEFAULT FALSE;
+
+-- ─── SOS Sessions ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS trip_sos_sessions (
+  trip_id     UUID REFERENCES trips(id) ON DELETE CASCADE,
+  user_sub    TEXT NOT NULL,
+  lat         NUMERIC NOT NULL,
+  lng         NUMERIC NOT NULL,
+  is_active   BOOLEAN DEFAULT true,
+  updated_at  TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (trip_id, user_sub)
+);
+-- Allow service_role
+ALTER TABLE trip_sos_sessions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role_all_sos" ON trip_sos_sessions FOR ALL USING (true);
+CREATE POLICY "anon_all_sos" ON trip_sos_sessions FOR ALL USING (true);
+-- Enable Realtime
+ALTER PUBLICATION supabase_realtime ADD TABLE trip_sos_sessions;

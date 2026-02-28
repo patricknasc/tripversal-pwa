@@ -750,7 +750,7 @@ const BottomNav = ({ active, onNav }: any) => {
   );
 };
 
-const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTripId, activeTrip, user }: any) => {
+const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTripId, activeTrip, user, isPanicModeActive, onSOS, onShowMap }: any) => {
   const [budget, setBudget] = useState<TripBudget>(DEFAULT_BUDGET);
   const [todaySpent, setTodaySpent] = useState(0);
   const [yesterdaySpent, setYesterdaySpent] = useState(0);
@@ -1029,7 +1029,7 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
           { label: "EXPENSE", icon: icons.plus, action: onAddExpense },
           { label: "PHOTO", icon: icons.camera, action: () => onNav("photos") },
           { label: "GROUP", icon: icons.users, action: onShowGroup },
-          { label: "SOS", icon: icons.phone, variant: "red" },
+          { label: "SOS", icon: icons.phone, variant: isPanicModeActive ? "red" : undefined, action: onSOS },
         ].map(({ label, icon, variant, action }: any) => (
           <button key={label} onClick={action} style={{ background: variant === "red" ? C.redDim : C.card2, borderRadius: 16, padding: "16px 8px", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
             <Icon d={icon} size={22} stroke={variant === "red" ? C.red : C.cyan} />
@@ -1078,6 +1078,24 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
             }
             if (item.kind === 'activity') {
               const a = item.data as TripActivityItem;
+              if (a.action === 'SOS_ALERT') {
+                return (
+                  <Card key={`act-${a.id}`} style={{ marginBottom: 8, borderLeft: `3px solid ${C.red}`, cursor: "pointer" }} onClick={onShowMap}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 12, background: C.redDim, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 18 }}>🚨</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: C.red, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
+                          {a.actor_name || a.actor_sub.slice(0, 8)} acionou o SOS!
+                        </div>
+                        <div style={{ color: C.textMuted, fontSize: 12 }}>Emergency Alert</div>
+                      </div>
+                      <div style={{ color: C.textMuted, fontSize: 11, flexShrink: 0 }}>
+                        {new Date(a.created_at).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}
+                      </div>
+                    </div>
+                  </Card>
+                );
+              }
               const actionLabel = a.action === 'event_created' ? 'added' : a.action === 'event_updated' ? 'updated' : 'removed';
               return (
                 <Card key={`act-${a.id}`} style={{ marginBottom: 8 }}>
@@ -6018,6 +6036,73 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
   );
 };
 
+import { createClient } from '@supabase/supabase-js';
+
+const anonSupabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+function useLiveLocation(isActive: boolean, userSub?: string, tripId?: string) {
+  useEffect(() => {
+    if (!isActive || !userSub || !tripId) return;
+    let watchId: number;
+
+    const startTracking = async () => {
+      watchId = navigator.geolocation.watchPosition(
+        async (pos) => {
+          const { latitude, longitude } = pos.coords;
+          await anonSupabase.from('trip_sos_sessions').upsert({
+            trip_id: tripId,
+            user_sub: userSub,
+            lat: latitude,
+            lng: longitude,
+            is_active: true,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'trip_id, user_sub' });
+        },
+        (err) => console.error("SOS Loc Error:", err),
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+      );
+    };
+
+    startTracking();
+
+    return () => {
+      if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
+      anonSupabase.from('trip_sos_sessions')
+        .update({ is_active: false })
+        .eq('trip_id', tripId)
+        .eq('user_sub', userSub)
+        .then();
+    };
+  }, [isActive, userSub, tripId]);
+}
+
+function ConfirmDialog({ isOpen, onCancel, onConfirm }: { isOpen: boolean, onCancel: () => void, onConfirm: () => void }) {
+  if (!isOpen) return null;
+  return (
+    <>
+      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 900 }} onClick={onCancel} />
+      <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "90%", maxWidth: 400, background: C.card, borderRadius: 20, padding: 24, zIndex: 901, textAlign: "center" }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>🚨</div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: C.text, marginBottom: 12 }}>Ativar Botão de Pânico?</div>
+        <div style={{ color: C.textMuted, fontSize: 14, marginBottom: 24, lineHeight: 1.5 }}>
+          Você tem certeza que deseja acionar o botão de pânico? Sua localização será compartilhada em tempo real com o grupo.
+        </div>
+        <div style={{ display: "flex", gap: 12 }}>
+          <Btn variant="ghost" style={{ flex: 1, padding: 14 }} onClick={onCancel}>Cancelar</Btn>
+          <Btn variant="danger" style={{ flex: 1, padding: 14, background: C.red, color: "#fff" }} onClick={onConfirm}>Ativar SOS</Btn>
+        </div>
+      </div>
+    </>
+  );
+}
+
+import dynamic from 'next/dynamic';
+
+const LiveMap = dynamic(() => import('./components/LiveMap'), { ssr: false });
+
 function AppShell() {
   const [user, setUser] = useState<any>(null);
   const [tab, setTab] = useState("home");
@@ -6031,6 +6116,13 @@ function AppShell() {
   const [pendingInviteToken, setPendingInviteToken] = useState<string | null>(null);
   // Lifted from SettingsScreen so it actually affects the real isOnline indicator
   const [offlineSim, setOfflineSim] = useState(false);
+
+  // SOS State
+  const [isPanicModeActive, setIsPanicModeActive] = useState(false);
+  const [showPanicModal, setShowPanicModal] = useState(false);
+  const [showLiveMap, setShowLiveMap] = useState(false);
+
+  useLiveLocation(isPanicModeActive, user?.sub, activeTripId || undefined);
 
   const activeTrip = trips.find(t => t.id === activeTripId) ?? null;
 
@@ -6186,7 +6278,7 @@ function AppShell() {
     );
   } else {
     switch (tab) {
-      case "home": content = <HomeScreen onNav={handleNav} onAddExpense={handleOpenExpense} onCreateBudget={handleGoToBudget} onShowGroup={() => handleNav("group")} activeTripId={activeTripId} activeTrip={activeTrip} user={user} />; break;
+      case "home": content = <HomeScreen onNav={handleNav} onAddExpense={handleOpenExpense} onCreateBudget={handleGoToBudget} onShowGroup={() => handleNav("group")} activeTripId={activeTripId} activeTrip={activeTrip} user={user} isPanicModeActive={isPanicModeActive} onSOS={() => setShowPanicModal(true)} onShowMap={() => setShowLiveMap(true)} />; break;
       case "itinerary": content = <ItineraryScreen activeTripId={activeTripId} activeTrip={activeTrip} userSub={user?.sub} />; break;
       case "wallet": content = <WalletScreen key={walletInitTab} initialTab={walletInitTab} onAddExpense={handleOpenExpense} activeTripId={activeTripId} user={user} trips={trips} />; break;
       case "photos": content = <SocialStreamScreen activeTripId={activeTripId} user={user} isOnline={effectiveIsOnline} />; break;
@@ -6222,6 +6314,26 @@ function AppShell() {
         </div>
         <BottomNav active={activeTab} onNav={handleNav} />
       </div>
+
+      <ConfirmDialog
+        isOpen={showPanicModal}
+        onCancel={() => setShowPanicModal(false)}
+        onConfirm={() => {
+          setShowPanicModal(false);
+          setIsPanicModeActive(true);
+          // Request permissions to avoid silent failure on watchPosition
+          if ("geolocation" in navigator) navigator.geolocation.getCurrentPosition(() => { });
+
+          if (activeTripId && user) {
+            fetch(`/api/trips/${activeTripId}/activity`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ callerSub: user.sub, callerName: user.name, action: 'SOS_ALERT', subject: 'Emergency' })
+            }).catch(console.error);
+          }
+        }}
+      />
+      {showLiveMap && activeTripId && <LiveMap tripId={activeTripId} onBack={() => setShowLiveMap(false)} />}
     </div>
   );
 }
