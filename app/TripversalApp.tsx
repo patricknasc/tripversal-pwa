@@ -28,6 +28,11 @@ interface Expense {
   localAmount: number;
   localCurrency: Currency;
   baseAmount: number;
+  taxAmount?: number;
+  taxType?: 'fixed' | 'percentage';
+  discountAmount?: number;
+  discountType?: 'fixed' | 'percentage';
+  cambialRate?: number;
   baseCurrency: Currency;
   localToBaseRate: number;
   whoPaid?: string;
@@ -417,6 +422,11 @@ function rowToExpense(row: any): Expense {
     localAmount: Number(row.local_amount),
     localCurrency: row.local_currency as Currency,
     baseAmount: Number(row.base_amount),
+    taxAmount: row.tax_amount ? Number(row.tax_amount) : undefined,
+    taxType: row.tax_type ?? undefined,
+    discountAmount: row.discount_amount ? Number(row.discount_amount) : undefined,
+    discountType: row.discount_type ?? undefined,
+    cambialRate: row.cambial_rate ? Number(row.cambial_rate) : undefined,
     baseCurrency: row.base_currency as Currency,
     localToBaseRate: Number(row.local_to_base_rate),
     whoPaid: row.who_paid ?? undefined,
@@ -426,6 +436,12 @@ function rowToExpense(row: any): Expense {
     receiptDataUrl: row.receipt_data ?? undefined,
     tripId: row.trip_id,
   };
+}
+
+export function getEffectiveLocal(exp: Expense): number {
+  const t = exp.taxType === 'percentage' ? exp.localAmount * ((exp.taxAmount || 0) / 100) : (exp.taxAmount || 0);
+  const d = exp.discountType === 'percentage' ? exp.localAmount * ((exp.discountAmount || 0) / 100) : (exp.discountAmount || 0);
+  return exp.localAmount + t - d;
 }
 
 function expenseToRow(e: Expense): Record<string, unknown> {
@@ -439,6 +455,11 @@ function expenseToRow(e: Expense): Record<string, unknown> {
     local_amount: e.localAmount,
     local_currency: e.localCurrency,
     base_amount: e.baseAmount,
+    tax_amount: e.taxAmount ?? 0,
+    tax_type: e.taxType ?? 'fixed',
+    discount_amount: e.discountAmount ?? 0,
+    discount_type: e.discountType ?? 'fixed',
+    cambial_rate: e.cambialRate ?? 1,
     base_currency: e.baseCurrency,
     local_to_base_rate: e.localToBaseRate,
     who_paid: e.whoPaid ?? null,
@@ -729,6 +750,11 @@ const HomeScreen = ({ onNav, onAddExpense, onShowGroup, activeTripId, activeTrip
   const [homeEditSourceId, setHomeEditSourceId] = useState("");
   const [homeEditCurrency, setHomeEditCurrency] = useState<Currency>("EUR");
   const [homeEditCity, setHomeEditCity] = useState("");
+  const [homeEditTaxAmount, setHomeEditTaxAmount] = useState("");
+  const [homeEditTaxType, setHomeEditTaxType] = useState<'fixed' | 'percentage'>('fixed');
+  const [homeEditDiscountAmount, setHomeEditDiscountAmount] = useState("");
+  const [homeEditDiscountType, setHomeEditDiscountType] = useState<'fixed' | 'percentage'>('fixed');
+  const [homeEditCambialRate, setHomeEditCambialRate] = useState("1");
   const [homeConfirmDelete, setHomeConfirmDelete] = useState(false);
   const [activeSavedBudget, setActiveSavedBudget] = useState<SavedBudget | null>(null);
 
@@ -841,11 +867,22 @@ const HomeScreen = ({ onNav, onAddExpense, onShowGroup, activeTripId, activeTrip
   const handleHomeEdit = (id: string) => {
     const next = allExpenses.map(e => {
       if (e.id !== id) return e;
-      const snap = { description: e.description, localAmount: e.localAmount, category: e.category, date: e.date, sourceId: e.sourceId, localCurrency: e.localCurrency };
+      const snap = { description: e.description, localAmount: e.localAmount, category: e.category, date: e.date, sourceId: e.sourceId, localCurrency: e.localCurrency, baseAmount: e.baseAmount };
+
+      const taxVal = parseFloat(homeEditTaxAmount) || 0;
+      const discVal = parseFloat(homeEditDiscountAmount) || 0;
+      const parsedAmount = parseFloat(homeEditAmount) || e.localAmount;
+      const effTax = homeEditTaxType === 'percentage' ? parsedAmount * (taxVal / 100) : taxVal;
+      const effDisc = homeEditDiscountType === 'percentage' ? parsedAmount * (discVal / 100) : discVal;
+      const rate = parseFloat(homeEditCambialRate) || 1;
+      const newBase = (parsedAmount + effTax - effDisc) * rate;
+
       return {
-        ...e, description: homeEditDesc, localAmount: parseFloat(homeEditAmount) || e.localAmount,
+        ...e, description: homeEditDesc, localAmount: parsedAmount,
         category: homeEditCat, date: homeEditDate ? new Date(`${homeEditDate}T12:00:00`).toISOString() : e.date,
         sourceId: homeEditSourceId || e.sourceId, localCurrency: homeEditCurrency, city: homeEditCity || e.city,
+        taxAmount: taxVal, taxType: homeEditTaxType, discountAmount: discVal, discountType: homeEditDiscountType,
+        cambialRate: rate, localToBaseRate: rate, baseAmount: newBase,
         editHistory: [...(e.editHistory || []), { at: new Date().toISOString(), snapshot: snap }]
       };
     });
@@ -923,6 +960,15 @@ const HomeScreen = ({ onNav, onAddExpense, onShowGroup, activeTripId, activeTrip
         {yesterdaySpent > 0 && (
           <div style={{ color: C.textSub, fontSize: 11, marginTop: 6, textAlign: "right" }}>
             vs yesterday {currSym(budgetCurrency)}{fmtAmt(yesterdaySpent)}
+          </div>
+        )}
+        {!activeSavedBudget && (
+          <div style={{ marginTop: 16, background: C.card3, border: `1px dashed ${C.border}`, borderRadius: 14, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.red }} />
+              <span style={{ color: C.textMuted, fontSize: 13, fontWeight: 600 }}>No budget set</span>
+            </div>
+            <button onClick={() => onNav('wallet')} style={{ background: C.card, border: `1px solid ${C.cyan}`, color: C.cyan, borderRadius: 16, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Create one</button>
           </div>
         )}
       </div>
@@ -1070,7 +1116,7 @@ const HomeScreen = ({ onNav, onAddExpense, onShowGroup, activeTripId, activeTrip
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0 }}>
                     <div style={{ color: C.textMuted, fontSize: 11 }}>{timeStr}</div>
-                    <div style={{ color: C.text, fontWeight: 700, fontSize: 14 }}>{currSym(exp.localCurrency)}{fmtAmt(exp.localAmount)}</div>
+                    <div style={{ color: C.text, fontWeight: 700, fontSize: 14 }}>{currSym(exp.localCurrency)}{fmtAmt(getEffectiveLocal(exp))} <span style={{ color: C.textMuted, fontSize: 13, fontWeight: 400 }}>({currSym(exp.baseCurrency || budget.baseCurrency)}{fmtAmt(exp.baseAmount)})</span></div>
                   </div>
                   <button onClick={e => { e.stopPropagation(); setSelectedActivityExp(exp); setHomeEditMode(false); setHomeConfirmDelete(false); }}
                     style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer", flexShrink: 0 }}>
@@ -1112,15 +1158,9 @@ const HomeScreen = ({ onNav, onAddExpense, onShowGroup, activeTripId, activeTrip
                   </div>
                   <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
                     <div style={{ background: C.card3, borderRadius: 12, padding: 12, flex: 1 }}>
-                      <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>LOCAL</div>
-                      <div style={{ fontWeight: 700, fontSize: 16 }}>{currSym(exp.localCurrency)}{fmtAmt(exp.localAmount)}</div>
+                      <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>AMOUNT</div>
+                      <div style={{ fontWeight: 700, fontSize: 16 }}>{currSym(exp.localCurrency)}{fmtAmt(getEffectiveLocal(exp))} <span style={{ color: C.textMuted, fontSize: 14, fontWeight: 400 }}>({currSym(exp.baseCurrency || budget.baseCurrency)}{fmtAmt(exp.baseAmount)})</span></div>
                     </div>
-                    {exp.localCurrency !== exp.baseCurrency && (
-                      <div style={{ background: C.card3, borderRadius: 12, padding: 12, flex: 1 }}>
-                        <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>BASE</div>
-                        <div style={{ fontWeight: 700, fontSize: 16 }}>{currSym(exp.baseCurrency)}{fmtAmt(exp.baseAmount)}</div>
-                      </div>
-                    )}
                     <div style={{ background: C.card3, borderRadius: 12, padding: 12, flex: 1 }}>
                       <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>SOURCE</div>
                       <div style={{ fontWeight: 700, fontSize: 13 }}>{sourceMap[exp.sourceId]?.name || "—"}</div>
@@ -1138,7 +1178,7 @@ const HomeScreen = ({ onNav, onAddExpense, onShowGroup, activeTripId, activeTrip
                   )}
                   <div style={{ display: "flex", gap: 10 }}>
                     <Btn style={{ flex: 1 }} variant="secondary" icon={<Icon d={icons.edit} size={16} />}
-                      onClick={() => { setHomeEditDesc(exp.description); setHomeEditAmount(String(exp.localAmount)); setHomeEditCat(exp.category); setHomeEditDate(exp.date.slice(0, 10)); setHomeEditSourceId(exp.sourceId); setHomeEditCurrency(exp.localCurrency); setHomeEditCity(exp.city || ""); setHomeEditMode(true); }}>
+                      onClick={() => { setHomeEditDesc(exp.description); setHomeEditAmount(String(exp.localAmount)); setHomeEditCat(exp.category); setHomeEditDate(exp.date.slice(0, 10)); setHomeEditSourceId(exp.sourceId); setHomeEditCurrency(exp.localCurrency); setHomeEditCity(exp.city || ""); setHomeEditTaxAmount(String(exp.taxAmount || 0)); setHomeEditTaxType(exp.taxType || 'fixed'); setHomeEditDiscountAmount(String(exp.discountAmount || 0)); setHomeEditDiscountType(exp.discountType || 'fixed'); setHomeEditCambialRate(String(exp.cambialRate || exp.localToBaseRate || 1)); setHomeEditMode(true); }}>
                       Edit
                     </Btn>
                     <Btn style={{ flex: 1 }} variant="danger" icon={<Icon d={icons.trash} size={16} stroke={C.red} />}
@@ -1166,6 +1206,34 @@ const HomeScreen = ({ onNav, onAddExpense, onShowGroup, activeTripId, activeTrip
                   <div style={{ marginBottom: 10 }}>
                     <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>AMOUNT</div>
                     <Input value={homeEditAmount} onChange={setHomeEditAmount} placeholder="0.00" />
+                  </div>
+                  <div style={{ marginBottom: 10, display: "flex", gap: 10 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TAX / FEES</div>
+                      <div style={{ display: "flex", background: C.card3, borderRadius: 10, padding: 4 }}>
+                        <input value={homeEditTaxAmount} onChange={e => setHomeEditTaxAmount(e.target.value)} placeholder="0.00" style={{ background: "transparent", border: "none", color: C.text, width: "100%", outline: "none", paddingLeft: 8 }} />
+                        <button onClick={() => setHomeEditTaxType(t => t === 'fixed' ? 'percentage' : 'fixed')} style={{ background: C.bg, color: C.cyan, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontWeight: 700 }}>{homeEditTaxType === 'percentage' ? '%' : '$'}</button>
+                      </div>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>DISCOUNT</div>
+                      <div style={{ display: "flex", background: C.card3, borderRadius: 10, padding: 4 }}>
+                        <input value={homeEditDiscountAmount} onChange={e => setHomeEditDiscountAmount(e.target.value)} placeholder="0.00" style={{ background: "transparent", border: "none", color: C.text, width: "100%", outline: "none", paddingLeft: 8 }} />
+                        <button onClick={() => setHomeEditDiscountType(t => t === 'fixed' ? 'percentage' : 'fixed')} style={{ background: C.bg, color: C.cyan, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontWeight: 700 }}>{homeEditDiscountType === 'percentage' ? '%' : '$'}</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>EXCHANGE RATE</div>
+                    <div style={{ display: "flex", background: C.card3, borderRadius: 10, padding: 4 }}>
+                      <input value={homeEditCambialRate} onChange={e => setHomeEditCambialRate(e.target.value)} placeholder="1.00" style={{ background: "transparent", border: "none", color: C.text, flex: 1, outline: "none", paddingLeft: 8 }} />
+                      <button onClick={async () => {
+                        try {
+                          const r = await fetchRate(homeEditCurrency, budget.baseCurrency);
+                          setHomeEditCambialRate(String(r));
+                        } catch { }
+                      }} style={{ background: C.bg, color: C.cyan, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontWeight: 700, fontSize: 11 }}>Update from API</button>
+                    </div>
                   </div>
                   <div style={{ marginBottom: 10 }}>
                     <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>DATE</div>
@@ -1729,7 +1797,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
                       {!isDone && hasMap && (
                         <div style={{ marginTop: 10 }}>
                           <div onClick={() => openMapLink(event.location?.address, event.location?.lat, event.location?.lng)}
-                            style={{ display: "inline-flex", background: C.card3, borderRadius: 8, padding: "6px 12px", fontSize: 12, color: C.textMuted, alignItems: "center", gap: 4, cursor: "pointer" }}>
+                            style={{ display: "inline-flex", background: C.card3, borderRadius: 8, padding: "6px 12px", fontSize: 12, color: C.cyan, alignItems: "center", gap: 4, cursor: "pointer" }}>
                             <Icon d={icons.navigation} size={12} /> Map
                           </div>
                         </div>
@@ -1968,6 +2036,11 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
   const [editSourceId, setEditSourceId] = useState("");
   const [editCurrency, setEditCurrency] = useState<Currency>("EUR");
   const [editCity, setEditCity] = useState("");
+  const [editTaxAmount, setEditTaxAmount] = useState("");
+  const [editTaxType, setEditTaxType] = useState<'fixed' | 'percentage'>('fixed');
+  const [editDiscountAmount, setEditDiscountAmount] = useState("");
+  const [editDiscountType, setEditDiscountType] = useState<'fixed' | 'percentage'>('fixed');
+  const [editCambialRate, setEditCambialRate] = useState("1");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [visibleTxCount, setVisibleTxCount] = useState(10);
   const [walletTab, setWalletTab] = useState<'transactions' | 'analytics' | 'budget'>('transactions');
@@ -2238,12 +2311,23 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
       if (e.id !== id) return e;
       const snap = {
         description: e.description, localAmount: e.localAmount,
-        category: e.category, date: e.date, sourceId: e.sourceId, localCurrency: e.localCurrency
+        category: e.category, date: e.date, sourceId: e.sourceId, localCurrency: e.localCurrency, baseAmount: e.baseAmount
       };
+
+      const taxVal = parseFloat(editTaxAmount) || 0;
+      const discVal = parseFloat(editDiscountAmount) || 0;
+      const parsedAmount = parseFloat(editAmount) || e.localAmount;
+      const effTax = editTaxType === 'percentage' ? parsedAmount * (taxVal / 100) : taxVal;
+      const effDisc = editDiscountType === 'percentage' ? parsedAmount * (discVal / 100) : discVal;
+      const rate = parseFloat(editCambialRate) || 1;
+      const newBase = (parsedAmount + effTax - effDisc) * rate;
+
       return {
-        ...e, description: editDesc, localAmount: parseFloat(editAmount) || e.localAmount,
+        ...e, description: editDesc, localAmount: parsedAmount,
         category: editCat, date: editDate ? new Date(`${editDate}T12:00:00`).toISOString() : e.date,
         sourceId: editSourceId || e.sourceId, localCurrency: editCurrency, city: editCity || e.city,
+        taxAmount: taxVal, taxType: editTaxType, discountAmount: discVal, discountType: editDiscountType,
+        cambialRate: rate, localToBaseRate: rate, baseAmount: newBase,
         editHistory: [...(e.editHistory || []), { at: new Date().toISOString(), snapshot: snap }]
       };
     });
@@ -2394,7 +2478,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
               {dailyBudget > 0 && <div style={{ fontSize: 10, color: C.textSub }}>{currSym(budgetCurrency)}{fmtAmt(dailyBudget, 0)}/day · {tripDays}d</div>}
             </div>
           ) : (
-            <div style={{ fontSize: 11, color: C.textSub, fontStyle: "italic" }}>No budget set</div>
+            <button onClick={() => setWalletTab('budget')} style={{ background: C.cyan, color: "#000", border: "none", borderRadius: 16, padding: "6px 14px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Create Budget</button>
           )}
         </div>
       )}
@@ -2441,7 +2525,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
                     <div style={{ color: src ? src.color : C.textMuted, fontSize: 11, letterSpacing: 0.5 }}>{src ? src.name.toUpperCase() : "—"} • {exp.category.toUpperCase()}</div>
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: 15 }}>{currSym(exp.localCurrency)}{fmtAmt(exp.localAmount)}</div>
+                    <div style={{ fontWeight: 700, fontSize: 15 }}>{currSym(exp.localCurrency)}{fmtAmt(getEffectiveLocal(exp))} <span style={{ color: C.textMuted, fontSize: 13, fontWeight: 400 }}>({currSym(exp.baseCurrency || budget.baseCurrency)}{fmtAmt(exp.baseAmount)})</span></div>
                     <div style={{ color: C.textSub, fontSize: 11 }}>{dateStr}</div>
                   </div>
                   <button onClick={e => { e.stopPropagation(); setSelectedExpenseId(exp.id); setEditMode(false); setConfirmDelete(false); }}
@@ -2875,7 +2959,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
                   <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
                     <div style={{ background: C.card3, borderRadius: 12, padding: 12, flex: 1 }}>
                       <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>AMOUNT</div>
-                      <div style={{ fontWeight: 700, fontSize: 16 }}>{currSym(exp.localCurrency)}{fmtAmt(exp.localAmount)}</div>
+                      <div style={{ fontWeight: 700, fontSize: 16 }}>{currSym(exp.localCurrency)}{fmtAmt(getEffectiveLocal(exp))} <span style={{ color: C.textMuted, fontSize: 14, fontWeight: 400 }}>({currSym(exp.baseCurrency || budgetCurrency)}{fmtAmt(exp.baseAmount)})</span></div>
                     </div>
                     <div style={{ background: C.card3, borderRadius: 12, padding: 12, flex: 1 }}>
                       <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>SOURCE</div>
@@ -2894,7 +2978,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
                   )}
                   <div style={{ display: "flex", gap: 10 }}>
                     <Btn style={{ flex: 1 }} variant="secondary" icon={<Icon d={icons.edit} size={16} />}
-                      onClick={() => { setEditDesc(exp.description); setEditAmount(String(exp.localAmount)); setEditCat(exp.category); setEditDate(exp.date.slice(0, 10)); setEditSourceId(exp.sourceId); setEditCurrency(exp.localCurrency); setEditCity(exp.city || ""); setEditMode(true); }}>
+                      onClick={() => { setEditDesc(exp.description); setEditAmount(String(exp.localAmount)); setEditCat(exp.category); setEditDate(exp.date.slice(0, 10)); setEditSourceId(exp.sourceId); setEditCurrency(exp.localCurrency); setEditCity(exp.city || ""); setEditTaxAmount(String(exp.taxAmount || 0)); setEditTaxType(exp.taxType || 'fixed'); setEditDiscountAmount(String(exp.discountAmount || 0)); setEditDiscountType(exp.discountType || 'fixed'); setEditCambialRate(String(exp.cambialRate || exp.localToBaseRate || 1)); setEditMode(true); }}>
                       Edit
                     </Btn>
                     <Btn style={{ flex: 1 }} variant="danger" icon={<Icon d={icons.trash} size={16} stroke={C.red} />}
@@ -2924,6 +3008,34 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
                   <div style={{ marginBottom: 10 }}>
                     <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>AMOUNT</div>
                     <Input value={editAmount} onChange={setEditAmount} placeholder="0.00" />
+                  </div>
+                  <div style={{ marginBottom: 10, display: "flex", gap: 10 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TAX / FEES</div>
+                      <div style={{ display: "flex", background: C.card3, borderRadius: 10, padding: 4 }}>
+                        <input value={editTaxAmount} onChange={e => setEditTaxAmount(e.target.value)} placeholder="0.00" style={{ background: "transparent", border: "none", color: C.text, width: "100%", outline: "none", paddingLeft: 8 }} />
+                        <button onClick={() => setEditTaxType(t => t === 'fixed' ? 'percentage' : 'fixed')} style={{ background: C.bg, color: C.cyan, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontWeight: 700 }}>{editTaxType === 'percentage' ? '%' : '$'}</button>
+                      </div>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>DISCOUNT</div>
+                      <div style={{ display: "flex", background: C.card3, borderRadius: 10, padding: 4 }}>
+                        <input value={editDiscountAmount} onChange={e => setEditDiscountAmount(e.target.value)} placeholder="0.00" style={{ background: "transparent", border: "none", color: C.text, width: "100%", outline: "none", paddingLeft: 8 }} />
+                        <button onClick={() => setEditDiscountType(t => t === 'fixed' ? 'percentage' : 'fixed')} style={{ background: C.bg, color: C.cyan, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontWeight: 700 }}>{editDiscountType === 'percentage' ? '%' : '$'}</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>EXCHANGE RATE</div>
+                    <div style={{ display: "flex", background: C.card3, borderRadius: 10, padding: 4 }}>
+                      <input value={editCambialRate} onChange={e => setEditCambialRate(e.target.value)} placeholder="1.00" style={{ background: "transparent", border: "none", color: C.text, flex: 1, outline: "none", paddingLeft: 8 }} />
+                      <button onClick={async () => {
+                        try {
+                          const r = await fetchRate(editCurrency, budgetCurrency);
+                          setEditCambialRate(String(r));
+                        } catch { }
+                      }} style={{ background: C.bg, color: C.cyan, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontWeight: 700, fontSize: 11 }}>Update from API</button>
+                    </div>
                   </div>
                   <div style={{ marginBottom: 10 }}>
                     <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>DATE</div>
@@ -3036,6 +3148,12 @@ const AddExpenseScreen = ({ onBack, activeTripId, user }: any) => {
   const [selectedSourceId, setSelectedSourceId] = useState<string>(() => {
     return activeSources[0]?.id || "";
   });
+  const [taxAmountStr, setTaxAmountStr] = useState("");
+  const [taxType, setTaxType] = useState<'fixed' | 'percentage'>('fixed');
+  const [discountAmountStr, setDiscountAmountStr] = useState("");
+  const [discountType, setDiscountType] = useState<'fixed' | 'percentage'>('fixed');
+  const [customRateStr, setCustomRateStr] = useState("");
+
   const [saving, setSaving] = useState(false);
   const [expDate, setExpDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [expTime, setExpTime] = useState<string>(() => {
@@ -3066,9 +3184,17 @@ const AddExpenseScreen = ({ onBack, activeTripId, user }: any) => {
   }, []);
 
   useEffect(() => {
-    if (localCurrency === budget.baseCurrency) { setDisplayRate(1); return; }
-    fetchRate(localCurrency, budget.baseCurrency).then(r => setDisplayRate(r)).catch(() => setDisplayRate(1));
+    if (localCurrency === budget.baseCurrency) { setDisplayRate(1); setCustomRateStr("1"); return; }
+    fetchRate(localCurrency, budget.baseCurrency).then(r => { setDisplayRate(r); setCustomRateStr(String(r)); }).catch(() => { setDisplayRate(1); setCustomRateStr("1"); });
   }, [localCurrency, budget.baseCurrency]);
+
+  const taxVal = parseFloat(taxAmountStr) || 0;
+  const discVal = parseFloat(discountAmountStr) || 0;
+  const effectiveTax = taxType === 'percentage' ? total * (taxVal / 100) : taxVal;
+  const effectiveDiscount = discountType === 'percentage' ? total * (discVal / 100) : discVal;
+  const effectiveLocal = total + effectiveTax - effectiveDiscount;
+  const currentRate = parseFloat(customRateStr) || displayRate;
+  const previewBaseAmount = effectiveLocal * currentRate;
 
   // Remaining budget today (with carryover from previous days)
   const todayKey = localDateKey(new Date());
@@ -3076,7 +3202,7 @@ const AddExpenseScreen = ({ onBack, activeTripId, user }: any) => {
   const accumulatedDays = pastDates.size + 1;
   const totalSpentAllBase = allExpenses.reduce((s, e) => s + e.baseAmount, 0);
   const remainingBase = accumulatedDays * budget.dailyLimit - totalSpentAllBase;
-  const remainingLocal = displayRate > 0 ? remainingBase / displayRate : remainingBase;
+  const remainingLocal = currentRate > 0 ? remainingBase / currentRate : remainingBase;
 
   // Credit vs balance distinction
   const selectedSource = activeSources.find(s => s.id === selectedSourceId);
@@ -3084,7 +3210,7 @@ const AddExpenseScreen = ({ onBack, activeTripId, user }: any) => {
   const spentOnSource = allExpenses.filter(e => e.sourceId === selectedSourceId).reduce((s, e) => s + e.baseAmount, 0);
   const sourceLimitBase = selectedSource?.limitInBase ?? selectedSource?.limit ?? 0;
   const sourceRemainingBase = sourceLimitBase - spentOnSource;
-  const sourceRemainingLocal = displayRate > 0 ? sourceRemainingBase / displayRate : sourceRemainingBase;
+  const sourceRemainingLocal = currentRate > 0 ? sourceRemainingBase / currentRate : sourceRemainingBase;
 
   const handleKey = (k: string) => {
     setAmount(prev => {
@@ -3095,6 +3221,24 @@ const AddExpenseScreen = ({ onBack, activeTripId, user }: any) => {
       return prev + k;
     });
   };
+
+  if (!activeSavedBudget) {
+    return (
+      <div style={{ padding: "0 20px 100px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 400, gap: 16 }}>
+        <div style={{ width: 80, height: 80, borderRadius: "50%", background: C.card3, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Icon d={icons.wallet} size={36} stroke={C.textMuted} />
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>No Active Budget</div>
+          <div style={{ color: C.textSub, fontSize: 13, lineHeight: 1.5, maxWidth: 280, margin: "0 auto" }}>
+            You need to create and activate a budget before you can add expenses to this trip.
+          </div>
+        </div>
+        <Btn style={{ marginTop: 8 }} onClick={() => { onBack(); }}>Go Back</Btn>
+      </div>
+    );
+  }
+
   return (
     <div style={{ padding: "0 20px 100px", overflowY: "auto" }}>
       <div style={{ textAlign: "center", padding: "24px 0 16px", borderBottom: `1px solid ${C.border}` }}>
@@ -3153,6 +3297,56 @@ const AddExpenseScreen = ({ onBack, activeTripId, user }: any) => {
               </button>
             );
           })}
+        </div>
+      </div>
+      <div style={{ marginTop: 20 }}>
+        <SectionLabel>TAX, DISCOUNTS & CAMBIO</SectionLabel>
+        <div style={{ background: C.card3, borderRadius: 14, padding: 16 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, color: C.textSub, marginBottom: 4 }}>Tax / Fees</div>
+                <div style={{ display: "flex", background: C.bg, borderRadius: 8, padding: 4 }}>
+                  <input value={taxAmountStr} onChange={e => setTaxAmountStr(e.target.value)} placeholder="0.00" style={{ background: "transparent", border: "none", color: C.text, width: "100%", outline: "none", paddingLeft: 8 }} />
+                  <button onClick={() => setTaxType(t => t === 'fixed' ? 'percentage' : 'fixed')} style={{ background: C.card3, color: C.cyan, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontWeight: 700 }}>
+                    {taxType === 'percentage' ? '%' : currSym(localCurrency)}
+                  </button>
+                </div>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, color: C.textSub, marginBottom: 4 }}>Discount</div>
+                <div style={{ display: "flex", background: C.bg, borderRadius: 8, padding: 4 }}>
+                  <input value={discountAmountStr} onChange={e => setDiscountAmountStr(e.target.value)} placeholder="0.00" style={{ background: "transparent", border: "none", color: C.text, width: "100%", outline: "none", paddingLeft: 8 }} />
+                  <button onClick={() => setDiscountType(t => t === 'fixed' ? 'percentage' : 'fixed')} style={{ background: C.card3, color: C.cyan, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontWeight: 700 }}>
+                    {discountType === 'percentage' ? '%' : currSym(localCurrency)}
+                  </button>
+                </div>
+              </div>
+            </div>
+            {localCurrency !== budget.baseCurrency && (
+              <div>
+                <div style={{ fontSize: 11, color: C.textSub, marginBottom: 4 }}>Exchange Rate ({localCurrency} to {budget.baseCurrency})</div>
+                <div style={{ display: "flex", background: C.bg, borderRadius: 8, padding: 4 }}>
+                  <input value={customRateStr} onChange={e => setCustomRateStr(e.target.value)} placeholder="1.00" style={{ background: "transparent", border: "none", color: C.text, width: "100%", outline: "none", paddingLeft: 8 }} />
+                  <button onClick={async () => {
+                    try {
+                      const r = await fetchRate(localCurrency, budget.baseCurrency);
+                      setCustomRateStr(String(r));
+                    } catch { }
+                  }} style={{ background: C.card3, color: C.cyan, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontWeight: 700 }}>
+                    Reset API
+                  </button>
+                </div>
+              </div>
+            )}
+            <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12, marginTop: 4 }}>
+              <div style={{ fontSize: 11, color: C.textSub, letterSpacing: 1 }}>FINAL PREVIEW</div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <div style={{ fontSize: 13, color: C.textMuted }}>{currSym(localCurrency)}{fmtAmt(effectiveLocal)}</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: C.cyan }}>{currSym(budget.baseCurrency)}{fmtAmt(previewBaseAmount)}</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <div style={{ marginTop: 20 }}>
@@ -3289,12 +3483,6 @@ const AddExpenseScreen = ({ onBack, activeTripId, user }: any) => {
       <Btn style={{ width: "100%" }} onClick={async () => {
         if (saving) return;
         setSaving(true);
-        const localAmount = parseFloat(amount) || 0;
-        let localToBaseRate = 1;
-        try {
-          if (localCurrency !== budget.baseCurrency)
-            localToBaseRate = await fetchRate(localCurrency, budget.baseCurrency);
-        } catch { }
         const expense: Expense = {
           id: crypto.randomUUID(),
           description: desc || categories.find(c => c.id === cat)?.label || cat,
@@ -3302,11 +3490,16 @@ const AddExpenseScreen = ({ onBack, activeTripId, user }: any) => {
           date: new Date(`${expDate || localDateKey(new Date())}T${expTime || '12:00'}:00`).toISOString(),
           sourceId: selectedSourceId,
           type: expType as "personal" | "group",
-          localAmount,
+          localAmount: total,
           localCurrency,
-          baseAmount: localAmount * localToBaseRate,
+          baseAmount: previewBaseAmount,
+          taxAmount: taxVal,
+          taxType,
+          discountAmount: discVal,
+          discountType,
+          cambialRate: currentRate,
           baseCurrency: budget.baseCurrency,
-          localToBaseRate,
+          localToBaseRate: currentRate,
           whoPaid: expType === "group" ? whoPaid : undefined,
           splits: expType === "group" ? shares : undefined,
           receiptDataUrl: receiptDataUrl || undefined,

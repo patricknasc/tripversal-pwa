@@ -15,6 +15,22 @@ CREATE TABLE IF NOT EXISTS trips (
   created_at   TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ─── Trip Expenses ─────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS trip_expenses (
+  id uuid default gen_random_uuid() primary key,
+  trip_id uuid references public.trips(id) on delete cascade not null,
+  local_amount numeric not null,
+  local_currency text not null,
+  base_amount numeric not null,
+  tax_amount numeric default 0 not null,
+  tax_type text default 'fixed' check (tax_type in ('fixed', 'percentage')),
+  discount_amount numeric default 0 not null,
+  discount_type text default 'fixed' check (discount_type in ('fixed', 'percentage')),
+  cambial_rate numeric default 1 not null,
+  category text not null,
+  description text not null
+);
+
 -- ─── Trip Members ──────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS trip_members (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
