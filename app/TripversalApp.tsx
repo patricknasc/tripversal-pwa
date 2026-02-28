@@ -360,6 +360,7 @@ const icons: Record<string, any> = {
   archive: ["M21 8v13H3V8", "M1 3h22v5H1z", "M10 12h4"],
   rotateCcw: ["M1 4v6h6", "M3.51 15a9 9 0 102.13-9.36L1 10"],
   logOut: ["M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4", "M16 17l5-5-5-5", "M21 12H9"],
+  helpCircle: ["M12 22a10 10 0 100-20 10 10 0 000 20z", "M9 9a3 3 0 015.83 1c0 2-3 3-3 3", "M12 17h.01"],
 };
 
 const CATEGORY_ICONS: Record<EventCategory, string> = {
@@ -1692,6 +1693,11 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0 }}>
                     <span style={{ fontSize: 11 }}>{weatherIcon(wx.code)}</span>
                     <span style={{ fontSize: 9, opacity: 0.8 }}>{wx.temp}°</span>
+                  </div>
+                ) : day >= todayKey ? (
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0, opacity: isSel ? 0.4 : 0.25 }}>
+                    <Icon d={icons.helpCircle} size={13} stroke="currentColor" strokeWidth={1.5} />
+                    <span style={{ fontSize: 9 }}>?°</span>
                   </div>
                 ) : (
                   <div style={{ padding: "4px 0" }}>
