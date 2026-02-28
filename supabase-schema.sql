@@ -211,3 +211,18 @@ CREATE TABLE IF NOT EXISTS weather_forecasts (
 );
 ALTER TABLE weather_forecasts ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "service_role_all_weather" ON weather_forecasts FOR ALL USING (true);
+
+-- ─── User Budgets ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS user_budgets (
+  id             TEXT PRIMARY KEY,
+  google_sub     TEXT NOT NULL,
+  name           TEXT NOT NULL,
+  currency       TEXT NOT NULL,
+  amount         NUMERIC NOT NULL,
+  active_trip_id UUID REFERENCES trips(id) ON DELETE SET NULL,
+  sources        JSONB,
+  created_at     TIMESTAMPTZ DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE user_budgets ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role_all_ub" ON user_budgets FOR ALL USING (true);

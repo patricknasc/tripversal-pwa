@@ -51,6 +51,7 @@ interface SavedBudget {
   amount: number;
   activeTripId?: string;
   createdAt: string;
+  sources?: PaymentSource[];
 }
 
 interface TripBudget {
@@ -1939,7 +1940,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
   const [editCity, setEditCity] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [visibleTxCount, setVisibleTxCount] = useState(10);
-  const [walletTab, setWalletTab] = useState<'transactions' | 'analytics' | 'wallet'>('transactions');
+  const [walletTab, setWalletTab] = useState<'transactions' | 'analytics' | 'budget'>('transactions');
   const txSentinelRef = useRef<HTMLDivElement>(null);
 
   // --- New Budget & Payment Sources States ---
@@ -2020,6 +2021,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
           id: r.id, name: r.name, currency: r.currency,
           amount: Number(r.amount),
           activeTripId: r.active_trip_id ?? undefined,
+          sources: r.sources,
           createdAt: r.created_at,
         }));
         setSavedBudgets(serverBudgets);
@@ -2042,7 +2044,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
     fetch(`/api/users/${user.sub}/budgets`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: b.id, name: b.name, currency: b.currency, amount: b.amount, activeTripId: b.activeTripId }),
+      body: JSON.stringify({ id: b.id, name: b.name, currency: b.currency, amount: b.amount, activeTripId: b.activeTripId, sources: b.sources }),
     }).catch(() => { });
   };
 
@@ -2115,13 +2117,33 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
       limitInBase,
       color: srcColor,
     };
-    const next = { ...budget, sources: [...budget.sources, src] };
-    saveBudgetSettings(next);
+    if (activeSavedBudget) {
+      const newSources = [...(activeSavedBudget.sources || []), src];
+      const newTotal = newSources.reduce((acc, s) => acc + (s.limitInBase ?? s.limit), 0);
+      const updated = { ...activeSavedBudget, sources: newSources, amount: newTotal > 0 ? newTotal : activeSavedBudget.amount };
+      saveBudgets(savedBudgets.map(b => b.id === updated.id ? updated : b));
+      syncBudget(updated);
+      setActiveSavedBudget(updated);
+    } else {
+      const next = { ...budget, sources: [...budget.sources, src] };
+      saveBudgetSettings(next);
+    }
     setSrcName(""); setSrcType("balance"); setSrcCurrency("EUR"); setSrcAmount(""); setSrcColor("#00e5ff");
     setShowAddSource(false); setSrcSaving(false);
   };
 
-  const removeSource = (id: string) => saveBudgetSettings({ ...budget, sources: budget.sources.filter(s => s.id !== id) });
+  const removeSource = (id: string) => {
+    if (activeSavedBudget) {
+      const newSources = (activeSavedBudget.sources || []).filter(s => s.id !== id);
+      const newTotal = newSources.reduce((acc, s) => acc + (s.limitInBase ?? s.limit), 0);
+      const updated = { ...activeSavedBudget, sources: newSources, amount: newTotal || (newSources.length === 0 ? 0 : activeSavedBudget.amount) };
+      saveBudgets(savedBudgets.map(b => b.id === updated.id ? updated : b));
+      syncBudget(updated);
+      setActiveSavedBudget(updated);
+    } else {
+      saveBudgetSettings({ ...budget, sources: budget.sources.filter(s => s.id !== id) });
+    }
+  };
 
   useEffect(() => {
     const el = txSentinelRef.current;
@@ -2221,7 +2243,8 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
   const maxCat = catTotals[0]?.[1] || 1;
 
   // Source breakdown
-  const sourceMap = Object.fromEntries(budget.sources.map(s => [s.id, s]));
+  const activeSources = activeSavedBudget ? (activeSavedBudget.sources || []) : budget.sources;
+  const sourceMap = Object.fromEntries(activeSources.map(s => [s.id, s]));
   const srcTotals = Object.entries(
     expenses.reduce((acc, e) => { acc[e.sourceId] = (acc[e.sourceId] || 0) + e.baseAmount; return acc; }, {} as Record<string, number>)
   ).sort((a, b) => b[1] - a[1]);
@@ -2337,9 +2360,9 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
 
       {/* ── Tab switcher ── */}
       <div style={{ background: C.card3, borderRadius: 14, padding: 4, display: "flex", marginBottom: 20 }}>
-        {(['transactions', 'analytics', 'wallet'] as const).map(t => (
+        {(['transactions', 'analytics', 'budget'] as const).map(t => (
           <button key={t} onClick={() => setWalletTab(t)} style={{ flex: 1, padding: "11px", borderRadius: 10, border: "none", cursor: "pointer", background: walletTab === t ? C.cyan : "transparent", color: walletTab === t ? "#000" : C.textMuted, fontWeight: walletTab === t ? 700 : 400, fontSize: 12, fontFamily: "inherit", letterSpacing: 1 }}>
-            {t === 'transactions' ? 'TRANSACTIONS' : t === 'analytics' ? 'ANALYTICS' : 'WALLET'}
+            {t === 'transactions' ? 'TRANSACTIONS' : t === 'analytics' ? 'ANALYTICS' : 'BUDGET'}
           </button>
         ))}
       </div>
@@ -2414,7 +2437,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
               )}
             </svg>
             <div style={{ flex: 1 }}>
-              {totalBudgetInBase === 0 && <div style={{ color: C.textSub, fontSize: 12, fontStyle: "italic" }}>No active budget. Go to <strong style={{ color: C.cyan }}>Group → Manage → Budget</strong> to set one.</div>}
+              {totalBudgetInBase === 0 && <div style={{ color: C.textSub, fontSize: 12, fontStyle: "italic" }}>No active budget. Go to the <strong style={{ color: C.cyan, cursor: "pointer" }} onClick={() => setWalletTab('budget')}>Budget tab</strong> to set one.</div>}
               {totalBudgetInBase > 0 && (
                 <>
                   <div style={{ marginBottom: 12 }}>
@@ -2674,11 +2697,11 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
             </button>
           }>PAYMENT SOURCES</SectionLabel>
 
-          {budget.sources.length === 0 && !showAddSource && (
+          {activeSources.length === 0 && !showAddSource && (
             <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", marginBottom: 16, padding: "8px 0" }}>No custom sources. Default will be used.</div>
           )}
 
-          {budget.sources.map(src => {
+          {activeSources.map(src => {
             const spent = expenses.filter(e => e.sourceId === src.id).reduce((s, e) => s + e.localAmount, 0);
             const usePct = src.limit > 0 ? Math.min(spent / src.limit, 1) : 0;
             return (
@@ -2940,13 +2963,22 @@ const AddExpenseScreen = ({ onBack, activeTripId, user }: any) => {
     try { const s = localStorage.getItem('tripversal_budget'); if (s) return JSON.parse(s); } catch { }
     return DEFAULT_BUDGET;
   });
+  const [activeSavedBudget] = useState<SavedBudget | null>(() => {
+    try {
+      const bs: SavedBudget[] = JSON.parse(localStorage.getItem('tripversal_saved_budgets') || '[]');
+      const act = bs.find(b => b.activeTripId === activeTripId);
+      if (act) return act;
+      const id = localStorage.getItem(`tripversal_active_budget_${activeTripId}`);
+      return id ? bs.find(b => b.id === id) || null : null;
+    } catch { return null; }
+  });
+  const activeSources = activeSavedBudget ? (activeSavedBudget.sources || []) : budget.sources;
+
   const [localCurrency, setLocalCurrency] = useState<Currency>(() => {
-    try { const s = localStorage.getItem('tripversal_budget'); if (s) { const b = JSON.parse(s); if (b.sources?.[0]?.currency) return b.sources[0].currency; } } catch { }
-    return "EUR" as Currency;
+    return (activeSources[0]?.currency as Currency) || "EUR";
   });
   const [selectedSourceId, setSelectedSourceId] = useState<string>(() => {
-    try { const s = localStorage.getItem('tripversal_budget'); if (s) { const b = JSON.parse(s); if (b.sources?.[0]?.id) return b.sources[0].id; } } catch { }
-    return "";
+    return activeSources[0]?.id || "";
   });
   const [saving, setSaving] = useState(false);
   const [expDate, setExpDate] = useState<string>(new Date().toISOString().slice(0, 10));
@@ -2991,7 +3023,7 @@ const AddExpenseScreen = ({ onBack, activeTripId, user }: any) => {
   const remainingLocal = displayRate > 0 ? remainingBase / displayRate : remainingBase;
 
   // Credit vs balance distinction
-  const selectedSource = budget.sources.find(s => s.id === selectedSourceId);
+  const selectedSource = activeSources.find(s => s.id === selectedSourceId);
   const isCredit = selectedSource?.type === "credit";
   const spentOnSource = allExpenses.filter(e => e.sourceId === selectedSourceId).reduce((s, e) => s + e.baseAmount, 0);
   const sourceLimitBase = selectedSource?.limitInBase ?? selectedSource?.limit ?? 0;
@@ -3033,12 +3065,12 @@ const AddExpenseScreen = ({ onBack, activeTripId, user }: any) => {
             );
           })}
         </div>
-        {budget.sources.length > 0 && (
+        {activeSources.length > 0 && (
           <>
             <SectionLabel>PAYMENT SOURCE</SectionLabel>
             <div style={{ position: "relative", margin: "0 -20px", padding: "0 20px", marginBottom: 12 }}>
               <div className="no-scrollbar" style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 8, scrollbarWidth: "none", msOverflowStyle: "none" as any, scrollSnapType: "x mandatory", WebkitMaskImage: "linear-gradient(to right, transparent 0%, black 6%, black 94%, transparent 100%)", maskImage: "linear-gradient(to right, transparent 0%, black 6%, black 94%, transparent 100%)" }}>
-                {budget.sources.map(src => {
+                {activeSources.map(src => {
                   const active = selectedSourceId === src.id;
                   return (
                     <button key={src.id} onClick={() => { setSelectedSourceId(src.id); setLocalCurrency(src.currency); }} style={{ flexShrink: 0, background: active ? "#003d45" : C.card3, border: active ? `2px solid ${src.color}` : "2px solid transparent", borderRadius: 14, padding: "12px 16px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4, minWidth: 120, scrollSnapAlign: "start" }}>
