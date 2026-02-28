@@ -730,12 +730,21 @@ const HomeScreen = ({ onNav, onAddExpense, onShowGroup, activeTripId, activeTrip
   const [homeEditCurrency, setHomeEditCurrency] = useState<Currency>("EUR");
   const [homeEditCity, setHomeEditCity] = useState("");
   const [homeConfirmDelete, setHomeConfirmDelete] = useState(false);
+  const [activeSavedBudget, setActiveSavedBudget] = useState<SavedBudget | null>(null);
 
   useEffect(() => {
     try {
       const bs = localStorage.getItem('tripversal_budget');
       const b: TripBudget = bs ? JSON.parse(bs) : DEFAULT_BUDGET;
       setBudget(b);
+
+      const savedBs = localStorage.getItem('tripversal_saved_budgets');
+      if (savedBs) {
+        const parsed = JSON.parse(savedBs) as SavedBudget[];
+        const active = parsed.find(sb => sb.activeTripId === activeTripId);
+        setActiveSavedBudget(active || null);
+      }
+
       const es = localStorage.getItem('tripversal_expenses');
       const all: Expense[] = es ? JSON.parse(es) : [];
       const expenses: Expense[] = all
@@ -864,7 +873,18 @@ const HomeScreen = ({ onNav, onAddExpense, onShowGroup, activeTripId, activeTrip
     return () => observer.disconnect();
   }, [allExpenses.length]);
 
-  const pct = budget.dailyLimit > 0 ? Math.min(todaySpent / budget.dailyLimit, 1) : 0;
+  const { totalBudgetInBase: legacyTotal } = calcSummary(budget, allExpenses);
+  const totalBudgetInBase = activeTripId
+    ? (activeSavedBudget ? activeSavedBudget.amount : 0)
+    : (activeSavedBudget ? activeSavedBudget.amount : legacyTotal);
+  const budgetCurrency = (activeSavedBudget ? activeSavedBudget.currency : budget.baseCurrency) as Currency;
+
+  const tripDays = activeTrip
+    ? Math.max(1, Math.round((new Date(activeTrip.endDate + 'T12:00:00').getTime() - new Date(activeTrip.startDate + 'T12:00:00').getTime()) / (1000 * 60 * 60 * 24)) + 1)
+    : 0;
+  const dailyMax = tripDays > 0 && totalBudgetInBase > 0 ? totalBudgetInBase / tripDays : 0;
+
+  const pct = dailyMax > 0 ? Math.min(todaySpent / dailyMax, 1) : 0;
   const barColor = pct > 0.85 ? C.red : pct > 0.6 ? C.yellow : C.cyan;
 
   // Badge: compare today vs yesterday
@@ -890,8 +910,8 @@ const HomeScreen = ({ onNav, onAddExpense, onShowGroup, activeTripId, activeTrip
       <div style={{ padding: "16px 20px 0" }}>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-            <span style={{ fontSize: 40, fontWeight: 800, color: C.text, letterSpacing: -1 }}>{currSym(budget.baseCurrency)}{fmtAmt(todaySpent)}</span>
-            <span style={{ color: C.textMuted, fontSize: 18 }}>/ {currSym(budget.baseCurrency)}{fmtAmt(budget.dailyLimit, 0)}</span>
+            <span style={{ fontSize: 40, fontWeight: 800, color: C.text, letterSpacing: -1 }}>{currSym(budgetCurrency)}{fmtAmt(todaySpent)}</span>
+            <span style={{ color: C.textMuted, fontSize: 18 }}>/ {currSym(budgetCurrency)}{fmtAmt(dailyMax, 0)}</span>
           </div>
           <div style={{ background: badgeBg, color: badgeColor, borderRadius: 20, padding: "4px 10px", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
             <span>{badgeArrow}</span> {badgeLabel}
@@ -902,7 +922,7 @@ const HomeScreen = ({ onNav, onAddExpense, onShowGroup, activeTripId, activeTrip
         </div>
         {yesterdaySpent > 0 && (
           <div style={{ color: C.textSub, fontSize: 11, marginTop: 6, textAlign: "right" }}>
-            vs yesterday {currSym(budget.baseCurrency)}{fmtAmt(yesterdaySpent)}
+            vs yesterday {currSym(budgetCurrency)}{fmtAmt(yesterdaySpent)}
           </div>
         )}
       </div>
@@ -1958,10 +1978,14 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
     try { const s = localStorage.getItem('tripversal_saved_budgets'); return s ? JSON.parse(s) : []; } catch { return []; }
   });
   const [showAddBudget, setShowAddBudget] = useState(false);
+  const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
+  const [confirmDeleteBudgetId, setConfirmDeleteBudgetId] = useState<string | null>(null);
+  const [confirmDeleteSourceId, setConfirmDeleteSourceId] = useState<string | null>(null);
   const [budgetName, setBudgetName] = useState("");
   const [budgetAmount, setBudgetAmount] = useState("");
   const [formBudgetCurrency, setFormBudgetCurrency] = useState<Currency>("USD");
   const [formBudgetType, setFormBudgetType] = useState<'simple' | 'composed'>('simple');
+  const [formSources, setFormSources] = useState<PaymentSource[]>([]);
   const [showAddSource, setShowAddSource] = useState(false);
   const [srcName, setSrcName] = useState("");
   const [srcType, setSrcType] = useState<SourceType>("balance");
@@ -2083,22 +2107,46 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
     setActiveSavedBudget(updated.find(b => b.id === budgetId) ?? null);
   };
 
-  const handleAddBudget = () => {
-    if (!user || (!budgetName && !budgetAmount)) return;
-    const finalAmount = formBudgetType === 'composed' ? 0 : (parseFloat(budgetAmount) || 0);
+  const resetForm = () => {
+    setBudgetName(""); setBudgetAmount(""); setFormBudgetCurrency("USD"); setFormBudgetType('simple'); setFormSources([]);
+    setShowAddBudget(false); setEditingBudgetId(null); setShowAddSource(false);
+  };
+
+  const openEditBudget = (b: SavedBudget) => {
+    setEditingBudgetId(b.id);
+    setBudgetName(b.name);
+    setFormBudgetCurrency(b.currency as Currency);
+    setFormBudgetType(b.budgetType || 'simple');
+    setBudgetAmount(b.amount.toString());
+    setFormSources(b.sources || []);
+    setShowAddBudget(true);
+  };
+
+  const handleSaveBudget = () => {
+    if (!user || (!budgetName && !budgetAmount && formBudgetType === 'simple')) return;
+    const finalAmount = formBudgetType === 'composed' ? formSources.reduce((acc, s) => acc + (s.limitInBase ?? s.limit), 0) : (parseFloat(budgetAmount) || 0);
+
     const newB: SavedBudget = {
-      id: crypto.randomUUID(),
+      id: editingBudgetId || crypto.randomUUID(),
       name: budgetName || "New Budget",
       currency: formBudgetCurrency,
       amount: finalAmount,
       budgetType: formBudgetType,
-      sources: formBudgetType === 'composed' ? [] : undefined,
+      sources: formBudgetType === 'composed' ? formSources : undefined,
       createdAt: new Date().toISOString()
     };
-    const nextList = [newB, ...savedBudgets];
+
+    let nextList;
+    if (editingBudgetId) {
+      nextList = savedBudgets.map(b => b.id === editingBudgetId ? { ...b, ...newB } : b);
+      if (activeSavedBudget?.id === editingBudgetId) setActiveSavedBudget({ ...activeSavedBudget, ...newB });
+    } else {
+      nextList = [newB, ...savedBudgets];
+    }
+
     saveBudgets(nextList);
-    setBudgetName(""); setBudgetAmount(""); setShowAddBudget(false); setFormBudgetType('simple');
     syncBudget(newB);
+    resetForm();
   };
 
   const handleDeleteBudget = (budgetId: string) => {
@@ -2124,8 +2172,8 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
     setSrcSaving(true);
     let limitInBase = parseFloat(srcAmount);
     try {
-      if (srcCurrency !== budget.baseCurrency) {
-        const rate = await fetchRate(srcCurrency as Currency, budget.baseCurrency as Currency);
+      if (srcCurrency !== formBudgetCurrency) {
+        const rate = await fetchRate(srcCurrency as Currency, formBudgetCurrency);
         limitInBase = parseFloat(srcAmount) * rate;
       }
     } catch { }
@@ -2138,34 +2186,14 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
       limitInBase,
       color: srcColor,
     };
-    if (activeSavedBudget) {
-      const isComposed = activeSavedBudget.budgetType === 'composed';
-      const newSources = [...(activeSavedBudget.sources || []), src];
-      const newTotal = isComposed ? newSources.reduce((acc, s) => acc + (s.limitInBase ?? s.limit), 0) : activeSavedBudget.amount;
-      const updated = { ...activeSavedBudget, sources: newSources, amount: newTotal };
-      saveBudgets(savedBudgets.map(b => b.id === updated.id ? updated : b));
-      syncBudget(updated);
-      setActiveSavedBudget(updated);
-    } else {
-      const next = { ...budget, sources: [...budget.sources, src] };
-      saveBudgetSettings(next);
-    }
+    setFormSources(prev => [...prev, src]);
     setSrcName(""); setSrcType("balance"); setSrcCurrency("EUR"); setSrcAmount(""); setSrcColor("#00e5ff");
     setShowAddSource(false); setSrcSaving(false);
   };
 
   const removeSource = (id: string) => {
-    if (activeSavedBudget) {
-      const isComposed = activeSavedBudget.budgetType === 'composed';
-      const newSources = (activeSavedBudget.sources || []).filter(s => s.id !== id);
-      const newTotal = isComposed ? newSources.reduce((acc, s) => acc + (s.limitInBase ?? s.limit), 0) : activeSavedBudget.amount;
-      const updated = { ...activeSavedBudget, sources: newSources, amount: newTotal };
-      saveBudgets(savedBudgets.map(b => b.id === updated.id ? updated : b));
-      syncBudget(updated);
-      setActiveSavedBudget(updated);
-    } else {
-      saveBudgetSettings({ ...budget, sources: budget.sources.filter(s => s.id !== id) });
-    }
+    setFormSources(prev => prev.filter(s => s.id !== id));
+    setConfirmDeleteSourceId(null);
   };
 
   useEffect(() => {
@@ -2662,60 +2690,124 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
         <>
           {/* Wallet / Settings tab content */}
           <SectionLabel icon="wallet">BUDGETS</SectionLabel>
-          <button onClick={() => setShowAddBudget(p => !p)} style={{ display: "flex", alignItems: "center", gap: 6, background: C.cyan, color: "#000", border: "none", borderRadius: 12, padding: "10px 16px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 13, marginBottom: 16 }}>
-            <Icon d={icons.plus} size={14} stroke="#000" strokeWidth={2.5} /> New Budget
-          </button>
+          {!showAddBudget && (
+            <button onClick={() => { resetForm(); setShowAddBudget(true); }} style={{ display: "flex", alignItems: "center", gap: 6, background: C.cyan, color: "#000", border: "none", borderRadius: 12, padding: "10px 16px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 13, marginBottom: 16 }}>
+              <Icon d={icons.plus} size={14} stroke="#000" strokeWidth={2.5} /> New Budget
+            </button>
+          )}
 
           {showAddBudget && (
             <Card style={{ marginBottom: 16, border: `1px solid ${C.cyan}30` }}>
-              <div style={{ fontWeight: 700, marginBottom: 12 }}>New Budget</div>
+              <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 15 }}>{editingBudgetId ? "Edit Budget" : "New Budget"}</div>
               <Input placeholder="Name (e.g. Europe Trip 2026)" value={budgetName} onChange={setBudgetName} style={{ marginBottom: 12 }} />
 
               <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>TYPE</div>
               <div style={{ background: C.card3, borderRadius: 12, padding: 4, display: "flex", marginBottom: 16 }}>
-                <button onClick={() => setFormBudgetType('simple')} style={{ flex: 1, padding: "10px", borderRadius: 8, border: "none", cursor: "pointer", background: formBudgetType === 'simple' ? C.cyan : "transparent", color: formBudgetType === 'simple' ? "#000" : C.textMuted, fontWeight: formBudgetType === 'simple' ? 700 : 400, fontSize: 13, fontFamily: "inherit" }}>
+                <button onClick={() => setFormBudgetType('simple')} style={{ flex: 1, padding: "10px", borderRadius: 8, border: "none", cursor: "pointer", background: formBudgetType === 'simple' ? C.cyan : "transparent", color: formBudgetType === 'simple' ? "#000" : C.textMuted, fontWeight: formBudgetType === 'simple' ? 700 : 400, fontSize: 13, fontFamily: "inherit", transition: "all 0.2s" }}>
                   Simple
                 </button>
-                <button onClick={() => setFormBudgetType('composed')} style={{ flex: 1, padding: "10px", borderRadius: 8, border: "none", cursor: "pointer", background: formBudgetType === 'composed' ? C.cyan : "transparent", color: formBudgetType === 'composed' ? "#000" : C.textMuted, fontWeight: formBudgetType === 'composed' ? 700 : 400, fontSize: 13, fontFamily: "inherit" }}>
+                <button onClick={() => setFormBudgetType('composed')} style={{ flex: 1, padding: "10px", borderRadius: 8, border: "none", cursor: "pointer", background: formBudgetType === 'composed' ? C.cyan : "transparent", color: formBudgetType === 'composed' ? "#000" : C.textMuted, fontWeight: formBudgetType === 'composed' ? 700 : 400, fontSize: 13, fontFamily: "inherit", transition: "all 0.2s" }}>
                   Composed
                 </button>
               </div>
 
-              <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+              <div style={{ display: "flex", gap: 10, marginBottom: formBudgetType === 'composed' ? 16 : 20 }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>CURRENCY</div>
-                  <Card style={{ padding: 10 }}>
-                    <input value={formBudgetCurrency} onChange={e => setFormBudgetCurrency(e.target.value.toUpperCase().slice(0, 3) as Currency)} maxLength={3} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", width: "100%", textTransform: "uppercase" as const }} placeholder="USD" />
-                  </Card>
+                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>BASE CURR.</div>
+                  <select value={formBudgetCurrency} onChange={(e: any) => setFormBudgetCurrency(e.target.value as Currency)} style={{ width: "100%", padding: "12px", borderRadius: 10, background: C.card3, border: `none`, color: C.text, fontFamily: "inherit", fontSize: 14 }}>
+                    {(["EUR", "USD", "BRL", "GBP", "COP"] as Currency[]).map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
                 </div>
                 {formBudgetType === 'simple' ? (
                   <div style={{ flex: 2 }}>
                     <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TOTAL AMOUNT</div>
-                    <Card style={{ padding: 10 }}>
-                      <input type="number" value={budgetAmount} onChange={e => setBudgetAmount(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", width: "100%" }} placeholder="0.00" />
+                    <Card style={{ padding: "12px 10px", background: C.card3, border: "none" }}>
+                      <input type="number" value={budgetAmount} onChange={e => setBudgetAmount(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", width: "100%", fontSize: 14 }} placeholder="0.00" />
                     </Card>
                   </div>
                 ) : (
                   <div style={{ flex: 2 }}>
                     <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TOTAL AMOUNT</div>
-                    <Card style={{ padding: 10, display: "flex", alignItems: "center" }}>
-                      <div style={{ color: C.textSub, fontSize: 12, fontStyle: "italic" }}>Sum of added sources</div>
+                    <Card style={{ padding: "12px 10px", display: "flex", alignItems: "center", background: C.card3, border: "none" }}>
+                      <div style={{ color: C.text, fontSize: 14, fontWeight: 700 }}>{currSym(formBudgetCurrency)}{fmtAmt(formSources.reduce((acc, s) => acc + (s.limitInBase ?? s.limit), 0))}</div>
                     </Card>
                   </div>
                 )}
               </div>
+
+              {formBudgetType === 'composed' && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.border}` }}>
+                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1 }}>PAYMENT SOURCES</div>
+                    <button onClick={() => setShowAddSource(p => !p)} style={{ background: "none", color: C.cyan, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit" }}>{showAddSource ? 'Cancel' : '+ Add Source'}</button>
+                  </div>
+
+                  {formSources.length === 0 && !showAddSource && (
+                    <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "14px 0", background: C.card3, borderRadius: 12 }}>No sources added yet.</div>
+                  )}
+
+                  {showAddSource && (
+                    <div style={{ marginBottom: 16, padding: 16, background: C.card3, borderRadius: 12, border: `1px dashed ${C.cyan}40` }}>
+                      <Input placeholder="Name (e.g. Nubank)" value={srcName} onChange={setSrcName} style={{ marginBottom: 10, background: C.card }} />
+                      <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+                        <select value={srcType} onChange={(e: any) => setSrcType(e.target.value as SourceType)} style={{ flex: 1, padding: "12px", borderRadius: 10, background: C.card, border: "none", color: C.text, fontFamily: "inherit", fontSize: 13 }}>
+                          <option value="balance">Saldo</option>
+                          <option value="credit">Crédito</option>
+                        </select>
+                        <select value={srcCurrency} onChange={(e: any) => setSrcCurrency(e.target.value as Currency)} style={{ flex: 1, padding: "12px", borderRadius: 10, background: C.card, border: "none", color: C.text, fontFamily: "inherit", fontSize: 13 }}>
+                          {(["EUR", "USD", "BRL", "GBP", "COP"] as Currency[]).map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+                      <Input placeholder="Amount limit" value={srcAmount} onChange={setSrcAmount} style={{ marginBottom: 12, background: C.card }} />
+                      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+                        {srcColors.map(c => (
+                          <button key={c} onClick={() => setSrcColor(c)} style={{ width: 26, height: 26, borderRadius: "50%", background: c, border: srcColor === c ? "2px solid #fff" : "2px solid transparent", cursor: "pointer" }} />
+                        ))}
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button style={{ flex: 1, padding: "10px", background: C.cyan, color: "#000", borderRadius: 8, border: "none", fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }} onClick={addSource}>{srcSaving ? "Adding..." : "Add to Budget"}</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {formSources.map(src => (
+                    <div key={src.id} style={{ display: "flex", alignItems: "center", gap: 10, background: C.card3, padding: "12px 14px", borderRadius: 10, marginBottom: 8 }}>
+                      <div style={{ width: 12, height: 12, borderRadius: "50%", background: src.color, flexShrink: 0 }} />
+                      <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontWeight: 600, fontSize: 14 }}>{src.name}</span>
+                        <span style={{ color: C.textMuted, fontSize: 12 }}>{currSym(src.currency as Currency)}{fmtAmt(src.limit)}</span>
+                      </div>
+                      <button onClick={(e) => { e.preventDefault(); setConfirmDeleteSourceId(src.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.red, padding: 4 }}><Icon d={icons.trash} size={15} stroke={C.red} /></button>
+                    </div>
+                  ))}
+
+                  {confirmDeleteSourceId && (
+                    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Card style={{ width: "90%", maxWidth: 320, padding: 24, textAlign: "center" }}>
+                        <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 8 }}>Remove Source?</div>
+                        <div style={{ color: C.textMuted, fontSize: 13, marginBottom: 24 }}>This source will be removed from the budget composition.</div>
+                        <div style={{ display: "flex", gap: 12 }}>
+                          <Btn variant="ghost" style={{ flex: 1 }} onClick={() => setConfirmDeleteSourceId(null)}>Cancel</Btn>
+                          <Btn variant="danger" style={{ flex: 1 }} onClick={() => removeSource(confirmDeleteSourceId)}>Remove</Btn>
+                        </div>
+                      </Card>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div style={{ display: "flex", gap: 10 }}>
-                <Btn variant="ghost" style={{ flex: 1 }} onClick={() => { setShowAddBudget(false); setBudgetName(''); setBudgetAmount(''); setFormBudgetCurrency('USD'); setFormBudgetType('simple'); }}>Cancel</Btn>
-                <Btn style={{ flex: 1 }} onClick={handleAddBudget}>Save</Btn>
+                <Btn variant="ghost" style={{ flex: 1 }} onClick={resetForm}>Cancel</Btn>
+                <Btn style={{ flex: 1 }} onClick={handleSaveBudget}>{editingBudgetId ? "Save Changes" : "Create Budget"}</Btn>
               </div>
             </Card>
           )}
 
-          {savedBudgets.length === 0 && !showAddBudget && (
+          {!showAddBudget && savedBudgets.length === 0 && (
             <div style={{ textAlign: "center", color: C.textSub, fontSize: 13, padding: "40px 0", marginBottom: 16 }}>No budgets yet. Create one above.</div>
           )}
 
-          {savedBudgets.map(b => {
+          {!showAddBudget && savedBudgets.map(b => {
             const isActive = b.id === activeSavedBudget?.id && activeSavedBudget?.activeTripId === activeTripId;
             return (
               <Card key={b.id} style={{ marginBottom: 10, border: isActive ? `1px solid ${C.cyan}` : `1px solid ${C.border}` }}>
@@ -2725,10 +2817,13 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
                     <div style={{ color: C.textMuted, fontSize: 12 }}>{b.currency} {b.amount.toLocaleString()}</div>
                   </div>
                   {isActive && <Badge color={C.cyan} bg="#003d45">ACTIVE</Badge>}
-                  <button onClick={() => activateBudget(isActive ? null : b.id)} style={{ background: isActive ? C.card3 : C.cyan, color: isActive ? C.textMuted : "#000", border: "none", borderRadius: 10, padding: "7px 12px", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit" }}>
+                  <button onClick={() => activateBudget(isActive ? null : b.id)} style={{ background: isActive ? C.card3 : "transparent", color: isActive ? C.textMuted : C.cyan, border: isActive ? "none" : `1px solid ${C.cyan}80`, borderRadius: 10, padding: "7px 12px", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit" }}>
                     {isActive ? "Deactivate" : "Activate"}
                   </button>
-                  <button onClick={() => handleDeleteBudget(b.id)} style={{ background: C.redDim, border: "none", borderRadius: 10, padding: "7px 10px", cursor: "pointer" }}>
+                  <button onClick={() => openEditBudget(b)} style={{ background: C.card3, border: "none", borderRadius: 10, padding: "7px 10px", cursor: "pointer" }}>
+                    <Icon d={icons.edit} size={13} stroke={C.textMuted} />
+                  </button>
+                  <button onClick={() => setConfirmDeleteBudgetId(b.id)} style={{ background: C.redDim, border: "none", borderRadius: 10, padding: "7px 10px", cursor: "pointer" }}>
                     <Icon d={icons.trash} size={13} stroke={C.red} />
                   </button>
                 </div>
@@ -2736,104 +2831,20 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [] }: any) => 
             );
           })}
 
-          <SectionLabel action={
-            <button onClick={() => setShowAddSource(p => !p)} style={{ background: C.cyan, color: "#000", borderRadius: 20, padding: "5px 12px", border: "none", cursor: "pointer", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}>
-              <Icon d={icons.plus} size={11} stroke="#000" strokeWidth={2.5} /> ADD
-            </button>
-          }>PAYMENT SOURCES</SectionLabel>
-
-          {activeSources.length === 0 && !showAddSource && (
-            <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", marginBottom: 16, padding: "8px 0" }}>No custom sources. Default will be used.</div>
-          )}
-
-          {activeSources.map(src => {
-            const spent = expenses.filter(e => e.sourceId === src.id).reduce((s, e) => s + e.localAmount, 0);
-            const usePct = src.limit > 0 ? Math.min(spent / src.limit, 1) : 0;
-            return (
-              <Card key={src.id} style={{ marginBottom: 8, padding: "12px 14px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: "50%", background: src.color, flexShrink: 0 }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontWeight: 600, fontSize: 14 }}>{src.name}</span>
-                      <Badge color={src.type === "credit" ? C.yellow : C.cyan} bg={src.type === "credit" ? "#2a2000" : "#003d45"}>{src.type === "credit" ? "CRÉDITO" : "SALDO"}</Badge>
-                    </div>
-                    <div style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{currSym(src.currency as Currency)}{fmtAmt(src.limit)} {src.currency !== budget.baseCurrency && src.limitInBase ? `≈ ${currSym(budget.baseCurrency as Currency)}${fmtAmt(src.limitInBase)}` : ""}</div>
-                    <div style={{ height: 3, background: C.card3, borderRadius: 2, overflow: "hidden", marginTop: 6 }}>
-                      <div style={{ width: `${usePct * 100}%`, height: "100%", background: src.color, borderRadius: 2 }} />
-                    </div>
-                  </div>
-                  <button onClick={() => removeSource(src.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.red, padding: 4 }}><Icon d={icons.trash} size={16} stroke={C.red} /></button>
+          {confirmDeleteBudgetId && (
+            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 300, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+              <div style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "20px 20px 0 0", padding: "28px 20px 44px" }}>
+                <div style={{ textAlign: "center", marginBottom: 24 }}>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: C.text, marginBottom: 6 }}>Delete Budget?</div>
+                  <div style={{ color: C.textMuted, fontSize: 13 }}>This will permanently remove this budget layout.</div>
                 </div>
-              </Card>
-            );
-          })}
-
-          {showAddSource && (
-            <Card style={{ marginBottom: 12, border: `1px solid ${C.cyan}30` }}>
-              <div style={{ fontWeight: 700, marginBottom: 12 }}>New Payment Source</div>
-              <Input placeholder="Name (e.g. Nubank, Cash)" value={srcName} onChange={setSrcName} style={{ marginBottom: 10 }} />
-              <div style={{ background: C.card3, borderRadius: 12, padding: 4, display: "flex", marginBottom: 10 }}>
-                {(["balance", "credit"] as SourceType[]).map(t => (
-                  <button key={t} onClick={() => setSrcType(t)} style={{ flex: 1, padding: "10px", borderRadius: 8, border: "none", cursor: "pointer", background: srcType === t ? C.cyan : "transparent", color: srcType === t ? "#000" : C.textMuted, fontWeight: srcType === t ? 700 : 400, fontSize: 13, fontFamily: "inherit", transition: "all 0.2s" }}>
-                    {t === "balance" ? "Saldo" : "Crédito"}
-                  </button>
-                ))}
-              </div>
-              <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>CURRENCY</div>
-                  <select value={srcCurrency} onChange={(e: any) => setSrcCurrency(e.target.value as Currency)} style={{ width: "100%", padding: "12px", borderRadius: 10, background: C.card3, border: `1.5px solid ${C.border}`, color: C.text, fontFamily: "inherit", fontSize: 14 }}>
-                    {(["EUR", "USD", "BRL", "GBP", "COP"] as Currency[]).map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>LIMIT</div>
-                  <Input placeholder="0.00" value={srcAmount} onChange={setSrcAmount} />
-                </div>
-              </div>
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>COLOR</div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  {srcColors.map(c => (
-                    <button key={c} onClick={() => setSrcColor(c)} style={{ width: 28, height: 28, borderRadius: "50%", background: c, border: srcColor === c ? "3px solid #fff" : "3px solid transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      {srcColor === c && <Icon d={icons.check} size={12} stroke="#fff" strokeWidth={3} />}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <Btn style={{ flex: 1 }} onClick={addSource} variant="primary">{srcSaving ? "Saving..." : "Add Source"}</Btn>
-                <Btn style={{ flex: 1 }} onClick={() => setShowAddSource(false)} variant="ghost">Cancel</Btn>
-              </div>
-            </Card>
-          )}
-
-          <SectionLabel icon="book">PREFERENCES</SectionLabel>
-          <Card style={{ marginBottom: 20, padding: "12px 16px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>BASE CURRENCY</div>
-                <div style={{ display: "flex", gap: 6 }}>
-                  {(["EUR", "USD", "BRL", "GBP", "COP"] as Currency[]).map(c => (
-                    <button key={c} onClick={() => saveBudgetSettings({ ...budget, baseCurrency: c })} style={{ background: budget.baseCurrency === c ? C.cyan : C.card3, color: budget.baseCurrency === c ? "#000" : C.textMuted, border: "none", borderRadius: 8, padding: "5px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{c}</button>
-                  ))}
+                <div style={{ display: "flex", gap: 10 }}>
+                  <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setConfirmDeleteBudgetId(null)}>Cancel</Btn>
+                  <Btn style={{ flex: 1 }} variant="danger" onClick={() => { handleDeleteBudget(confirmDeleteBudgetId); setConfirmDeleteBudgetId(null); }}>Delete</Btn>
                 </div>
               </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>DAILY MAX (ALL BUDGETS)</div>
-                <input
-                  type="number"
-                  value={budget.dailyLimit}
-                  onChange={(e: any) => saveBudgetSettings({ ...budget, dailyLimit: parseFloat(e.target.value) || 0 })}
-                  style={{ background: "transparent", border: "none", outline: "none", color: C.text, fontSize: 18, fontWeight: 700, fontFamily: "inherit", width: "100%" }}
-                />
-              </div>
-              <span style={{ color: C.textMuted, fontSize: 14 }}>{currSym(budget.baseCurrency as Currency)}/day</span>
-            </div>
-          </Card>
+          )}
         </>
       )}
 
