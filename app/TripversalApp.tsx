@@ -2236,26 +2236,41 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
     if (!user || (!budgetName && !budgetAmount && formBudgetType === 'simple')) return;
     const finalAmount = formBudgetType === 'composed' ? formSources.reduce((acc, s) => acc + (s.limitInBase ?? s.limit), 0) : (parseFloat(budgetAmount) || 0);
 
+    const existing = editingBudgetId ? savedBudgets.find(b => b.id === editingBudgetId) : null;
     const newB: SavedBudget = {
       id: editingBudgetId || crypto.randomUUID(),
       name: budgetName || "New Budget",
       currency: formBudgetCurrency,
       amount: finalAmount,
+      activeTripId: existing ? existing.activeTripId : activeTripId,
       budgetType: formBudgetType,
       sources: formBudgetType === 'composed' ? formSources : undefined,
-      createdAt: new Date().toISOString()
+      createdAt: existing ? existing.createdAt : new Date().toISOString()
     };
 
     let nextList;
     if (editingBudgetId) {
-      nextList = savedBudgets.map(b => b.id === editingBudgetId ? { ...b, ...newB } : b);
-      if (activeSavedBudget?.id === editingBudgetId) setActiveSavedBudget({ ...activeSavedBudget, ...newB });
+      nextList = savedBudgets.map(b => b.id === editingBudgetId ? newB : b);
+      if (activeSavedBudget?.id === editingBudgetId) setActiveSavedBudget(newB);
+      saveBudgets(nextList);
+      syncBudget(newB);
     } else {
-      nextList = [newB, ...savedBudgets];
+      // Deactivate any currently active budget for this trip
+      const deactivatedList = savedBudgets.map(b => {
+        if (b.activeTripId === activeTripId) {
+          const deactivated = { ...b, activeTripId: undefined };
+          syncBudget(deactivated);
+          return deactivated;
+        }
+        return b;
+      });
+      nextList = [newB, ...deactivatedList];
+      if (activeTripId) localStorage.setItem(`voyasync_active_budget_${activeTripId}`, newB.id);
+      setActiveSavedBudget(newB);
+      saveBudgets(nextList);
+      syncBudget(newB);
     }
 
-    saveBudgets(nextList);
-    syncBudget(newB);
     resetForm();
   };
 
@@ -2969,9 +2984,19 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
         </>
       )}
 
-      <div style={{ position: "fixed", bottom: 90, right: "calc(50% - 200px)", width: 56, height: 56, borderRadius: "50%", background: C.cyan, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: `0 4px 20px ${C.cyan}50` }} onClick={onAddExpense}>
-        <Icon d={icons.plus} size={24} stroke="#000" strokeWidth={2.5} />
-      </div>
+      {walletTab === 'transactions' && (
+        <div style={{ position: "fixed", bottom: 90, right: "calc(50% - 200px)", width: 56, height: 56, borderRadius: "50%", background: C.cyan, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: `0 4px 20px ${C.cyan}50` }}
+          onClick={() => {
+            if (totalBudgetInBase <= 0) {
+              alert("You need to create and activate a budget before adding a transaction.");
+              setWalletTab('budget');
+            } else {
+              onAddExpense();
+            }
+          }}>
+          <Icon d={icons.plus} size={24} stroke="#000" strokeWidth={2.5} />
+        </div>
+      )}
       {selectedExpenseId && (() => {
         const exp = expenses.find(e => e.id === selectedExpenseId)!;
         if (!exp) return null;
