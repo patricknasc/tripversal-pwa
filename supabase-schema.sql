@@ -201,3 +201,13 @@ CREATE TABLE IF NOT EXISTS trip_activity (
 CREATE INDEX IF NOT EXISTS trip_activity_trip ON trip_activity(trip_id);
 ALTER TABLE trip_activity ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "service_role_all_activity" ON trip_activity FOR ALL USING (true);
+-- ─── Weather Forecasts ────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS weather_forecasts (
+  trip_id     UUID REFERENCES trips(id) ON DELETE CASCADE,
+  date        DATE NOT NULL,
+  forecast    JSONB NOT NULL, -- { temp: number, code: number }
+  updated_at  TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (trip_id, date)
+);
+ALTER TABLE weather_forecasts ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role_all_weather" ON weather_forecasts FOR ALL USING (true);

@@ -1258,6 +1258,29 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
     }
   }, [activeTripId]);
 
+  // 1. Initial Load: LocalStorage -> Cloud API
+  useEffect(() => {
+    if (!activeTripId) { setWeatherMap({}); return; }
+    const lsKey = `tripversal_weather_${activeTripId}`;
+    try {
+      const stored = localStorage.getItem(lsKey);
+      if (stored) setWeatherMap(JSON.parse(stored));
+    } catch { }
+
+    fetch(`/api/trips/${activeTripId}/weather`)
+      .then(r => r.ok ? r.json() : null)
+      .then((cloudMap: Record<string, { temp: number; code: number }> | null) => {
+        if (!cloudMap) return;
+        setWeatherMap(prev => {
+          const newMap = { ...prev, ...cloudMap };
+          localStorage.setItem(lsKey, JSON.stringify(newMap));
+          return newMap;
+        });
+      })
+      .catch(() => { });
+  }, [activeTripId]);
+
+  // 2. Refresh: Open-Meteo -> LocalStorage -> Cloud API
   // Weather from Open-Meteo using segment destinations
   useEffect(() => {
     if (!activeTripId || !activeTrip) return;
@@ -1308,9 +1331,23 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
         } catch { return null; }
       })
     ).then(results => {
-      const map: Record<string, { temp: number; code: number }> = {};
-      results.forEach(entries => { if (entries) Object.assign(map, entries); });
-      if (Object.keys(map).length > 0) setWeatherMap(map);
+      const freshMap: Record<string, { temp: number; code: number }> = {};
+      results.forEach(entries => { if (entries) Object.assign(freshMap, entries); });
+
+      if (Object.keys(freshMap).length > 0) {
+        setWeatherMap(prev => {
+          const updated = { ...prev, ...freshMap };
+          localStorage.setItem(`tripversal_weather_${activeTripId}`, JSON.stringify(updated));
+          return updated;
+        });
+
+        // Sync fresh data to cloud
+        fetch(`/api/trips/${activeTripId}/weather`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(freshMap),
+        }).catch(() => { });
+      }
     });
   }, [activeTripId, activeTrip?.segments?.length]);
 
@@ -1337,9 +1374,12 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
   const segmentRangeDates = activeTrip?.segments.flatMap(seg =>
     seg.startDate ? getDatesRange(seg.startDate, seg.endDate ?? seg.startDate) : []
   ) ?? [];
+  // Also include the next 15 days from today to ensure weather coverage for upcoming trip prep
+  const forecastRange = getDatesRange(todayKey, localDateKey(new Date(now.getTime() + 15 * 86400000)));
+
   const allDates = activeTrip
-    ? [...getDatesRange(activeTrip.startDate, activeTrip.endDate), ...eventDates, ...customEventDates, ...segmentRangeDates]
-    : [todayKey, ...customEventDates];
+    ? [...getDatesRange(activeTrip.startDate, activeTrip.endDate), ...eventDates, ...customEventDates, ...segmentRangeDates, ...forecastRange]
+    : [todayKey, ...customEventDates, ...forecastRange];
   const dateRange = Array.from(new Set(allDates)).sort();
 
   useEffect(() => {
@@ -1529,8 +1569,9 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
                   border: `1px solid ${isSel ? C.cyan : isToday ? C.cyan + "40" : C.border}`,
                   fontSize: 13, fontWeight: isSel ? 700 : 400,
                   display: "flex", flexDirection: "column", alignItems: "center", gap: 2, minWidth: 44,
+                  position: "relative",
                 }}>
-                <span style={{ fontSize: 10, opacity: 0.7 }}>{d.toLocaleDateString("en", { weekday: "short" })}</span>
+                <span style={{ fontSize: 10, opacity: 0.7 }}>{isToday ? "TODAY" : d.toLocaleDateString("en", { weekday: "short" })}</span>
                 <span>{d.getDate()}</span>
                 {wx ? (
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0 }}>
@@ -1538,7 +1579,17 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
                     <span style={{ fontSize: 9, opacity: 0.8 }}>{wx.temp}°</span>
                   </div>
                 ) : (
-                  <div style={{ width: 4, height: 4, borderRadius: "50%", background: hasEvents ? (isSel ? "#000" : C.cyan) : "transparent", marginTop: 1 }} />
+                  <div style={{ padding: "4px 0" }}>
+                    <div style={{ width: 4, height: 4, borderRadius: "50%", background: hasEvents ? (isSel ? "#000" : C.cyan) : "transparent" }} />
+                  </div>
+                )}
+                {/* Event dot if weather is shown */}
+                {wx && hasEvents && (
+                  <div style={{
+                    position: "absolute", top: 4, right: 4, width: 5, height: 5, borderRadius: "50%",
+                    background: isSel ? "#000" : C.cyan,
+                    boxShadow: isSel ? "none" : `0 0 4px ${C.cyan}`
+                  }} />
                 )}
               </div>
             );
