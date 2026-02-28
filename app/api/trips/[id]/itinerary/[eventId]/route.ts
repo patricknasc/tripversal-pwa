@@ -3,7 +3,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string; eventId: string } }) {
   const body = await req.json();
-  const { callerSub, actorName, title, type, startDt, endDt, location, notes, confirmation, extras } = body;
+  const { callerSub, actorName, title, type, startDt, endDt, location, notes, confirmation, extras, visibility, visibleTo } = body;
   const sb = getSupabaseAdmin();
 
   const updates: any = { updated_by: callerSub, updated_at: new Date().toISOString() };
@@ -15,6 +15,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string; 
   if (notes !== undefined) updates.notes = notes;
   if (confirmation !== undefined) updates.confirmation = confirmation;
   if (extras !== undefined) updates.extras = extras;
+  if (visibility !== undefined) updates.visibility = visibility;
+  if (visibleTo !== undefined) updates.visible_to = visibleTo;
 
   const { data, error } = await sb
     .from('itinerary_events')

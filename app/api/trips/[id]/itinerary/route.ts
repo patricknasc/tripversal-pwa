@@ -14,6 +14,8 @@ function toRecord(row: any) {
     confirmation: row.confirmation ?? undefined,
     extras: row.extras ?? undefined,
     weather: row.weather ?? undefined,
+    visibility: row.visibility ?? 'all',
+    visibleTo: row.visible_to ?? [],
     createdBy: row.created_by,
     updatedBy: row.updated_by ?? undefined,
     deletedAt: row.deleted_at ?? undefined,
@@ -22,7 +24,8 @@ function toRecord(row: any) {
   };
 }
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+  const callerSub = req.nextUrl.searchParams.get('callerSub');
   const sb = getSupabaseAdmin();
   const { data, error } = await sb
     .from('itinerary_events')
@@ -31,12 +34,17 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     .is('deleted_at', null)
     .order('start_dt', { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json((data ?? []).map(toRecord));
+  const records = (data ?? []).map(toRecord);
+  // Filter restricted events: always visible to creator; otherwise callerSub must be in visibleTo
+  const filtered = callerSub
+    ? records.filter(r => r.visibility !== 'restricted' || r.createdBy === callerSub || r.visibleTo.includes(callerSub))
+    : records.filter(r => r.visibility !== 'restricted');
+  return NextResponse.json(filtered);
 }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const body = await req.json();
-  const { callerSub, actorName, id, type, title, startDt, endDt, location, notes, confirmation, extras } = body;
+  const { callerSub, actorName, id, type, title, startDt, endDt, location, notes, confirmation, extras, visibility, visibleTo } = body;
   const sb = getSupabaseAdmin();
 
   const row: any = {
@@ -49,6 +57,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     notes: notes ?? null,
     confirmation: confirmation ?? null,
     extras: extras ?? null,
+    visibility: visibility ?? 'all',
+    visible_to: visibleTo ?? [],
     created_by: callerSub,
     updated_at: new Date().toISOString(),
   };

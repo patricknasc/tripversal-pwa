@@ -131,6 +131,8 @@ interface ItineraryEventRecord {
   notes?: string;
   confirmation?: string;
   extras?: Record<string, string>;
+  visibility?: 'all' | 'restricted';
+  visibleTo?: string[];  // google_subs of members who can see this event
   createdBy: string;
   updatedBy?: string;
   deletedAt?: string;
@@ -504,18 +506,18 @@ const SEG_FLAGS = ['🇧🇷','🇺🇸','🇬🇧','🇫🇷','🇩🇪','🇮�
 const SEG_EMOJIS = ['✈️','🚂','🚢','🚁','🏨','🏝','🗺️','🏕','🌋','🌊','🗼','🗽','🏰','🎡','🎭','🎿','⛷️','🏄','🎪','🎨','🏔','🌅','🌃','🌆','🌉','🎠','🚡','🛥️','🏺','⛩️','🕌','🕍','🏯','🏟','🛕','🗿','🎑','🎆','🎇','🌄'];
 
 const ITIN_TYPES: { type: ItinEventType; emoji: string; label: string; extras: string[] }[] = [
-  { type: 'flight',    emoji: '✈️',  label: 'Flight',    extras: ['Airline','Flight #','Seat','Terminal'] },
-  { type: 'train',     emoji: '🚂',  label: 'Train',     extras: ['Train #','Seat','Platform'] },
-  { type: 'bus',       emoji: '🚌',  label: 'Bus',       extras: ['Bus #','Seat'] },
-  { type: 'car',       emoji: '🚗',  label: 'Car',       extras: ['Company','Pickup'] },
-  { type: 'ferry',     emoji: '⛴️',  label: 'Ferry',     extras: ['Ferry Name','Cabin'] },
+  { type: 'flight',    emoji: '✈️',  label: 'Flight',    extras: ['From Airport','To Airport','Airline','Flight #','Seat','Terminal','Gate'] },
+  { type: 'train',     emoji: '🚂',  label: 'Train',     extras: ['From Station','To Station','Train #','Seat','Platform'] },
+  { type: 'bus',       emoji: '🚌',  label: 'Bus',       extras: ['From Stop','To Stop','Bus #','Seat'] },
+  { type: 'car',       emoji: '🚗',  label: 'Car',       extras: ['Company','Pickup','Dropoff'] },
+  { type: 'ferry',     emoji: '⛴️',  label: 'Ferry',     extras: ['From Port','To Port','Ferry Name','Cabin'] },
   { type: 'hotel_in',  emoji: '🏨',  label: 'Check-in',  extras: ['Hotel','Room','Address'] },
   { type: 'hotel_out', emoji: '🛏️',  label: 'Check-out', extras: ['Hotel','Address'] },
   { type: 'tour',      emoji: '🗺️',  label: 'Tour',      extras: ['Operator','Meeting Point'] },
   { type: 'meal',      emoji: '🍽️',  label: 'Meal',      extras: ['Restaurant','Cuisine','Reservation'] },
   { type: 'event',     emoji: '🎭',  label: 'Event',     extras: ['Venue','Ticket #'] },
   { type: 'place',     emoji: '📍',  label: 'Place',     extras: ['Address'] },
-  { type: 'other',     emoji: '📌',  label: 'Other',     extras: [] },
+  { type: 'other',     emoji: '📌',  label: 'Other',     extras: ['Venue'] },
 ];
 
 function weatherIcon(code: number): string {
@@ -1196,6 +1198,8 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
   const [evtNotes, setEvtNotes] = useState('');
   const [evtConfirmation, setEvtConfirmation] = useState('');
   const [evtExtras, setEvtExtras] = useState<Record<string, string>>({});
+  const [evtVisibility, setEvtVisibility] = useState<'all' | 'restricted'>('all');
+  const [evtVisibleTo, setEvtVisibleTo] = useState<string[]>([]);
   const [evtAttachments, setEvtAttachments] = useState<Array<{id: string; name: string; fileData: string}>>([]);
   const [evtSaving, setEvtSaving] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -1373,7 +1377,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
     setEditingEventId(null);
     setEvtType('other'); setEvtTitle(''); setEvtDate(selectedDay); setEvtTime('12:00');
     setEvtEndDate(''); setEvtEndTime(''); setEvtLocation(''); setEvtNotes('');
-    setEvtConfirmation(''); setEvtExtras({}); setEvtAttachments([]);
+    setEvtConfirmation(''); setEvtExtras({}); setEvtVisibility('all'); setEvtVisibleTo([]); setEvtAttachments([]);
     setShowEventForm(true);
   };
 
@@ -1387,7 +1391,9 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
     setEvtEndDate(endDt ? localDateKey(endDt) : '');
     setEvtEndTime(endDt ? `${String(endDt.getHours()).padStart(2,'0')}:${String(endDt.getMinutes()).padStart(2,'0')}` : '');
     setEvtLocation(rec.location || ''); setEvtNotes(rec.notes || '');
-    setEvtConfirmation(rec.confirmation || ''); setEvtExtras(rec.extras || {}); setEvtAttachments([]);
+    setEvtConfirmation(rec.confirmation || ''); setEvtExtras(rec.extras || {});
+    setEvtVisibility(rec.visibility ?? 'all'); setEvtVisibleTo(rec.visibleTo ?? []);
+    setEvtAttachments([]);
     setShowEventForm(true);
   };
 
@@ -1398,6 +1404,8 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
     const endDt = evtEndDate && evtEndTime ? new Date(`${evtEndDate}T${evtEndTime}:00`).toISOString() : undefined;
     const ts = new Date().toISOString();
     const extrasObj = Object.keys(evtExtras).length > 0 ? evtExtras : undefined;
+    const visibilityVal = evtVisibility === 'restricted' ? 'restricted' : 'all';
+    const visibleToVal = evtVisibility === 'restricted' ? evtVisibleTo : [];
     let savedId: string;
 
     if (editingEventId) {
@@ -1406,13 +1414,14 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
         ...itinEvents.find(e => e.id === editingEventId)!,
         type: evtType, title: evtTitle.trim(), startDt, endDt,
         location: evtLocation || undefined, notes: evtNotes || undefined,
-        confirmation: evtConfirmation || undefined, extras: extrasObj, updatedAt: ts,
+        confirmation: evtConfirmation || undefined, extras: extrasObj,
+        visibility: visibilityVal, visibleTo: visibleToVal, updatedAt: ts,
       };
       saveItinEvents(itinEvents.map(e => e.id === editingEventId ? updated : e));
       if (activeTripId) {
         fetch(`/api/trips/${activeTripId}/itinerary/${editingEventId}`, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ callerSub: userSub, actorName: null, type: evtType, title: evtTitle.trim(), startDt, endDt: endDt ?? null, location: evtLocation || null, notes: evtNotes || null, confirmation: evtConfirmation || null, extras: extrasObj ?? null }),
+          body: JSON.stringify({ callerSub: userSub, actorName: null, type: evtType, title: evtTitle.trim(), startDt, endDt: endDt ?? null, location: evtLocation || null, notes: evtNotes || null, confirmation: evtConfirmation || null, extras: extrasObj ?? null, visibility: visibilityVal, visibleTo: visibleToVal }),
         }).catch(() => {});
       }
     } else {
@@ -1421,13 +1430,14 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
         id: savedId, tripId: activeTripId!, type: evtType, title: evtTitle.trim(), startDt, endDt,
         location: evtLocation || undefined, notes: evtNotes || undefined,
         confirmation: evtConfirmation || undefined, extras: extrasObj,
+        visibility: visibilityVal, visibleTo: visibleToVal,
         createdBy: userSub!, createdAt: ts, updatedAt: ts,
       };
       saveItinEvents([...itinEvents, newRec]);
       if (activeTripId) {
         fetch(`/api/trips/${activeTripId}/itinerary`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ callerSub: userSub, actorName: null, id: savedId, type: evtType, title: evtTitle.trim(), startDt, endDt: endDt ?? null, location: evtLocation || null, notes: evtNotes || null, confirmation: evtConfirmation || null, extras: extrasObj ?? null }),
+          body: JSON.stringify({ callerSub: userSub, actorName: null, id: savedId, type: evtType, title: evtTitle.trim(), startDt, endDt: endDt ?? null, location: evtLocation || null, notes: evtNotes || null, confirmation: evtConfirmation || null, extras: extrasObj ?? null, visibility: visibilityVal, visibleTo: visibleToVal }),
         }).catch(() => {});
       }
     }
@@ -1591,6 +1601,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0, marginLeft: 8 }}>
                           {isConflict && <span style={{ fontSize: 12 }}>⚠️</span>}
+                          {rec?.visibility === 'restricted' && <span style={{ fontSize: 11 }} title="Restricted — visible to selected members only">🔒</span>}
                           <span style={{ color: C.textSub, fontSize: 12 }}>{event.time}</span>
                           {event.isCustom && rec && (
                             <>
@@ -1750,6 +1761,41 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
                       style={{ background: C.card2, border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", color: C.text, fontSize: 13, outline: "none", fontFamily: "inherit" }} />
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Visibility */}
+            {activeTrip && activeTrip.crew.filter(m => m.status === 'accepted' && m.googleSub && m.googleSub !== userSub).length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>VISIBILITY</div>
+                <div style={{ display: "flex", gap: 8, marginBottom: evtVisibility === 'restricted' ? 10 : 0 }}>
+                  {(['all', 'restricted'] as const).map(v => (
+                    <button key={v} onClick={() => { setEvtVisibility(v); if (v === 'all') setEvtVisibleTo([]); }}
+                      style={{ flex: 1, background: evtVisibility === v ? (v === 'restricted' ? '#3a1a1a' : C.card3) : C.card2,
+                        border: `1.5px solid ${evtVisibility === v ? (v === 'restricted' ? C.red + '60' : C.cyan + '60') : C.border}`,
+                        borderRadius: 10, padding: "10px 0", color: evtVisibility === v ? (v === 'restricted' ? C.red : C.cyan) : C.textMuted,
+                        cursor: "pointer", fontSize: 13, fontFamily: "inherit", fontWeight: 600 }}>
+                      {v === 'all' ? '🌐 Everyone' : '🔒 Restricted'}
+                    </button>
+                  ))}
+                </div>
+                {evtVisibility === 'restricted' && (
+                  <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 8 }}>
+                    {activeTrip.crew.filter(m => m.status === 'accepted' && m.googleSub && m.googleSub !== userSub).map(m => {
+                      const sub = m.googleSub!;
+                      const selected = evtVisibleTo.includes(sub);
+                      return (
+                        <button key={sub} onClick={() => setEvtVisibleTo(prev => selected ? prev.filter(s => s !== sub) : [...prev, sub])}
+                          style={{ background: selected ? `${C.cyan}20` : C.card2,
+                            border: `1.5px solid ${selected ? C.cyan + '60' : C.border}`,
+                            borderRadius: 20, padding: "6px 14px", color: selected ? C.cyan : C.textMuted,
+                            cursor: "pointer", fontSize: 12, fontFamily: "inherit", fontWeight: 600 }}>
+                          {m.name || m.email}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
 
