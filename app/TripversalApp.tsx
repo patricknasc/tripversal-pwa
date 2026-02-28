@@ -5187,7 +5187,7 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
       <div style={{ padding: "0 20px" }}>
         {showNewTrip && (
           <Card style={{ marginBottom: 12, border: `1px solid ${C.cyan}30` }}>
-            <div style={{ fontWeight: 700, marginBottom: 12 }}>New Tripversal</div>
+            <div style={{ fontWeight: 700, marginBottom: 12 }}>New Trip</div>
             <Input placeholder="Trip Name (e.g. Europe Summer)" value={newTripName} onChange={setNewTripName} style={{ marginBottom: 10 }} />
             <Input placeholder="Destination (optional)" value={newTripDest} onChange={setNewTripDest} style={{ marginBottom: 10 }} />
             <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>

@@ -1,13 +1,13 @@
 import type { Metadata, Viewport } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Tripversal',
+  title: 'Voyasync',
   description: 'Family travel companion app',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Tripversal',
+    title: 'Voyasync',
   },
 }
 

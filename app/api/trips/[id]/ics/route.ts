@@ -22,7 +22,7 @@ function escapeIcs(s: string): string {
 }
 
 function generateUid(tripId: string, segId: string, suffix: string): string {
-  return `${suffix}-${segId}-${tripId}@tripversal`;
+  return `${suffix}-${segId}-${tripId}@voyasync`;
 }
 
 function toSequence(updatedAt: string): number {
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const lines: string[] = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Tripversal//EN',
+    'PRODID:-//Voyasync//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     `X-WR-CALNAME:${escapeIcs(trip.name)}`,
@@ -107,7 +107,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     const descParts = [evt.notes, evt.confirmation ? `Ref: ${evt.confirmation}` : ''].filter(Boolean);
     lines.push(
       'BEGIN:VEVENT',
-      `UID:evt-${evt.id}@tripversal`,
+      `UID:evt-${evt.id}@voyasync`,
       `SEQUENCE:${toSequence(evt.updated_at)}`,
       `DTSTAMP:${dtstamp}`,
       `DTSTART:${dtstart}`,
