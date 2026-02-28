@@ -641,6 +641,7 @@ const Header = ({ onSettings, isOnline = true, isSyncing = false, user }: any) =
   const [cityName, setCityName] = useState("Localizando...");
   const [localTime, setLocalTime] = useState("");
   const [tz, setTz] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const [geoCoords, setGeoCoords] = useState<{ lat: number; lon: number } | null>(null);
 
   useEffect(() => {
     const tick = () => {
@@ -655,6 +656,7 @@ const Header = ({ onSettings, isOnline = true, isSyncing = false, user }: any) =
     if (!navigator.geolocation) { setCityName("Paris, France"); return; }
     navigator.geolocation.getCurrentPosition(
       async ({ coords: { latitude, longitude } }) => {
+        setGeoCoords({ lat: latitude, lon: longitude });
         try {
           const [wRes, gRes] = await Promise.all([
             fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true&timezone=auto`),
@@ -687,11 +689,19 @@ const Header = ({ onSettings, isOnline = true, isSyncing = false, user }: any) =
   return (
     <div style={{ padding: "12px 20px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${C.border}20` }}>
       <div>
-        <div style={{ color: C.cyan, fontSize: 13, fontWeight: 800, letterSpacing: 2 }}>TRIPVERSAL</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 4, color: C.textMuted, fontSize: 13 }}>
+        <div style={{ color: C.cyan, fontSize: 13, fontWeight: 800, letterSpacing: 2 }}>VOYASYNC</div>
+        <button
+          onClick={() => {
+            const url = geoCoords
+              ? `https://maps.google.com?q=${geoCoords.lat},${geoCoords.lon}`
+              : `https://maps.google.com?q=${encodeURIComponent(cityName)}`;
+            window.open(url, '_blank');
+          }}
+          style={{ display: "flex", alignItems: "center", gap: 4, color: C.textMuted, fontSize: 13, background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
+        >
           <Icon d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z M12 10a2 2 0 100-4 2 2 0 000 4z" size={13} />
           {cityName}
-        </div>
+        </button>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <div style={{ background: "#1c1c1e", borderRadius: 20, padding: "6px 12px", display: "flex", alignItems: "center", gap: 6 }}>
@@ -3544,30 +3554,232 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
   );
 };
 
-const PhotosScreen = () => (
-  <div style={{ padding: "16px 20px 100px" }}>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 4 }}>
-      <div>
-        <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5 }}>SOCIAL STREAM</div>
-        <div style={{ color: C.textMuted, fontSize: 12, letterSpacing: 1 }}>SHARED MEMORIES</div>
-      </div>
-      <div style={{ background: "#1a2a1a", borderRadius: 20, padding: "5px 12px", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700 }}>
-        <div style={{ width: 7, height: 7, borderRadius: "50%", background: C.green }} />
-        <span style={{ color: C.green }}>LIVE FEED</span>
+
+// ─── Social Stream ──────────────────────────────────────────────────────────
+interface SocialReaction { id: string; post_id: string; user_sub: string; emoji: string; }
+interface SocialPost {
+  id: string; tripId: string; userSub: string; userName: string; userAvatar?: string;
+  mediaUrl: string; mediaType: 'photo' | 'video'; caption?: string;
+  reactions: SocialReaction[]; myReaction?: string; createdAt: string;
+}
+const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
+
+const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
+  const [posts, setPosts] = useState<SocialPost[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
+  const [caption, setCaption] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [expandedPost, setExpandedPost] = useState<SocialPost | null>(null);
+
+  const fetchPosts = useCallback(async () => {
+    if (!activeTripId || !isOnline) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/trips/${activeTripId}/social?callerSub=${user?.sub || ''}`);
+      if (res.ok) setPosts(await res.json());
+    } finally { setLoading(false); }
+  }, [activeTripId, isOnline, user?.sub]);
+
+  useEffect(() => { fetchPosts(); }, [fetchPosts]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setFile(f);
+    setPreviewUrl(URL.createObjectURL(f));
+  };
+
+  const handleUpload = async () => {
+    if (!file || !activeTripId || uploading) return;
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('userSub', user?.sub || '');
+      form.append('userName', user?.name || 'Unknown');
+      if (user?.picture) form.append('userAvatar', user.picture);
+      if (caption.trim()) form.append('caption', caption.trim());
+      const res = await fetch(`/api/trips/${activeTripId}/social`, { method: 'POST', body: form });
+      if (res.ok) {
+        const post = await res.json();
+        setPosts(p => [post, ...p]);
+        setShowUpload(false); setFile(null); setPreviewUrl(null); setCaption('');
+      }
+    } finally { setUploading(false); }
+  };
+
+  const handleReact = async (postId: string, emoji: string) => {
+    if (!isOnline || !user?.sub) return;
+    // Optimistic
+    setPosts(prev => prev.map(p => {
+      if (p.id !== postId) return p;
+      const already = p.myReaction === emoji;
+      const reactions = already
+        ? p.reactions.filter(r => r.user_sub !== user.sub)
+        : [...p.reactions.filter(r => r.user_sub !== user.sub), { id: '', post_id: postId, user_sub: user.sub, emoji }];
+      return { ...p, reactions, myReaction: already ? undefined : emoji };
+    }));
+    try {
+      const res = await fetch(`/api/trips/${activeTripId}/social/${postId}/reactions`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userSub: user.sub, emoji }),
+      });
+      if (res.ok) {
+        const reactions: SocialReaction[] = await res.json();
+        setPosts(prev => prev.map(p => p.id !== postId ? p : {
+          ...p, reactions, myReaction: reactions.find(r => r.user_sub === user.sub)?.emoji,
+        }));
+      }
+    } catch { }
+  };
+
+  const handleDelete = async (postId: string) => {
+    if (!isOnline) return;
+    setPosts(prev => prev.filter(p => p.id !== postId));
+    await fetch(`/api/trips/${activeTripId}/social/${postId}`, {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userSub: user?.sub }),
+    });
+  };
+
+  if (!isOnline) return (
+    <div style={{ padding: "16px 20px 100px" }}>
+      <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5, marginBottom: 4 }}>SOCIAL STREAM</div>
+      <div style={{ color: C.textMuted, fontSize: 12, letterSpacing: 1, marginBottom: 32 }}>SHARED MEMORIES</div>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "60px 20px", border: `1px dashed ${C.border}`, borderRadius: 20 }}>
+        <Icon d={icons.wifi} size={40} stroke={C.textMuted} />
+        <div style={{ fontWeight: 700, fontSize: 16 }}>You're offline</div>
+        <div style={{ color: C.textMuted, fontSize: 13, textAlign: "center" }}>Social Stream requires an internet connection. Photos and videos are stored in the cloud.</div>
       </div>
     </div>
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 400, gap: 16 }}>
-      <div style={{ width: 80, height: 80, borderRadius: "50%", background: C.card3, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <Icon d={icons.camera} size={36} stroke={C.textMuted} />
+  );
+
+  return (
+    <div style={{ padding: "16px 20px 100px", overflowY: "auto" }}>
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 20 }}>
+        <div>
+          <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5 }}>SOCIAL STREAM</div>
+          <div style={{ color: C.textMuted, fontSize: 12, letterSpacing: 1 }}>SHARED MEMORIES</div>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{ background: "#1a2a1a", borderRadius: 20, padding: "5px 12px", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700 }}>
+            <div style={{ width: 7, height: 7, borderRadius: "50%", background: C.green }} />
+            <span style={{ color: C.green }}>LIVE</span>
+          </div>
+          <button onClick={() => setShowUpload(v => !v)} style={{ width: 40, height: 40, borderRadius: 14, background: showUpload ? C.card3 : C.cyan, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon d={showUpload ? icons.x : icons.plus} size={20} stroke={showUpload ? C.text : "#000"} />
+          </button>
+        </div>
       </div>
-      <div style={{ color: C.textMuted, fontSize: 15, fontStyle: "italic" }}>No memories shared yet. Be the first!</div>
-      <button style={{ background: "transparent", border: `1.5px solid ${C.cyan}`, borderRadius: 20, padding: "12px 24px", color: C.cyan, fontSize: 13, fontWeight: 700, letterSpacing: 1, cursor: "pointer", fontFamily: "inherit" }}>POST MEMORY</button>
+
+      {/* Upload panel */}
+      {showUpload && (
+        <Card style={{ marginBottom: 16, border: `1px solid ${C.cyan}30` }}>
+          <div style={{ fontWeight: 700, marginBottom: 12 }}>Share a moment</div>
+          <input type="file" accept="image/*,video/*" id="socialMediaInput" style={{ display: "none" }} onChange={handleFileChange} />
+          {previewUrl && file ? (
+            <div style={{ position: "relative", marginBottom: 12 }}>
+              {file.type.startsWith("video/") ? (
+                <video src={previewUrl} controls style={{ width: "100%", borderRadius: 12, maxHeight: 220, objectFit: "cover" }} />
+              ) : (
+                <img src={previewUrl} style={{ width: "100%", borderRadius: 12, maxHeight: 220, objectFit: "cover" }} />
+              )}
+              <button onClick={() => { setFile(null); setPreviewUrl(null); }} style={{ position: "absolute", top: 8, right: 8, background: "rgba(0,0,0,0.6)", border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Icon d={icons.x} size={14} stroke="#fff" />
+              </button>
+            </div>
+          ) : (
+            <label htmlFor="socialMediaInput" style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 8, border: `2px dashed ${C.border}`, borderRadius: 12, padding: "32px 16px", cursor: "pointer", marginBottom: 12, color: C.textMuted, fontSize: 13 }}>
+              <Icon d={icons.camera} size={28} stroke={C.textMuted} />
+              <span>Tap to add photo or video</span>
+            </label>
+          )}
+          <Input placeholder="Add a caption…" value={caption} onChange={setCaption} style={{ marginBottom: 12 }} />
+          <Btn style={{ width: "100%" }} onClick={handleUpload}>{uploading ? "Uploading…" : "Share"}</Btn>
+        </Card>
+      )}
+
+      {/* Feed */}
+      {loading && posts.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "60px 0", color: C.textMuted, fontSize: 13 }}>Loading...</div>
+      ) : posts.length === 0 ? (
+        <Card style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", padding: "50px 20px", gap: 14 }}>
+          <div style={{ width: 72, height: 72, borderRadius: "50%", background: C.card3, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon d={icons.camera} size={32} stroke={C.textMuted} />
+          </div>
+          <div style={{ color: C.textMuted, fontSize: 14, textAlign: "center" }}>No posts yet. Be the first to share a moment!</div>
+          <Btn onClick={() => setShowUpload(true)} icon={<Icon d={icons.plus} size={16} stroke="#000" />}>Post Memory</Btn>
+        </Card>
+      ) : posts.map(post => {
+        const counts: Record<string, number> = {};
+        post.reactions.forEach(r => { counts[r.emoji] = (counts[r.emoji] || 0) + 1; });
+        return (
+          <Card key={post.id} style={{ marginBottom: 12, padding: 0, overflow: "hidden" }}>
+            {/* Post header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px 8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <Avatar name={post.userName || "?"} src={post.userAvatar} size={36} />
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{post.userName || "Unknown"}</div>
+                  <div style={{ color: C.textSub, fontSize: 11 }}>{new Date(post.createdAt).toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
+                </div>
+              </div>
+              {post.userSub === user?.sub && (
+                <button onClick={() => handleDelete(post.id)} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}>
+                  <Icon d={icons.trash} size={13} stroke={C.red} />
+                </button>
+              )}
+            </div>
+            {/* Media */}
+            <div onClick={() => setExpandedPost(post)} style={{ cursor: "pointer" }}>
+              {post.mediaType === "video" ? (
+                <video src={post.mediaUrl} controls style={{ width: "100%", maxHeight: 360, objectFit: "cover", display: "block" }} onClick={e => e.stopPropagation()} />
+              ) : (
+                <img src={post.mediaUrl} style={{ width: "100%", maxHeight: 360, objectFit: "cover", display: "block" }} alt={post.caption || ""} />
+              )}
+            </div>
+            {/* Caption */}
+            {post.caption && (
+              <div style={{ padding: "10px 14px 4px", fontSize: 14 }}>
+                <span style={{ fontWeight: 700 }}>{post.userName}</span> <span style={{ color: C.textSub }}>{post.caption}</span>
+              </div>
+            )}
+            {/* Reactions */}
+            <div style={{ padding: "8px 14px 14px", display: "flex", gap: 6, flexWrap: "wrap" as const }}>
+              {REACTION_EMOJIS.map(emoji => (
+                <button key={emoji} onClick={() => handleReact(post.id, emoji)} style={{ background: post.myReaction === emoji ? `${C.cyan}25` : C.card3, border: `1.5px solid ${post.myReaction === emoji ? C.cyan : "transparent"}`, borderRadius: 20, padding: "5px 10px", fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit", transition: "border 0.15s" }}>
+                  <span>{emoji}</span>
+                  {counts[emoji] ? <span style={{ fontSize: 11, color: C.textMuted, fontWeight: 700 }}>{counts[emoji]}</span> : null}
+                </button>
+              ))}
+            </div>
+          </Card>
+        );
+      })}
+
+      {/* Expand modal */}
+      {expandedPost && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.95)", zIndex: 400, display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", padding: 20 }} onClick={() => setExpandedPost(null)}>
+          <button onClick={() => setExpandedPost(null)} style={{ position: "absolute", top: 20, right: 20, background: C.card3, border: "none", borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 1 }}>
+            <Icon d={icons.x} size={18} stroke={C.text} />
+          </button>
+          {expandedPost.mediaType === "video" ? (
+            <video src={expandedPost.mediaUrl} controls autoPlay style={{ maxWidth: "100%", maxHeight: "80vh", borderRadius: 12 }} onClick={e => e.stopPropagation()} />
+          ) : (
+            <img src={expandedPost.mediaUrl} style={{ maxWidth: "100%", maxHeight: "80vh", borderRadius: 12, objectFit: "contain" }} alt="" />
+          )}
+          {expandedPost.caption && (
+            <div style={{ color: C.text, marginTop: 14, fontSize: 14, textAlign: "center", maxWidth: 380 }}>{expandedPost.caption}</div>
+          )}
+        </div>
+      )}
     </div>
-    <div style={{ position: "fixed", bottom: 90, right: "calc(50% - 200px)", width: 56, height: 56, borderRadius: "50%", background: C.cyan, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: `0 4px 20px ${C.cyan}50` }}>
-      <Icon d={icons.camera} size={24} stroke="#000" />
-    </div>
-  </div>
-);
+  );
+};
 
 const SOSScreen = ({ user }: { user?: any }) => {
   const [medical, setMedical] = useState<MedicalId>(() => { try { const s = localStorage.getItem('voyasync_medical_id'); return s ? JSON.parse(s) : DEFAULT_MEDICAL; } catch { return DEFAULT_MEDICAL; } });
@@ -5070,7 +5282,7 @@ const LoginScreen = ({ onLogin }: { onLogin: (user: any) => void }) => {
   return (
     <div style={{ background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ width: "100%", maxWidth: 430, minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 40 }}>
-        <div style={{ color: C.cyan, fontSize: 32, fontWeight: 900, letterSpacing: 5, marginBottom: 8 }}>TRIPVERSAL</div>
+        <div style={{ color: C.cyan, fontSize: 32, fontWeight: 900, letterSpacing: 5, marginBottom: 8 }}>VOYASYNC</div>
         <div style={{ color: C.textMuted, fontSize: 14, marginBottom: 60 }}>Your travel companion</div>
         <button
           onClick={() => login()}
@@ -5465,7 +5677,7 @@ function AppShell() {
       case "home": content = <HomeScreen onNav={handleNav} onAddExpense={handleOpenExpense} onCreateBudget={handleGoToBudget} onShowGroup={() => handleNav("group")} activeTripId={activeTripId} activeTrip={activeTrip} user={user} />; break;
       case "itinerary": content = <ItineraryScreen activeTripId={activeTripId} activeTrip={activeTrip} userSub={user?.sub} />; break;
       case "wallet": content = <WalletScreen key={walletInitTab} initialTab={walletInitTab} onAddExpense={handleOpenExpense} activeTripId={activeTripId} user={user} trips={trips} />; break;
-      case "photos": content = <PhotosScreen />; break;
+      case "photos": content = <SocialStreamScreen activeTripId={activeTripId} user={user} isOnline={effectiveIsOnline} />; break;
       case "group": content = <GroupScreen
         trips={trips}
         activeTripId={activeTripId}

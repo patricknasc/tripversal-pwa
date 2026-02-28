@@ -248,3 +248,32 @@ CREATE TABLE IF NOT EXISTS user_budgets (
 );
 ALTER TABLE user_budgets ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "service_role_all_ub" ON user_budgets FOR ALL USING (true);
+-- ─── Social Stream ────────────────────────────────────────────────────────────
+-- NOTE: Create bucket "social-media" (public) in Supabase Dashboard > Storage
+-- before running the first upload.
+
+CREATE TABLE IF NOT EXISTS social_posts (
+  id          TEXT        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  trip_id     UUID        NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  user_sub    TEXT        NOT NULL,
+  user_name   TEXT,
+  user_avatar TEXT,
+  media_url   TEXT        NOT NULL,
+  media_type  TEXT        NOT NULL CHECK (media_type IN ('photo', 'video')),
+  caption     TEXT,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS social_posts_trip ON social_posts(trip_id);
+ALTER TABLE social_posts ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role_all_social_posts" ON social_posts FOR ALL USING (true);
+
+CREATE TABLE IF NOT EXISTS social_reactions (
+  id       TEXT    PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  post_id  TEXT    NOT NULL REFERENCES social_posts(id) ON DELETE CASCADE,
+  user_sub TEXT    NOT NULL,
+  emoji    TEXT    NOT NULL,
+  UNIQUE(post_id, user_sub)
+);
+CREATE INDEX IF NOT EXISTS social_reactions_post ON social_reactions(post_id);
+ALTER TABLE social_reactions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role_all_social_reactions" ON social_reactions FOR ALL USING (true);
