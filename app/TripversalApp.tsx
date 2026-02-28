@@ -1291,13 +1291,26 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
     const today = localDateKey(new Date());
     const endD = new Date(); endD.setDate(endD.getDate() + 15);
     const endDate = localDateKey(endD);
+    const full15Days = new Set(getDatesRange(today, endDate));
+
+    const queries: Array<{ loc: string; dates: Set<string> }> = [];
+    const tripLoc = activeTrip.destination || segments[0]?.destination || segments[0]?.name;
+    if (tripLoc) {
+      queries.push({ loc: tripLoc, dates: full15Days });
+    }
+    segments.forEach((seg: any) => {
+      const loc = seg.destination || seg.name;
+      if (loc) {
+        queries.push({ loc, dates: new Set(getDatesRange(seg.startDate ?? today, seg.endDate ?? seg.startDate ?? today)) });
+      }
+    });
+
+    if (queries.length === 0) return;
 
     const geocodeCache: Record<string, { lat: number; lon: number }> = {};
 
     Promise.all(
-      segments.map(async (seg: any) => {
-        const loc = seg.destination || seg.name;
-        if (!loc) return null;
+      queries.map(async ({ loc, dates }) => {
         if (!geocodeCache[loc]) {
           try {
             const gRes = await fetch(
@@ -1312,10 +1325,6 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
         const coords = geocodeCache[loc];
         if (!coords) return null;
 
-        const segDates = new Set(
-          getDatesRange(seg.startDate ?? today, seg.endDate ?? seg.startDate ?? today)
-        );
-
         try {
           const wRes = await fetch(
             `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&daily=temperature_2m_max,weathercode&timezone=auto&start_date=${today}&end_date=${endDate}`
@@ -1324,7 +1333,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
           if (!d.daily?.time) return null;
           const entries: Record<string, { temp: number; code: number }> = {};
           d.daily.time.forEach((date: string, i: number) => {
-            if (segDates.has(date)) {
+            if (dates.has(date)) {
               entries[date] = { temp: Math.round(d.daily.temperature_2m_max[i]), code: d.daily.weathercode[i] };
             }
           });
