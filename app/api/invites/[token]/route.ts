@@ -78,5 +78,15 @@ export async function DELETE(_req: NextRequest, { params }: { params: { token: s
   // Update member status to declined
   await sb.from('trip_members').update({ status: 'declined' }).eq('id', tokenRow.member_id);
 
+  // Log activity
+  await sb.from('trip_activities').insert({
+    trip_id: tokenRow.trip_id,
+    user_id: tokenRow.email,
+    user_name: tokenRow.email,
+    action: 'declined',
+    entity_type: 'invite',
+    entity_name: tokenRow.email,
+  });
+
   return new NextResponse(null, { status: 204 });
 }
