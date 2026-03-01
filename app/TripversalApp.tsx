@@ -315,6 +315,61 @@ const Icon = ({ d, size = 22, stroke = "currentColor", fill = "none", strokeWidt
   </svg>
 );
 
+// ─── Global Toast + Confirm System ─────────────────────────────────────────
+type ToastType = 'success' | 'error' | 'info';
+type ToastPayload = { message: string; type?: ToastType };
+type ConfirmPayload = { title: string; message: string; confirmLabel?: string; cancelLabel?: string; onConfirm: () => void; variant?: 'danger' | 'default' };
+
+let _toastSetter: ((p: ToastPayload | null) => void) | null = null;
+let _confirmSetter: ((p: ConfirmPayload | null) => void) | null = null;
+
+function showToast(message: string, type: ToastType = 'info') { _toastSetter?.({ message, type }); }
+function showConfirmModal(payload: ConfirmPayload) { _confirmSetter?.(payload); }
+
+const TOAST_COLORS: Record<ToastType, string> = { success: '#30d158', error: '#ff453a', info: '#64d2ff' };
+
+const ToastOverlay = () => {
+  const [toast, setToast] = useState<ToastPayload | null>(null);
+  _toastSetter = setToast;
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 3500);
+    return () => clearTimeout(timer);
+  }, [toast]);
+  if (!toast) return null;
+  const color = TOAST_COLORS[toast.type || 'info'];
+  return (
+    <div style={{ position: 'fixed', top: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 20000, maxWidth: 380, width: 'calc(100% - 40px)', animation: 'toastIn 0.3s ease-out' }}>
+      <div style={{ background: C.card2, border: `1px solid ${color}40`, borderRadius: 14, padding: '14px 20px', boxShadow: `0 8px 32px rgba(0,0,0,0.6), 0 0 20px ${color}20`, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
+        <div style={{ color: C.text, fontSize: 14, fontWeight: 500, flex: 1, lineHeight: 1.4 }}>{toast.message}</div>
+        <button onClick={() => setToast(null)} style={{ background: 'none', border: 'none', color: C.textMuted, cursor: 'pointer', padding: 4, fontSize: 16, lineHeight: 1 }}>✕</button>
+      </div>
+      <style>{`@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(-20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}`}</style>
+    </div>
+  );
+};
+
+const ConfirmOverlay = () => {
+  const [payload, setPayload] = useState<ConfirmPayload | null>(null);
+  _confirmSetter = setPayload;
+  if (!payload) return null;
+  const isDanger = payload.variant === 'danger';
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 20000, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, animation: 'fadeIn 0.2s ease-out' }}>
+      <div style={{ background: C.card, borderRadius: 20, padding: '28px 24px', maxWidth: 340, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}>
+        <div style={{ fontWeight: 800, fontSize: 18, color: C.text, marginBottom: 8 }}>{payload.title}</div>
+        <div style={{ color: C.textSub, fontSize: 14, lineHeight: 1.5, marginBottom: 24 }}>{payload.message}</div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={() => setPayload(null)} style={{ flex: 1, padding: '12px 16px', borderRadius: 12, border: `1px solid ${C.border}`, background: 'transparent', color: C.text, fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>{payload.cancelLabel || 'Cancelar'}</button>
+          <button onClick={() => { payload.onConfirm(); setPayload(null); }} style={{ flex: 1, padding: '12px 16px', borderRadius: 12, border: 'none', background: isDanger ? C.red : C.cyan, color: isDanger ? '#fff' : '#000', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>{payload.confirmLabel || 'Confirmar'}</button>
+        </div>
+      </div>
+      <style>{`@keyframes fadeIn{from{opacity:0}to{opacity:1}}`}</style>
+    </div>
+  );
+};
+
 const icons: Record<string, any> = {
   home: "M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z",
   map: ["M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z", "M8 2v16", "M16 6v16"],
