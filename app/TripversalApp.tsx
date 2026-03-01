@@ -762,7 +762,7 @@ const BottomNav = ({ active, onNav }: any) => {
   );
 };
 
-const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTripId, activeTrip, user, isPanicModeActive, serverActivity = [], onSOS, onShowMap }: any) => {
+const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTripId, activeTrip, user, isPanicModeActive, serverActivity = [], onSOS, onShowMap, onTodo }: any) => {
   const { t } = useTranslation();
   const [budget, setBudget] = useState<TripBudget>(DEFAULT_BUDGET);
   const [todaySpent, setTodaySpent] = useState(0);
@@ -1032,16 +1032,18 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
           </div>
         );
       })()}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, margin: "16px 20px 0" }}>
+      <div style={{ display: 'flex', gap: 10, margin: '16px 20px 0', overflowX: 'auto', paddingBottom: 4, WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <style>{`.qa-scroll::-webkit-scrollbar{display:none}`}</style>
         {[
           { label: t('home.expense'), icon: icons.plus, action: onAddExpense },
           { label: t('home.photo'), icon: icons.camera, action: () => onNav("photos") },
           { label: t('home.group'), icon: icons.users, action: onShowGroup },
+          { label: t('home.todo'), icon: icons.check, action: onTodo },
           { label: t('home.sos'), icon: icons.phone, variant: isPanicModeActive ? "red" : undefined, action: onSOS },
         ].map(({ label, icon, variant, action }: any) => (
-          <button key={label} onClick={action} style={{ background: variant === "red" ? C.redDim : C.card2, borderRadius: 16, padding: "16px 8px", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+          <button key={label} onClick={action} style={{ background: variant === "red" ? C.redDim : C.card2, borderRadius: 16, padding: '16px 14px', border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, minWidth: 72, flexShrink: 0 }}>
             <Icon d={icon} size={22} stroke={variant === "red" ? C.red : C.cyan} />
-            <span style={{ color: variant === "red" ? C.red : C.textMuted, fontSize: 10, fontWeight: 700, letterSpacing: 1 }}>{label}</span>
+            <span style={{ color: variant === "red" ? C.red : C.textMuted, fontSize: 10, fontWeight: 700, letterSpacing: 1, whiteSpace: 'nowrap' }}>{label}</span>
           </button>
         ))}
       </div>
@@ -6305,6 +6307,215 @@ function ConfirmDialog({ isOpen, isPanicModeActive, onCancel, onConfirm }: { isO
   );
 }
 
+interface TodoItem {
+  id: string;
+  trip_id: string;
+  title: string;
+  description: string;
+  status: 'pending' | 'completed';
+  due_date: string | null;
+  priority: 'high' | 'medium' | 'low';
+  created_at: string;
+  updated_at: string;
+}
+
+const PRIORITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
+const PRIORITY_COLORS: Record<string, string> = { high: '#ff3b30', medium: '#ffd60a', low: '#30d158' };
+
+function sortTodos(todos: TodoItem[]): TodoItem[] {
+  const now = new Date();
+  return [...todos].sort((a, b) => {
+    // Completed items go to the bottom
+    if (a.status !== b.status) return a.status === 'completed' ? 1 : -1;
+    // Higher priority first
+    if (PRIORITY_ORDER[a.priority] !== PRIORITY_ORDER[b.priority]) return PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
+    // Overdue/due sooner first
+    const aDue = a.due_date ? new Date(a.due_date + 'T23:59:59').getTime() : Infinity;
+    const bDue = b.due_date ? new Date(b.due_date + 'T23:59:59').getTime() : Infinity;
+    return aDue - bDue;
+  });
+}
+
+const TodoScreen = ({ activeTripId, onBack }: { activeTripId: string | null; onBack: () => void }) => {
+  const { t } = useTranslation();
+  const [todos, setTodos] = useState<TodoItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editItem, setEditItem] = useState<TodoItem | null>(null);
+  const [detailItem, setDetailItem] = useState<TodoItem | null>(null);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [priority, setPriority] = useState<'high' | 'medium' | 'low'>('medium');
+
+  const fetchTodos = useCallback(async () => {
+    if (!activeTripId) return;
+    try {
+      const res = await fetch(`/api/trips/${activeTripId}/todos`);
+      const data = await res.json();
+      setTodos(sortTodos(data));
+    } catch { } finally { setLoading(false); }
+  }, [activeTripId]);
+
+  useEffect(() => { fetchTodos(); }, [fetchTodos]);
+
+  const resetForm = () => { setTitle(''); setDescription(''); setDueDate(''); setPriority('medium'); setEditItem(null); setShowForm(false); };
+
+  const handleSave = async () => {
+    if (!title.trim() || !activeTripId) return;
+    if (editItem) {
+      await fetch(`/api/trips/${activeTripId}/todos/${editItem.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, description, due_date: dueDate || null, priority }),
+      });
+    } else {
+      await fetch(`/api/trips/${activeTripId}/todos`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, description, due_date: dueDate || null, priority }),
+      });
+    }
+    resetForm();
+    fetchTodos();
+  };
+
+  const toggleStatus = async (todo: TodoItem) => {
+    const newStatus = todo.status === 'completed' ? 'pending' : 'completed';
+    await fetch(`/api/trips/${activeTripId}/todos/${todo.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus }),
+    });
+    fetchTodos();
+    if (detailItem?.id === todo.id) setDetailItem({ ...detailItem, status: newStatus });
+  };
+
+  const handleDelete = async (id: string) => {
+    await fetch(`/api/trips/${activeTripId}/todos/${id}`, { method: 'DELETE' });
+    setDetailItem(null);
+    fetchTodos();
+  };
+
+  const openEdit = (todo: TodoItem) => {
+    setEditItem(todo);
+    setTitle(todo.title);
+    setDescription(todo.description);
+    setDueDate(todo.due_date || '');
+    setPriority(todo.priority);
+    setShowForm(true);
+    setDetailItem(null);
+  };
+
+  const now = new Date();
+  const isOverdue = (d: string | null) => d ? new Date(d + 'T23:59:59') < now : false;
+
+  // Detail overlay
+  if (detailItem) {
+    return (
+      <div style={{ padding: 20, minHeight: '70vh' }}>
+        <button onClick={() => setDetailItem(null)} style={{ background: 'none', border: 'none', color: C.cyan, fontSize: 15, fontWeight: 700, cursor: 'pointer', marginBottom: 16, padding: 0 }}>← {t('todo.back')}</button>
+        <Card style={{ padding: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+            <button onClick={() => toggleStatus(detailItem)} style={{ width: 28, height: 28, borderRadius: 8, border: `2px solid ${detailItem.status === 'completed' ? C.green : C.textMuted}`, background: detailItem.status === 'completed' ? C.green : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {detailItem.status === 'completed' && <Icon d={icons.check} size={16} stroke="#fff" />}
+            </button>
+            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: C.text, textDecoration: detailItem.status === 'completed' ? 'line-through' : 'none', flex: 1 }}>{detailItem.title}</h2>
+          </div>
+          {detailItem.description && <p style={{ color: C.textMuted, fontSize: 14, lineHeight: 1.6, margin: '0 0 16px', whiteSpace: 'pre-wrap' }}>{detailItem.description}</p>}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+            <span style={{ background: PRIORITY_COLORS[detailItem.priority] + '22', color: PRIORITY_COLORS[detailItem.priority], padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700 }}>{t(`todo.${detailItem.priority}`)}</span>
+            {detailItem.due_date && (
+              <span style={{ background: isOverdue(detailItem.due_date) ? C.redDim : C.card3, color: isOverdue(detailItem.due_date) ? C.red : C.textMuted, padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600 }}>
+                {isOverdue(detailItem.due_date) ? `⚠️ ${t('todo.overdue')} · ` : ''}{new Date(detailItem.due_date + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+              </span>
+            )}
+            <span style={{ background: detailItem.status === 'completed' ? '#1a3d1a' : C.card3, color: detailItem.status === 'completed' ? C.green : C.textMuted, padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600 }}>{t(`todo.${detailItem.status}`)}</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Btn variant="primary" style={{ flex: 1 }} onClick={() => openEdit(detailItem)}>{t('todo.editTask')}</Btn>
+            <Btn variant="ghost" style={{ color: C.red, borderColor: C.red }} onClick={() => handleDelete(detailItem.id)}>{t('todo.delete')}</Btn>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  // Form overlay
+  if (showForm) {
+    return (
+      <div style={{ padding: 20, minHeight: '70vh' }}>
+        <button onClick={resetForm} style={{ background: 'none', border: 'none', color: C.cyan, fontSize: 15, fontWeight: 700, cursor: 'pointer', marginBottom: 16, padding: 0 }}>← {t('todo.cancel')}</button>
+        <h2 style={{ color: C.text, fontSize: 22, fontWeight: 800, margin: '0 0 20px' }}>{editItem ? t('todo.editTask') : t('todo.newTask')}</h2>
+        <Card style={{ padding: 16, marginBottom: 12 }}>
+          <label style={{ color: C.textMuted, fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 6 }}>{t('todo.taskTitle')}</label>
+          <input value={title} onChange={e => setTitle(e.target.value)} placeholder={t('todo.taskTitle')} style={{ width: '100%', padding: 12, borderRadius: 12, border: `1px solid ${C.border}`, background: C.card2, color: C.text, fontSize: 16, boxSizing: 'border-box' }} />
+        </Card>
+        <Card style={{ padding: 16, marginBottom: 12 }}>
+          <label style={{ color: C.textMuted, fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 6 }}>{t('todo.taskDesc')}</label>
+          <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder={t('todo.taskDesc')} rows={3} style={{ width: '100%', padding: 12, borderRadius: 12, border: `1px solid ${C.border}`, background: C.card2, color: C.text, fontSize: 14, boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit' }} />
+        </Card>
+        <Card style={{ padding: 16, marginBottom: 12 }}>
+          <label style={{ color: C.textMuted, fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 6 }}>{t('todo.dueDate')}</label>
+          <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} style={{ width: '100%', padding: 12, borderRadius: 12, border: `1px solid ${C.border}`, background: C.card2, color: C.text, fontSize: 14, boxSizing: 'border-box' }} />
+        </Card>
+        <Card style={{ padding: 16, marginBottom: 12 }}>
+          <label style={{ color: C.textMuted, fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 6 }}>{t('todo.priority')}</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {(['high', 'medium', 'low'] as const).map(p => (
+              <button key={p} onClick={() => setPriority(p)} style={{ flex: 1, padding: '10px 0', borderRadius: 12, border: `2px solid ${priority === p ? PRIORITY_COLORS[p] : C.border}`, background: priority === p ? PRIORITY_COLORS[p] + '22' : C.card2, color: priority === p ? PRIORITY_COLORS[p] : C.textMuted, fontWeight: 700, fontSize: 13, cursor: 'pointer', transition: 'all 0.2s' }}>{t(`todo.${p}`)}</button>
+            ))}
+          </div>
+        </Card>
+        <Btn variant="primary" style={{ width: '100%', padding: 14, marginTop: 8 }} onClick={handleSave} disabled={!title.trim()}>{t('todo.save')}</Btn>
+      </div>
+    );
+  }
+
+  // Main list
+  return (
+    <div style={{ padding: 20, minHeight: '70vh' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <button onClick={onBack} style={{ background: 'none', border: 'none', color: C.cyan, fontSize: 15, fontWeight: 700, cursor: 'pointer', padding: 0 }}>← {t('todo.back')}</button>
+        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: C.text }}>{t('todo.title')}</h2>
+        <Btn variant="primary" style={{ padding: '8px 14px', fontSize: 13 }} onClick={() => setShowForm(true)}>+ {t('todo.addTask')}</Btn>
+      </div>
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 40 }}>
+          <div style={{ width: 32, height: 32, border: `3px solid ${C.card3}`, borderTopColor: C.cyan, borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto' }} />
+        </div>
+      ) : todos.length === 0 ? (
+        <Card style={{ textAlign: 'center', padding: 40 }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
+          <div style={{ color: C.textMuted, fontSize: 14 }}>{t('todo.noTasks')}</div>
+        </Card>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {todos.map(todo => (
+            <Card key={todo.id} style={{ padding: '14px 16px', cursor: 'pointer', transition: 'all 0.2s', opacity: todo.status === 'completed' ? 0.6 : 1 }} onClick={() => setDetailItem(todo)}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <button onClick={e => { e.stopPropagation(); toggleStatus(todo); }} style={{ width: 24, height: 24, borderRadius: 6, border: `2px solid ${todo.status === 'completed' ? C.green : C.textMuted}`, background: todo.status === 'completed' ? C.green : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0 }}>
+                  {todo.status === 'completed' && <Icon d={icons.check} size={14} stroke="#fff" />}
+                </button>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 15, color: C.text, textDecoration: todo.status === 'completed' ? 'line-through' : 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{todo.title}</div>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: PRIORITY_COLORS[todo.priority], display: 'inline-block', alignSelf: 'center' }} />
+                    <span style={{ color: C.textMuted, fontSize: 11, fontWeight: 600 }}>{t(`todo.${todo.priority}`)}</span>
+                    {todo.due_date && (
+                      <span style={{ color: isOverdue(todo.due_date) && todo.status !== 'completed' ? C.red : C.textSub, fontSize: 11, fontWeight: 600 }}>
+                        · {isOverdue(todo.due_date) && todo.status !== 'completed' ? '⚠️ ' : ''}{new Date(todo.due_date + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <Icon d={icons.chevronRight} size={16} stroke={C.textMuted} />
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 function useGlobalSOSListener(tripId?: string, currentUserSub?: string, onSOSIncoming?: (row: any) => void) {
   useEffect(() => {
     if (!tripId || !currentUserSub) return;
@@ -6372,6 +6583,7 @@ function AppShell() {
   }, [activeTripId, user]);
   const [showPanicModal, setShowPanicModal] = useState(false);
   const [showLiveMap, setShowLiveMap] = useState(initialRoute === 'live_map');
+  const [showTodo, setShowTodo] = useState(false);
 
   // History API Router
   useEffect(() => {
@@ -6384,6 +6596,7 @@ function AppShell() {
     else if (showAddExpense) currentRoute = 'add_expense';
     else if (showHistory) currentRoute = 'history';
     else if (showLiveMap) currentRoute = 'live_map';
+    else if (showTodo) currentRoute = 'todo';
 
     localStorage.setItem('voyasync_last_route', currentRoute);
 
@@ -6570,6 +6783,8 @@ function AppShell() {
     content = <LiveMap tripId={activeTripId!} onBack={() => setShowLiveMap(false)} />;
   } else if (showAddExpense) {
     content = <AddExpenseScreen onBack={() => setShowAddExpense(false)} onGoToBudget={handleGoToBudget} activeTripId={activeTripId} activeTrip={activeTrip} user={user} />;
+  } else if (showTodo) {
+    content = <TodoScreen activeTripId={activeTripId} onBack={() => setShowTodo(false)} />;
   } else if (showHistory) {
     content = <TransactionHistoryScreen onBack={() => setShowHistory(false)} />;
   } else if (showManageCrew) {
@@ -6608,7 +6823,7 @@ function AppShell() {
     );
   } else {
     switch (tab) {
-      case "home": content = <HomeScreen onNav={handleNav} onAddExpense={handleOpenExpense} onCreateBudget={handleGoToBudget} onShowGroup={() => handleNav("group")} activeTripId={activeTripId} activeTrip={activeTrip} user={user} isPanicModeActive={isPanicModeActive} serverActivity={serverActivity} onSOS={() => setShowPanicModal(true)} onShowMap={() => setShowLiveMap(true)} />; break;
+      case "home": content = <HomeScreen onNav={handleNav} onAddExpense={handleOpenExpense} onCreateBudget={handleGoToBudget} onShowGroup={() => handleNav("group")} activeTripId={activeTripId} activeTrip={activeTrip} user={user} isPanicModeActive={isPanicModeActive} serverActivity={serverActivity} onSOS={() => setShowPanicModal(true)} onShowMap={() => setShowLiveMap(true)} onTodo={() => setShowTodo(true)} />; break;
       case "itinerary": content = <ItineraryScreen activeTripId={activeTripId} activeTrip={activeTrip} userSub={user?.sub} />; break;
       case "wallet": content = <WalletScreen key={walletInitTab} initialTab={walletInitTab} onAddExpense={handleOpenExpense} activeTripId={activeTripId} user={user} trips={trips} onShowGroup={() => handleNav("group")} />; break;
       case "photos": content = <SocialStreamScreen activeTripId={activeTripId} user={user} isOnline={effectiveIsOnline} />; break;
@@ -6632,7 +6847,7 @@ function AppShell() {
     }
   }
 
-  const activeTab = showSettings || showManageCrew || showAddExpense || showHistory ? null : tab;
+  const activeTab = showSettings || showManageCrew || showAddExpense || showHistory || showTodo ? null : tab;
 
   if (pendingInviteToken) {
     return (
