@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { GoogleOAuthProvider, useGoogleLogin } from "@react-oauth/google";
 import { useNetworkSync } from "@/lib/hooks/use_network_sync";
+import './i18n';
+import { useTranslation } from 'react-i18next';
 
 // ─── Types + Helpers ────────────────────────────────────────────────────────
 type Currency = "BRL" | "EUR" | "USD" | "GBP" | "COP";
@@ -640,6 +642,7 @@ const Card = ({ children, style = {}, onClick }: any) => (
 );
 
 const Header = ({ onSettings, isOnline = true, isSyncing = false, user }: any) => {
+  const { t } = useTranslation();
   const [weather, setWeather] = useState<{ temp: number; code: number; isDay: boolean } | null>(null);
   const [cityName, setCityName] = useState("Localizando...");
   const [localTime, setLocalTime] = useState("");
@@ -709,7 +712,7 @@ const Header = ({ onSettings, isOnline = true, isSyncing = false, user }: any) =
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <div style={{ background: "#1c1c1e", borderRadius: 20, padding: "6px 12px", display: "flex", alignItems: "center", gap: 6 }}>
           <div style={{ width: 7, height: 7, borderRadius: "50%", background: isSyncing ? C.yellow : isOnline ? C.green : C.red, animation: isSyncing ? 'net-pulse 1s ease-in-out infinite' : 'none' }} />
-          {isSyncing && <span style={{ color: C.yellow, fontSize: 9, fontWeight: 700, letterSpacing: 0.5 }}>SYNC</span>}
+          {isSyncing && <span style={{ color: C.yellow, fontSize: 9, fontWeight: 700, letterSpacing: 0.5 }}>{t('header.syncing').toUpperCase()}</span>}
           {localTime && <span style={{ color: C.textMuted, fontSize: 12 }}>{localTime}</span>}
           <Icon d={getWeatherIcon()} size={14} stroke={C.textMuted} />
           <span style={{ color: C.text, fontSize: 13, fontWeight: 500 }}>{weather ? `${weather.temp}°C` : "—"}</span>
@@ -727,6 +730,7 @@ const Header = ({ onSettings, isOnline = true, isSyncing = false, user }: any) =
 };
 
 const BottomNav = ({ active, onNav }: any) => {
+  const { t } = useTranslation();
   const tabs = [
     { id: "home", icon: icons.home },
     { id: "itinerary", icon: icons.map },
@@ -736,13 +740,16 @@ const BottomNav = ({ active, onNav }: any) => {
   ];
   return (
     <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: "#111113", borderTop: `1px solid ${C.border}30`, display: "flex", padding: "10px 0 24px", zIndex: 100 }}>
-      {tabs.map(t => {
-        const isActive = active === t.id;
+      {tabs.map(tOption => {
+        const isActive = active === tOption.id;
         return (
-          <button key={t.id} onClick={() => onNav(t.id)} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+          <button key={tOption.id} onClick={() => onNav(tOption.id)} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
             <div style={{ width: 44, height: 44, borderRadius: 14, background: isActive ? C.cyan : "transparent", display: "flex", alignItems: "center", justifyContent: "center", transition: "background 0.2s" }}>
-              <Icon d={t.icon} size={20} stroke={isActive ? "#000" : C.textMuted} fill={isActive && t.id === "home" ? "#000" : "none"} strokeWidth={isActive ? 2 : 1.8} />
+              <Icon d={tOption.icon} size={20} stroke={isActive ? "#000" : C.textMuted} fill={isActive && tOption.id === "home" ? "#000" : "none"} strokeWidth={isActive ? 2 : 1.8} />
             </div>
+            <span style={{ fontSize: 10, color: isActive ? C.cyan : C.textMuted, fontWeight: isActive ? 600 : 400 }}>
+              {tOption.id === 'group' ? t('nav.crew') : t(`nav.${tOption.id}`)}
+            </span>
           </button>
         );
       })}
@@ -4400,7 +4407,6 @@ function urlBase64ToUint8Array(base64String: string) {
 const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], activeTripId, onSwitchTrip, onTripCreate, onTripUpdate, onTripDelete, offlineSim = false, setOfflineSim, isSyncing = false }: any) => {
   const [forcePending, setForcePending] = useState(false);
   // Profile / language / budget states
-  const [language, setLanguage] = useState("en");
   const [avatarFile, setAvatarFile] = useState<any>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [username, setUsername] = useState("");
@@ -4581,18 +4587,27 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
     }
   };
 
+  const { t, i18n } = useTranslation();
+  const language = i18n.language || 'en';
+  const changeLang = (e: any) => i18n.changeLanguage(e.target.value);
+
   return (
     <div style={{ padding: "16px 20px 100px", overflowY: "auto" }}>
-      <SectionLabel>GENERAL</SectionLabel>
+      <SectionLabel>{t('settings.general')}</SectionLabel>
       <Card style={{ marginBottom: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 36, height: 36, borderRadius: 10, background: "#1a1a4a", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Icon d={icons.globe} size={18} stroke="#6464e0" />
           </div>
-          <span style={{ flex: 1, fontWeight: 500 }}>Language</span>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <button onClick={() => setLanguage("pt")} style={{ background: language === "pt" ? C.cyan : C.card3, color: language === "pt" ? "#000" : C.text, border: "none", borderRadius: 10, padding: "8px 10px", cursor: "pointer" }}>Português</button>
-            <button onClick={() => setLanguage("en")} style={{ background: language === "en" ? C.cyan : C.card3, color: language === "en" ? "#000" : C.text, border: "none", borderRadius: 10, padding: "8px 10px", cursor: "pointer" }}>English</button>
+          <span style={{ flex: 1, fontWeight: 500 }}>{t('settings.language')}</span>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flex: 1 }}>
+            <select value={language} onChange={changeLang} style={{ background: C.card3, color: C.text, border: "none", borderRadius: 10, padding: "8px 10px", flex: 1, outline: "none", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>
+              <option value="en">English</option>
+              <option value="pt">Português</option>
+              <option value="es">Español</option>
+              <option value="ru">Русский</option>
+              <option value="zh">中文</option>
+            </select>
           </div>
         </div>
       </Card>
@@ -4608,13 +4623,13 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
             <div style={{ flex: 1 }}>
               <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                 <input type="file" accept="image/*" onChange={onAvatarChange} style={{ display: "none" }} id="avatarInput" />
-                <label htmlFor="avatarInput" style={{ background: C.card3, padding: "8px 12px", borderRadius: 10, cursor: "pointer", color: C.text, fontWeight: 700 }}>Change Avatar</label>
-                <button onClick={() => { setAvatarFile(null); setAvatarUrl(null); }} style={{ background: C.card3, padding: "8px 12px", borderRadius: 10, border: "none", cursor: "pointer", color: C.text }}>Remove</button>
+                <label htmlFor="avatarInput" style={{ background: C.card3, padding: "8px 12px", borderRadius: 10, cursor: "pointer", color: C.text, fontWeight: 700 }}>{t('settings.changeAvatar')}</label>
+                <button onClick={() => { setAvatarFile(null); setAvatarUrl(null); }} style={{ background: C.card3, padding: "8px 12px", borderRadius: 10, border: "none", cursor: "pointer", color: C.text }}>{t('settings.remove')}</button>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
-                <Input placeholder="Username" value={username} onChange={setUsername} />
-                <Input placeholder="Email" value={email} onChange={setEmail} />
-                <Input placeholder="Phone" value={phone} onChange={setPhone} />
+                <Input placeholder={t('settings.username')} value={username} onChange={setUsername} />
+                <Input placeholder={t('settings.email')} value={email} onChange={setEmail} />
+                <Input placeholder={t('settings.phone')} value={phone} onChange={setPhone} />
               </div>
             </div>
           </div>
@@ -4626,38 +4641,60 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
             icon={profileSaved ? <Icon d={icons.check} size={16} stroke="#000" /> : undefined}
             style={profileSaved ? { background: C.green, transition: "background 0.2s" } : { transition: "background 0.2s" }}
           >
-            {profileSaved ? "Saved!" : "Save Profile"}
+            {profileSaved ? t('settings.saved') : t('settings.saveProfile')}
           </Btn>
-          <Btn onClick={() => { setUsername(user?.name || ""); setEmail(user?.email || ""); setPhone(""); setAvatarUrl(user?.picture || null); }} variant="ghost">Reset</Btn>
+          <Btn onClick={() => { setUsername(user?.name || ""); setEmail(user?.email || ""); setPhone(""); setAvatarUrl(user?.picture || null); }} variant="ghost">{t('settings.reset')}</Btn>
           {savedAt && (
             <span style={{ color: C.textSub, fontSize: 11, marginLeft: 4 }}>
               <Icon d={icons.check} size={11} stroke={C.green} style={{ display: "inline", verticalAlign: "middle", marginRight: 3 }} />
-              Synced {savedAt}
+              {t('settings.synced')} {savedAt}
             </span>
           )}
         </div>
       </Card>
 
-      <SectionLabel icon="bell">NOTIFICATIONS</SectionLabel>
+      <SectionLabel icon="bell">{t('settings.notifications')}</SectionLabel>
       <Card style={{ marginBottom: 20 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 36, height: 36, borderRadius: 10, background: pushEnabled ? C.cyan : C.redDim, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Icon d={icons.bell} size={18} stroke={pushEnabled ? "#000" : C.red} />
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2 }}>{pushEnabled ? "Active" : "Emergency Push"}</div>
-            <div style={{ color: C.textSub, fontSize: 12, lineHeight: 1.4 }}>{pushEnabled ? "Alerts will ring even in bg" : "Get loud alerts when members use SOS, even in bg."}</div>
+            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2 }}>{pushEnabled ? t('settings.active') : t('settings.emergencyPush')}</div>
+            <div style={{ color: C.textSub, fontSize: 12, lineHeight: 1.4 }}>{pushEnabled ? t('settings.pushDescActive') : t('settings.pushDescInactive')}</div>
           </div>
           <Btn variant={pushEnabled ? "ghost" : "primary"} onClick={enablePush} disabled={pushLoading}>
-            {pushLoading ? "..." : pushEnabled ? "On" : "Enable"}
+            {pushLoading ? "..." : pushEnabled ? t('settings.active') : t('settings.enable')}
           </Btn>
         </div>
       </Card>
 
-      <SectionLabel icon="clock">TRANSACTION HISTORY</SectionLabel>
+      <SectionLabel icon="clock">{t('settings.transactionHistory')}</SectionLabel>
       <Btn style={{ width: "100%", marginBottom: 20 }} variant="secondary"
         icon={<Icon d={icons.receipt} size={16} stroke={C.textMuted} />}
-        onClick={onHistory}>View History</Btn>
+        onClick={onHistory}
+      >
+        History
+      </Btn>
+
+      <Btn style={{ width: "100%", marginBottom: 30 }} variant="outline"
+        icon={<Icon d={icons.download} size={16} stroke={C.text} />}
+        onClick={() => {
+          let csv = "date,description,amount,currency,who_paid\n";
+          const allExps = trips.flatMap((t: any) => Object.values(t.expenses || {}));
+          allExps.forEach((e: any) => {
+            csv += `${e.date},"${e.description}",${e.localAmount},${e.localCurrency},"${e.whoPaid}"\n`;
+          });
+          const blob = new Blob([csv], { type: "text/csv" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url; a.download = "voyasync_export.csv";
+          a.click();
+        }}
+      >
+        {t('settings.exportCsv')}
+      </Btn>
+
       <SectionLabel icon="bug">DEV CONTROLS</SectionLabel>
       <Card>
         {[
@@ -4788,119 +4825,133 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
         )}
       </Card>
 
-      {archivedInsurances.length > 0 && (
-        <button onClick={() => setShowArchivedIns(v => !v)} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 12, cursor: "pointer", marginBottom: 12, padding: 0, display: "flex", alignItems: "center", gap: 6 }}>
-          <Icon d={showArchivedIns ? icons.chevronDown : icons.chevronRight} size={14} stroke={C.textMuted} />
-          {archivedInsurances.length} archived insurance{archivedInsurances.length > 1 ? 's' : ''}
-        </button>
-      )}
-      {showArchivedIns && archivedInsurances.map((ins, i) => (
-        <Card key={i} style={{ marginBottom: 8, opacity: 0.65, border: `1px solid ${C.border}` }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 14 }}>{ins.provider}</div>
-              {ins.policyNumber && <div style={{ color: C.textMuted, fontSize: 12 }}>{ins.policyNumber}</div>}
-              {ins.coverageStart && <div style={{ color: C.textSub, fontSize: 11 }}>Coverage: {ins.coverageStart} → {ins.coverageEnd || '?'}</div>}
-              <div style={{ color: C.textSub, fontSize: 11, marginTop: 4 }}>Archived {new Date(ins.archivedAt).toLocaleDateString()}</div>
+      {
+        archivedInsurances.length > 0 && (
+          <button onClick={() => setShowArchivedIns(v => !v)} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 12, cursor: "pointer", marginBottom: 12, padding: 0, display: "flex", alignItems: "center", gap: 6 }}>
+            <Icon d={showArchivedIns ? icons.chevronDown : icons.chevronRight} size={14} stroke={C.textMuted} />
+            {archivedInsurances.length} archived insurance{archivedInsurances.length > 1 ? 's' : ''}
+          </button>
+        )
+      }
+      {
+        showArchivedIns && archivedInsurances.map((ins, i) => (
+          <Card key={i} style={{ marginBottom: 8, opacity: 0.65, border: `1px solid ${C.border}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{ins.provider}</div>
+                {ins.policyNumber && <div style={{ color: C.textMuted, fontSize: 12 }}>{ins.policyNumber}</div>}
+                {ins.coverageStart && <div style={{ color: C.textSub, fontSize: 11 }}>Coverage: {ins.coverageStart} → {ins.coverageEnd || '?'}</div>}
+                <div style={{ color: C.textSub, fontSize: 11, marginTop: 4 }}>Archived {new Date(ins.archivedAt).toLocaleDateString()}</div>
+              </div>
+              <button onClick={() => { const next = archivedInsurances.filter((_, j) => j !== i); setArchivedInsurances(next); localStorage.setItem('voyasync_insurance_archive', JSON.stringify(next)); }} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "5px 7px", cursor: "pointer" }}>
+                <Icon d={icons.trash} size={13} stroke={C.red} />
+              </button>
             </div>
-            <button onClick={() => { const next = archivedInsurances.filter((_, j) => j !== i); setArchivedInsurances(next); localStorage.setItem('voyasync_insurance_archive', JSON.stringify(next)); }} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "5px 7px", cursor: "pointer" }}>
-              <Icon d={icons.trash} size={13} stroke={C.red} />
-            </button>
-          </div>
-        </Card>
-      ))}
+          </Card>
+        ))
+      }
 
       {/* ── Critical Documents ── */}
       <SectionLabel icon="fileText" action={
         <button onClick={() => { setShowAddDoc(true); setDocName(''); setDocType('Passport'); setDocDataUrl(null); }} style={{ width: 32, height: 32, borderRadius: 10, background: C.card3, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon d={icons.plus} size={16} /></button>
       }>CRITICAL DOCUMENTS</SectionLabel>
 
-      {showAddDoc && (
-        <Card style={{ marginBottom: 12, border: `1px solid ${C.cyan}30` }}>
-          <div style={{ fontWeight: 700, marginBottom: 12 }}>Add Document</div>
-          <Input placeholder="Document name (e.g. Passport)" value={docName} onChange={setDocName} style={{ marginBottom: 10 }} />
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TYPE</div>
-            <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 6 }}>
-              {DOC_TYPES.map(t => <button key={t} onClick={() => setDocType(t)} style={{ background: docType === t ? C.cyan : C.card3, color: docType === t ? "#000" : C.textMuted, border: "none", borderRadius: 8, padding: "5px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{t}</button>)}
+      {
+        showAddDoc && (
+          <Card style={{ marginBottom: 12, border: `1px solid ${C.cyan}30` }}>
+            <div style={{ fontWeight: 700, marginBottom: 12 }}>Add Document</div>
+            <Input placeholder="Document name (e.g. Passport)" value={docName} onChange={setDocName} style={{ marginBottom: 10 }} />
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TYPE</div>
+              <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 6 }}>
+                {DOC_TYPES.map(t => <button key={t} onClick={() => setDocType(t)} style={{ background: docType === t ? C.cyan : C.card3, color: docType === t ? "#000" : C.textMuted, border: "none", borderRadius: 8, padding: "5px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{t}</button>)}
+              </div>
             </div>
-          </div>
-          <input type="file" accept="image/*" id="settingsDocInput" style={{ display: "none" }} onChange={async e => { const f = e.target.files?.[0]; if (f) { const c = await compressImage(f); setDocDataUrl(c); } }} />
-          {docDataUrl ? (
-            <div style={{ position: "relative", marginBottom: 12 }}>
-              <img src={docDataUrl} style={{ width: "100%", borderRadius: 12, maxHeight: 160, objectFit: "cover" }} />
-              <button onClick={() => setDocDataUrl(null)} style={{ position: "absolute", top: 8, right: 8, background: C.redDim, border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon d={icons.x} size={14} stroke={C.red} /></button>
+            <input type="file" accept="image/*" id="settingsDocInput" style={{ display: "none" }} onChange={async e => { const f = e.target.files?.[0]; if (f) { const c = await compressImage(f); setDocDataUrl(c); } }} />
+            {docDataUrl ? (
+              <div style={{ position: "relative", marginBottom: 12 }}>
+                <img src={docDataUrl} style={{ width: "100%", borderRadius: 12, maxHeight: 160, objectFit: "cover" }} />
+                <button onClick={() => setDocDataUrl(null)} style={{ position: "absolute", top: 8, right: 8, background: C.redDim, border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon d={icons.x} size={14} stroke={C.red} /></button>
+              </div>
+            ) : (
+              <label htmlFor="settingsDocInput" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, border: `2px dashed ${C.border}`, borderRadius: 12, padding: 16, cursor: "pointer", marginBottom: 12, color: C.textMuted, fontSize: 13 }}>
+                <Icon d={icons.camera} size={18} stroke={C.textMuted} /> Capture or upload
+              </label>
+            )}
+            <div style={{ display: "flex", gap: 10 }}>
+              <Btn variant="ghost" style={{ flex: 1 }} onClick={() => setShowAddDoc(false)}>Cancel</Btn>
+              <Btn style={{ flex: 1 }} onClick={() => { if (!docName.trim() || !docDataUrl) return; const doc: TravelDocument = { id: crypto.randomUUID(), name: docName.trim(), docType, dataUrl: docDataUrl, createdAt: new Date().toISOString() }; addDoc(doc); setShowAddDoc(false); }}>Add</Btn>
             </div>
-          ) : (
-            <label htmlFor="settingsDocInput" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, border: `2px dashed ${C.border}`, borderRadius: 12, padding: 16, cursor: "pointer", marginBottom: 12, color: C.textMuted, fontSize: 13 }}>
-              <Icon d={icons.camera} size={18} stroke={C.textMuted} /> Capture or upload
-            </label>
-          )}
-          <div style={{ display: "flex", gap: 10 }}>
-            <Btn variant="ghost" style={{ flex: 1 }} onClick={() => setShowAddDoc(false)}>Cancel</Btn>
-            <Btn style={{ flex: 1 }} onClick={() => { if (!docName.trim() || !docDataUrl) return; const doc: TravelDocument = { id: crypto.randomUUID(), name: docName.trim(), docType, dataUrl: docDataUrl, createdAt: new Date().toISOString() }; addDoc(doc); setShowAddDoc(false); }}>Add</Btn>
-          </div>
-        </Card>
-      )}
+          </Card>
+        )
+      }
 
-      {documents.filter(d => !d.archived).length === 0 && !showAddDoc ? (
-        <Card style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", padding: 40, gap: 12, marginBottom: 16 }}>
-          <div style={{ width: 60, height: 60, borderRadius: "50%", background: C.card3, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon d={icons.fileText} size={28} stroke={C.textMuted} /></div>
-          <div style={{ color: C.textMuted, fontSize: 13, textAlign: "center" }}>Store copies of passports, visas, and insurance cards for offline access.</div>
-        </Card>
-      ) : documents.filter(d => !d.archived).map(doc => (
-        <Card key={doc.id} style={{ marginBottom: 8 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }} onClick={() => setViewDoc(doc)}>
-            <div style={{ width: 52, height: 52, borderRadius: 10, overflow: "hidden", flexShrink: 0 }}><img src={doc.dataUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{doc.name}</div>
-              <div style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{doc.docType} · {new Date(doc.createdAt).toLocaleDateString()}</div>
+      {
+        documents.filter(d => !d.archived).length === 0 && !showAddDoc ? (
+          <Card style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", padding: 40, gap: 12, marginBottom: 16 }}>
+            <div style={{ width: 60, height: 60, borderRadius: "50%", background: C.card3, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon d={icons.fileText} size={28} stroke={C.textMuted} /></div>
+            <div style={{ color: C.textMuted, fontSize: 13, textAlign: "center" }}>Store copies of passports, visas, and insurance cards for offline access.</div>
+          </Card>
+        ) : documents.filter(d => !d.archived).map(doc => (
+          <Card key={doc.id} style={{ marginBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }} onClick={() => setViewDoc(doc)}>
+              <div style={{ width: 52, height: 52, borderRadius: 10, overflow: "hidden", flexShrink: 0 }}><img src={doc.dataUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{doc.name}</div>
+                <div style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{doc.docType} · {new Date(doc.createdAt).toLocaleDateString()}</div>
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button onClick={e => { e.stopPropagation(); archiveDoc(doc.id); }} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }} title="Archive"><Icon d={icons.archive} size={14} stroke={C.textMuted} /></button>
+                <button onClick={e => { e.stopPropagation(); deleteDoc(doc.id); }} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}><Icon d={icons.trash} size={14} stroke={C.red} /></button>
+              </div>
             </div>
-            <div style={{ display: "flex", gap: 6 }}>
-              <button onClick={e => { e.stopPropagation(); archiveDoc(doc.id); }} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }} title="Archive"><Icon d={icons.archive} size={14} stroke={C.textMuted} /></button>
-              <button onClick={e => { e.stopPropagation(); deleteDoc(doc.id); }} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}><Icon d={icons.trash} size={14} stroke={C.red} /></button>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10, paddingTop: 8, borderTop: `1px solid ${C.border}` }}>
+              <span style={{ fontSize: 12, color: C.textMuted }}>Share with travel crew</span>
+              <Toggle value={doc.sharing ?? false} onChange={(v: boolean) => updateDocSharing(doc.id, v)} />
             </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10, paddingTop: 8, borderTop: `1px solid ${C.border}` }}>
-            <span style={{ fontSize: 12, color: C.textMuted }}>Share with travel crew</span>
-            <Toggle value={doc.sharing ?? false} onChange={(v: boolean) => updateDocSharing(doc.id, v)} />
-          </div>
-        </Card>
-      ))}
+          </Card>
+        ))
+      }
 
-      {documents.filter(d => d.archived).length > 0 && (
-        <button onClick={() => setShowArchivedDocs(v => !v)} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 12, cursor: "pointer", marginBottom: 12, padding: 0, display: "flex", alignItems: "center", gap: 6 }}>
-          <Icon d={showArchivedDocs ? icons.chevronDown : icons.chevronRight} size={14} stroke={C.textMuted} />
-          {documents.filter(d => d.archived).length} archived document{documents.filter(d => d.archived).length > 1 ? 's' : ''}
-        </button>
-      )}
-      {showArchivedDocs && documents.filter(d => d.archived).map(doc => (
-        <Card key={doc.id} style={{ marginBottom: 8, cursor: "pointer", opacity: 0.65, border: `1px solid ${C.border}` }} onClick={() => setViewDoc(doc)}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 52, height: 52, borderRadius: 10, overflow: "hidden", flexShrink: 0 }}><img src={doc.dataUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{doc.name}</div>
-              <div style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{doc.docType} · Archived</div>
+      {
+        documents.filter(d => d.archived).length > 0 && (
+          <button onClick={() => setShowArchivedDocs(v => !v)} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 12, cursor: "pointer", marginBottom: 12, padding: 0, display: "flex", alignItems: "center", gap: 6 }}>
+            <Icon d={showArchivedDocs ? icons.chevronDown : icons.chevronRight} size={14} stroke={C.textMuted} />
+            {documents.filter(d => d.archived).length} archived document{documents.filter(d => d.archived).length > 1 ? 's' : ''}
+          </button>
+        )
+      }
+      {
+        showArchivedDocs && documents.filter(d => d.archived).map(doc => (
+          <Card key={doc.id} style={{ marginBottom: 8, cursor: "pointer", opacity: 0.65, border: `1px solid ${C.border}` }} onClick={() => setViewDoc(doc)}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 52, height: 52, borderRadius: 10, overflow: "hidden", flexShrink: 0 }}><img src={doc.dataUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{doc.name}</div>
+                <div style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{doc.docType} · Archived</div>
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button onClick={e => { e.stopPropagation(); unarchiveDoc(doc.id); }} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }} title="Unarchive"><Icon d={icons.rotateCcw} size={14} stroke={C.cyan} /></button>
+                <button onClick={e => { e.stopPropagation(); deleteDoc(doc.id); }} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}><Icon d={icons.trash} size={14} stroke={C.red} /></button>
+              </div>
             </div>
-            <div style={{ display: "flex", gap: 6 }}>
-              <button onClick={e => { e.stopPropagation(); unarchiveDoc(doc.id); }} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }} title="Unarchive"><Icon d={icons.rotateCcw} size={14} stroke={C.cyan} /></button>
-              <button onClick={e => { e.stopPropagation(); deleteDoc(doc.id); }} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}><Icon d={icons.trash} size={14} stroke={C.red} /></button>
-            </div>
-          </div>
-        </Card>
-      ))}
+          </Card>
+        ))
+      }
 
-      {viewDoc && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 400, display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ width: "100%", maxWidth: 400 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-              <div><div style={{ fontWeight: 700, fontSize: 16 }}>{viewDoc.name}</div><div style={{ color: C.textMuted, fontSize: 12 }}>{viewDoc.docType}</div></div>
-              <button onClick={() => setViewDoc(null)} style={{ background: C.card3, border: "none", borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><Icon d={icons.x} size={18} stroke={C.text} /></button>
+      {
+        viewDoc && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 400, display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", padding: 20 }}>
+            <div style={{ width: "100%", maxWidth: 400 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                <div><div style={{ fontWeight: 700, fontSize: 16 }}>{viewDoc.name}</div><div style={{ color: C.textMuted, fontSize: 12 }}>{viewDoc.docType}</div></div>
+                <button onClick={() => setViewDoc(null)} style={{ background: C.card3, border: "none", borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><Icon d={icons.x} size={18} stroke={C.text} /></button>
+              </div>
+              <img src={viewDoc.dataUrl} style={{ width: "100%", borderRadius: 16, maxHeight: "70vh", objectFit: "contain" }} />
             </div>
-            <img src={viewDoc.dataUrl} style={{ width: "100%", borderRadius: 16, maxHeight: "70vh", objectFit: "contain" }} />
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* ── Sign Out ── */}
       <div style={{ marginTop: 32, marginBottom: 8 }}>
@@ -4911,7 +4962,7 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
           onClick={onLogout}
         >Sign Out</Btn>
       </div>
-    </div>
+    </div >
   );
 };
 
@@ -6176,6 +6227,7 @@ function useLiveLocation(isActive: boolean, userSub?: string, tripId?: string) {
 }
 
 function ConfirmDialog({ isOpen, isPanicModeActive, onCancel, onConfirm }: { isOpen: boolean, isPanicModeActive: boolean, onCancel: () => void, onConfirm: () => void }) {
+  const { t } = useTranslation();
   if (!isOpen) return null;
   return (
     <>
@@ -6183,17 +6235,15 @@ function ConfirmDialog({ isOpen, isPanicModeActive, onCancel, onConfirm }: { isO
       <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "90%", maxWidth: 400, background: C.card, borderRadius: 20, padding: 24, zIndex: 901, textAlign: "center" }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>{isPanicModeActive ? '✅' : '🚨'}</div>
         <div style={{ fontSize: 18, fontWeight: 800, color: C.text, marginBottom: 12 }}>
-          {isPanicModeActive ? 'Desativar SOS?' : 'Ativar Botão de Pânico?'}
+          {isPanicModeActive ? t('sos.deactivateTitle') : t('sos.activateTitle')}
         </div>
         <div style={{ color: C.textMuted, fontSize: 14, marginBottom: 24, lineHeight: 1.5 }}>
-          {isPanicModeActive
-            ? 'Deseja encerrar o modo de emergência? Seu rastreamento de localização será interrompido.'
-            : 'Você tem certeza que deseja acionar o botão de pânico? Sua localização será compartilhada em tempo real com o grupo.'}
+          {isPanicModeActive ? t('sos.deactivateDesc') : t('sos.activateDesc')}
         </div>
         <div style={{ display: "flex", gap: 12 }}>
-          <Btn variant="ghost" style={{ flex: 1, padding: 14 }} onClick={onCancel}>Cancelar</Btn>
+          <Btn variant="ghost" style={{ flex: 1, padding: 14 }} onClick={onCancel}>{t('sos.btnCancel')}</Btn>
           <Btn variant="danger" style={{ flex: 1, padding: 14, background: isPanicModeActive ? C.card3 : C.red, color: isPanicModeActive ? C.text : "#fff" }} onClick={onConfirm}>
-            {isPanicModeActive ? 'Desativar SOS' : 'Ativar SOS'}
+            {isPanicModeActive ? t('sos.btnDeactivate') : t('sos.btnActivate')}
           </Btn>
         </div>
       </div>
@@ -6227,6 +6277,7 @@ import dynamic from 'next/dynamic';
 const LiveMap = dynamic(() => import('./components/LiveMap'), { ssr: false });
 
 function AppShell() {
+  const { t } = useTranslation();
   const [user, setUser] = useState<any>(null);
   const [tab, setTab] = useState("home");
   const [showSettings, setShowSettings] = useState(false);
@@ -6492,12 +6543,12 @@ function AppShell() {
           <div style={{ position: "fixed", inset: 0, background: "rgba(100,0,0,0.8)", zIndex: 1000 }} onClick={() => setIncomingSOSUser(null)} />
           <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "90%", maxWidth: 400, background: C.card, borderRadius: 20, padding: 24, zIndex: 1001, textAlign: "center", border: `2px solid ${C.red}` }}>
             <div style={{ fontSize: 50, marginBottom: 12 }}>🚨</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: C.red, marginBottom: 12, textTransform: "uppercase" }}>ALERTA DE EMERGÊNCIA!</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: C.red, marginBottom: 12, textTransform: "uppercase" }}>{t('sos.alertTitle')}</div>
             <div style={{ color: C.text, fontSize: 16, marginBottom: 24, lineHeight: 1.5, fontWeight: 500 }}>
-              Um membro do seu grupo acabou de acionar o botão de Pânico!
+              {t('sos.alertBody')}
             </div>
-            <Btn variant="danger" style={{ width: "100%", padding: 16, fontSize: 16, fontWeight: "bold" }} onClick={() => { setIncomingSOSUser(null); setShowLiveMap(true); }}>Abrir Mapa ao Vivo</Btn>
-            <Btn variant="ghost" style={{ width: "100%", marginTop: 12, padding: 12 }} onClick={() => setIncomingSOSUser(null)}>Fechar Aviso</Btn>
+            <Btn variant="danger" style={{ width: "100%", padding: 16, fontSize: 16, fontWeight: "bold" }} onClick={() => { setIncomingSOSUser(null); setShowLiveMap(true); }}>{t('sos.openMap')}</Btn>
+            <Btn variant="ghost" style={{ width: "100%", marginTop: 12, padding: 12 }} onClick={() => setIncomingSOSUser(null)}>{t('sos.closeAlert')}</Btn>
           </div>
         </>
       )}
