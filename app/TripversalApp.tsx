@@ -372,7 +372,7 @@ const CATEGORY_ICONS: Record<EventCategory, string> = {
   activity: icons.tag, food: icons.food, car: icons.car, other: icons.calendar,
 };
 
-const C = {
+export const C = {
   bg: "#0a0a0a", card: "#141414", card2: "#1c1c1e", card3: "#232326",
   border: "#2a2a2e", cyan: "#00e5ff", cyanDim: "#00b8cc", text: "#ffffff",
   textMuted: "#8e8e93", textSub: "#636366", red: "#ff3b30", redDim: "#3d1a1a",
@@ -1985,8 +1985,8 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
             {/* Location */}
             <div style={{ marginBottom: 12 }}>
               <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('itinerary.locationLabel')}</div>
-              <input value={evtLocation} onChange={e => setEvtLocation(e.target.value)} placeholder={t('itinerary.locationPlaceholder')}
-                style={{ width: "100%", boxSizing: "border-box" as const, background: C.card2, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", color: C.text, fontSize: 14, outline: "none", fontFamily: "inherit" }} />
+              <LocationAutocomplete value={evtLocation} onChange={setEvtLocation} placeholder={t('itinerary.locationPlaceholder')}
+                style={{ width: "100%", boxSizing: "border-box" as const, background: C.card2, border: `1.5px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 14, outline: "none", fontFamily: "inherit" }} />
               {evtLocation.trim() && (
                 <a href={`https://maps.google.com/maps?q=${encodeURIComponent(evtLocation)}`} target="_blank" rel="noreferrer"
                   style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 6, fontSize: 12, color: C.cyan, textDecoration: "none" }}>
@@ -6093,7 +6093,7 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
           <Card style={{ marginBottom: 12, border: `1px solid ${C.cyan}30` }}>
             <div style={{ fontWeight: 700, marginBottom: 12 }}>{t('group.newTripTitle')}</div>
             <Input placeholder={t('group.tripNamePlace')} value={newTripName} onChange={setNewTripName} style={{ marginBottom: 10 }} />
-            <Input placeholder={t('group.destPlace')} value={newTripDest} onChange={setNewTripDest} style={{ marginBottom: 10 }} />
+            <LocationAutocomplete placeholder={t('group.destPlace')} value={newTripDest} onChange={setNewTripDest} style={{ marginBottom: 10, background: "rgba(255, 255, 255, 0.05)", borderRadius: 12 }} />
             <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('group.startDateLabel')}</div>
@@ -6128,7 +6128,7 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
                 <>
                   <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>{t('group.editTripTitle')}</div>
                   <Input placeholder={t('group.tripNamePlace')} value={editTripName} onChange={setEditTripName} style={{ marginBottom: 10 }} />
-                  <Input placeholder={t('group.destPlace')} value={editTripDest} onChange={setEditTripDest} style={{ marginBottom: 10 }} />
+                  <LocationAutocomplete placeholder={t('group.destPlace')} value={editTripDest} onChange={setEditTripDest} style={{ marginBottom: 10, background: "transparent", border: `1.5px solid ${C.border}`, borderRadius: 12 }} />
                   <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
                     <div style={{ flex: 1 }}>
                       <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('group.startDateLabel')}</div>
@@ -6304,18 +6304,25 @@ function useGlobalSOSListener(tripId?: string, currentUserSub?: string, onSOSInc
 }
 
 import dynamic from 'next/dynamic';
+import LocationAutocomplete from './components/LocationAutocomplete';
 
 const LiveMap = dynamic(() => import('./components/LiveMap'), { ssr: false });
 
 function AppShell() {
   const { t } = useTranslation();
   const [user, setUser] = useState<any>(null);
-  const [tab, setTab] = useState("home");
-  const [showSettings, setShowSettings] = useState(false);
-  const [showManageCrew, setShowManageCrew] = useState(false);
-  const [showAddExpense, setShowAddExpense] = useState(false);
+
+  // Read initial route from URL hash to support refresh and back/forward
+  const initialRoute = typeof window !== 'undefined' ? (window.location.hash.replace('#', '') || localStorage.getItem('voyasync_last_route') || 'home') : 'home';
+  const getBaseTab = (r: string) => ['home', 'itinerary', 'wallet', 'photos', 'group'].includes(r) ? r : 'home';
+
+  const [tab, setTab] = useState(getBaseTab(initialRoute));
+  const [showSettings, setShowSettings] = useState(initialRoute === 'settings');
+  const [showManageCrew, setShowManageCrew] = useState(initialRoute === 'manage_crew');
+  const [showAddExpense, setShowAddExpense] = useState(initialRoute === 'add_expense');
+  const [showHistory, setShowHistory] = useState(initialRoute === 'history');
+
   const [walletInitTab, setWalletInitTab] = useState<'transactions' | 'analytics' | 'budget'>('transactions');
-  const [showHistory, setShowHistory] = useState(false);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [activeTripId, setActiveTripId] = useState<string | null>(null);
   const [pendingInviteToken, setPendingInviteToken] = useState<string | null>(null);
@@ -6341,7 +6348,39 @@ function AppShell() {
     fetchServerActivity();
   }, [activeTripId, user]);
   const [showPanicModal, setShowPanicModal] = useState(false);
-  const [showLiveMap, setShowLiveMap] = useState(false);
+  const [showLiveMap, setShowLiveMap] = useState(initialRoute === 'live_map');
+
+  // History API Router
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // Compute current route string based on states
+    let currentRoute = tab;
+    if (showSettings) currentRoute = 'settings';
+    else if (showManageCrew) currentRoute = 'manage_crew';
+    else if (showAddExpense) currentRoute = 'add_expense';
+    else if (showHistory) currentRoute = 'history';
+    else if (showLiveMap) currentRoute = 'live_map';
+
+    localStorage.setItem('voyasync_last_route', currentRoute);
+
+    if (window.location.hash.replace('#', '') !== currentRoute) {
+      window.history.pushState({ route: currentRoute }, '', `#${currentRoute}`);
+    }
+
+    const handlePopState = (e: PopStateEvent) => {
+      const route = window.location.hash.replace('#', '') || 'home';
+      setShowSettings(route === 'settings');
+      setShowManageCrew(route === 'manage_crew');
+      setShowAddExpense(route === 'add_expense');
+      setShowHistory(route === 'history');
+      setShowLiveMap(route === 'live_map');
+      if (['home', 'itinerary', 'wallet', 'photos', 'group'].includes(route)) setTab(route);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [tab, showSettings, showManageCrew, showAddExpense, showHistory, showLiveMap]);
 
   const [incomingSOSUser, setIncomingSOSUser] = useState<string | null>(null);
   const [mutedSOS, setMutedSOS] = useState(false);
@@ -6465,10 +6504,20 @@ function AppShell() {
     setUser(null); setTrips([]); setActiveTripId(null);
   };
 
-  if (!user) return <LoginScreen onLogin={(u) => { setUser(u); setTab('home'); }} />;
+  if (!user) return <LoginScreen onLogin={(u) => {
+    setUser(u);
+    setTab('home');
+    setShowSettings(false);
+    setShowManageCrew(false);
+    setShowAddExpense(false);
+    setShowHistory(false);
+    setShowLiveMap(false);
+    localStorage.setItem('voyasync_last_route', 'home');
+    if (typeof window !== 'undefined') window.history.pushState({ route: 'home' }, '', '#home');
+  }} />;
 
   const handleNav = (t: string) => {
-    setShowSettings(false); setShowManageCrew(false); setShowAddExpense(false); setShowHistory(false); setTab(t);
+    setShowSettings(false); setShowManageCrew(false); setShowAddExpense(false); setShowHistory(false); setShowLiveMap(false); setTab(t);
   };
 
   const handleGoToBudget = () => {
@@ -6486,7 +6535,9 @@ function AppShell() {
   };
 
   let content;
-  if (pendingInviteToken) {
+  if (showLiveMap) {
+    content = <LiveMap tripId={activeTripId!} onBack={() => setShowLiveMap(false)} />;
+  } else if (pendingInviteToken) {
     content = (
       <InviteAcceptScreen
         token={pendingInviteToken}
@@ -6525,7 +6576,7 @@ function AppShell() {
         onManageCrew={() => { setShowSettings(false); setShowManageCrew(true); }}
         trips={trips}
         activeTripId={activeTripId}
-        onSwitchTrip={(id: string) => { switchActiveTrip(id); setShowSettings(false); }}
+        onSwitchTrip={(id: string) => { switchActiveTrip(id); setShowSettings(false); setTab('home'); }}
         onTripCreate={(trip: Trip) => { setTrips(p => [...p, trip]); switchActiveTrip(trip.id); }}
         onTripUpdate={(updated: Trip) => setTrips(p => p.map(t => t.id === updated.id ? updated : t))}
         onTripDelete={(id: string) => {
@@ -6601,7 +6652,6 @@ function AppShell() {
           }
         }}
       />
-      {showLiveMap && activeTripId && <LiveMap tripId={activeTripId} onBack={() => setShowLiveMap(false)} />}
       {incomingSOSUser && (
         <>
           <div style={{ position: "fixed", inset: 0, background: "rgba(100,0,0,0.8)", zIndex: 1000 }} onClick={() => setIncomingSOSUser(null)} />
