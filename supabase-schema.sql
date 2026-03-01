@@ -322,3 +322,15 @@ CREATE POLICY "service_role_all_sos" ON trip_sos_sessions FOR ALL USING (true);
 CREATE POLICY "anon_all_sos" ON trip_sos_sessions FOR ALL USING (true);
 -- Enable Realtime
 ALTER PUBLICATION supabase_realtime ADD TABLE trip_sos_sessions;
+
+-- ─── Web Push Subscriptions ───
+CREATE TABLE IF NOT EXISTS user_push_subscriptions (
+  user_sub    TEXT NOT NULL,
+  endpoint    TEXT PRIMARY KEY,
+  p256dh      TEXT NOT NULL,
+  auth        TEXT NOT NULL,
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE user_push_subscriptions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "anon_push_subs" ON user_push_subscriptions FOR ALL USING (true);

@@ -4386,6 +4386,17 @@ const SOSScreen = ({ user }: { user?: any }) => {
   );
 };
 
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
 const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], activeTripId, onSwitchTrip, onTripCreate, onTripUpdate, onTripDelete, offlineSim = false, setOfflineSim, isSyncing = false }: any) => {
   const [forcePending, setForcePending] = useState(false);
   // Profile / language / budget states
@@ -4397,6 +4408,58 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
   const [phone, setPhone] = useState("");
   const [profileSaved, setProfileSaved] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistration().then(reg => {
+        if (reg && reg.pushManager) {
+          reg.pushManager.getSubscription().then(sub => setPushEnabled(!!sub));
+        }
+      });
+    }
+  }, []);
+
+  const enablePush = async () => {
+    if (pushEnabled) return alert("Push já ativado!");
+    setPushLoading(true);
+    try {
+      if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+        throw new Error('Navegador não suporta Push. Tente adicionar à Tela de Início (iOS).');
+      }
+      let perm = Notification.permission;
+      if (perm === 'default') perm = await Notification.requestPermission();
+      if (perm !== 'granted') throw new Error('Permissão negada.');
+
+      const reg = await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.ready;
+
+      const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      if (!vapidPublicKey) throw new Error("VAPID URL ausente");
+
+      const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: convertedVapidKey
+      });
+
+      const res = await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userSub: user.sub, subscription: sub.toJSON() })
+      });
+      if (!res.ok) throw new Error('Falha ao salvar a inscrição.');
+
+      setPushEnabled(true);
+      alert('Alertas de Emergência ativados!');
+    } catch (e: any) {
+      alert('Aviso: ' + e.message);
+    }
+    setPushLoading(false);
+  };
+
 
   const saveProfile = () => {
     localStorage.setItem('voyasync_profile', JSON.stringify({ username, email, phone, avatarUrl }));
@@ -4572,6 +4635,22 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
               Synced {savedAt}
             </span>
           )}
+        </div>
+      </Card>
+
+      <SectionLabel icon="bell">NOTIFICATIONS</SectionLabel>
+      <Card style={{ marginBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: pushEnabled ? C.cyan : C.redDim, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon d={icons.bell} size={18} stroke={pushEnabled ? "#000" : C.red} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2 }}>{pushEnabled ? "Active" : "Emergency Push"}</div>
+            <div style={{ color: C.textSub, fontSize: 12, lineHeight: 1.4 }}>{pushEnabled ? "Alerts will ring even in bg" : "Get loud alerts when members use SOS, even in bg."}</div>
+          </div>
+          <Btn variant={pushEnabled ? "ghost" : "primary"} onClick={enablePush} disabled={pushLoading}>
+            {pushLoading ? "..." : pushEnabled ? "On" : "Enable"}
+          </Btn>
         </div>
       </Card>
 
