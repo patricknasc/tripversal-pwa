@@ -1484,23 +1484,10 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
   const activeItinEvents = itinEvents.filter(e => !e.deletedAt);
   const customEventDates = activeItinEvents.map(e => localDateKey(new Date(e.startDt)));
 
-  const eventDates = segEvents.map(e => e.date);
-  const segmentRangeDates = activeTrip?.segments.flatMap(seg =>
-    seg.startDate ? getDatesRange(seg.startDate, seg.endDate ?? seg.startDate) : []
-  ) ?? [];
-  // Only include forecast dates that overlap with the trip range
-  const forecastEnd = localDateKey(new Date(now.getTime() + 15 * 86400000));
-  const forecastRange = activeTrip
-    ? getDatesRange(
-      todayKey < activeTrip.startDate ? activeTrip.startDate : todayKey,
-      forecastEnd > activeTrip.endDate ? activeTrip.endDate : forecastEnd
-    )
-    : getDatesRange(todayKey, forecastEnd);
-
-  const allDates = activeTrip
-    ? [...getDatesRange(activeTrip.startDate, activeTrip.endDate), ...forecastRange]
-    : [todayKey, ...customEventDates, ...forecastRange];
-  const dateRange = Array.from(new Set(allDates)).sort();
+  // Date range is strictly the trip's date range. No forecast or event dates outside the trip.
+  const dateRange = activeTrip
+    ? getDatesRange(activeTrip.startDate, activeTrip.endDate)
+    : [todayKey];
 
   // 1. Initial Load: LocalStorage -> Cloud API
   useEffect(() => {
@@ -1530,8 +1517,9 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
     const segments = (activeTrip.segments || []).filter((s: any) => s.destination || s.name);
     // Even if no segments, we might have custom event dates to fetch
     const today = localDateKey(new Date());
-    const endD = new Date(); endD.setDate(endD.getDate() + 15);
-    const endDate = localDateKey(endD);
+    // Fetch weather for the entire trip, not just 15 days from today
+    const endD = activeTrip ? activeTrip.endDate : localDateKey(new Date(Date.now() + 15 * 86400000));
+    const endDate = endD;
 
     let cachedMap: Record<string, { temp: number; code: number }> = {};
     try {
@@ -1583,8 +1571,9 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
         if (!coords) return null;
 
         try {
+          const apiEnd = endDate > localDateKey(new Date(Date.now() + 15 * 86400000)) ? localDateKey(new Date(Date.now() + 15 * 86400000)) : endDate;
           const wRes = await fetch(
-            `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&daily=temperature_2m_max,weathercode&timezone=auto&start_date=${fetchStart}&end_date=${endDate}`
+            `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&daily=temperature_2m_max,weathercode&timezone=auto&start_date=${fetchStart}&end_date=${apiEnd}`
           );
           const d = await wRes.json();
           if (!d.daily?.time) return null;
