@@ -4744,17 +4744,23 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
                 <Input placeholder={t('settings.username')} value={username} onChange={setUsername} />
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <div style={{ flex: 1 }}><Input placeholder={t('settings.email')} value={email} onChange={setEmail} /></div>
-                  <button onClick={() => setShareEmail(!shareEmail)} title={shareEmail ? t('settings.shared') : t('settings.notShared')} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: shareEmail ? C.cyan + '22' : C.card3, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Icon d={icons.share} size={14} stroke={shareEmail ? C.cyan : C.textMuted} />
-                  </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <div style={{ flex: 1 }}><Input placeholder={t('settings.email')} value={email} onChange={setEmail} /></div>
+                    <button onClick={() => setShareEmail(!shareEmail)} title={shareEmail ? t('settings.shared') : t('settings.notShared')} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: shareEmail ? C.cyan + '22' : C.card3, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Icon d={icons.share} size={14} stroke={shareEmail ? C.cyan : C.textMuted} />
+                    </button>
+                  </div>
+                  {shareEmail && <div style={{ color: C.cyan, fontSize: 10, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, marginLeft: 2 }}><Icon d={icons.check} size={10} stroke={C.cyan} /> {t('settings.shareWithCrew', 'Compartilhado com o grupo')}</div>}
                 </div>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <div style={{ flex: 1 }}><Input placeholder={t('settings.phone')} value={phone} onChange={setPhone} /></div>
-                  <button onClick={() => setSharePhone(!sharePhone)} title={sharePhone ? t('settings.shared') : t('settings.notShared')} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: sharePhone ? C.cyan + '22' : C.card3, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Icon d={icons.share} size={14} stroke={sharePhone ? C.cyan : C.textMuted} />
-                  </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <div style={{ flex: 1 }}><Input placeholder={t('settings.phone')} value={phone} onChange={setPhone} /></div>
+                    <button onClick={() => setSharePhone(!sharePhone)} title={sharePhone ? t('settings.shared') : t('settings.notShared')} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: sharePhone ? C.cyan + '22' : C.card3, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Icon d={icons.share} size={14} stroke={sharePhone ? C.cyan : C.textMuted} />
+                    </button>
+                  </div>
+                  {sharePhone && <div style={{ color: C.cyan, fontSize: 10, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, marginLeft: 2 }}><Icon d={icons.check} size={10} stroke={C.cyan} /> {t('settings.shareWithCrew', 'Compartilhado com o grupo')}</div>}
                 </div>
               </div>
             </div>
@@ -5056,8 +5062,10 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10, paddingTop: 8, borderTop: `1px solid ${C.border}` }}>
-              <span style={{ fontSize: 12, color: C.textMuted }}>{t('settings.shareWithCrew')}</span>
-              <Toggle value={doc.sharing ?? false} onChange={(v: boolean) => updateDocSharing(doc.id, v)} />
+              <span style={{ fontSize: 12, color: doc.sharing ? C.cyan : C.textMuted, fontWeight: doc.sharing ? 600 : 400 }}>{doc.sharing ? t('settings.shareWithCrew', 'Compartilhado com o grupo') : t('settings.shareWithCrew', 'Compartilhar com o grupo')}</span>
+              <button onClick={e => { e.stopPropagation(); updateDocSharing(doc.id, !(doc.sharing ?? false)); }} title={doc.sharing ? t('settings.shared') : t('settings.notShared')} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: doc.sharing ? C.cyan + '22' : C.card3, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Icon d={icons.share} size={14} stroke={doc.sharing ? C.cyan : C.textMuted} />
+              </button>
             </div>
           </Card>
         ))
@@ -6245,7 +6253,7 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
     try {
       const res = await fetch(`/api/trips/${tripId}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ callerSub: user?.sub, name: editTripName.trim(), destination: editTripDest.trim() || undefined, startDate: editTripStart, endDate: editTripEnd }),
+        body: JSON.stringify({ callerSub: user?.sub, name: editTripName.trim(), destination: editTripDest.trim(), startDate: editTripStart, endDate: editTripEnd }),
       });
       if (!res.ok) throw new Error("Failed to save trip.");
       onTripUpdate?.(rowToTrip(await res.json()));
@@ -6390,8 +6398,8 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
         {confirmDeleteTripId && (() => {
           const tTrip = (trips as Trip[]).find(tr => tr.id === confirmDeleteTripId);
           return (
-            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 300, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-              <div style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "20px 20px 0 0", padding: "28px 20px 44px" }}>
+            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 380, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setConfirmDeleteTripId(null)}>
+              <div style={{ width: "90%", maxWidth: 400, background: C.card, borderRadius: 24, padding: "28px 20px", textAlign: "center" }} onClick={e => e.stopPropagation()}>
                 <div style={{ textAlign: "center", marginBottom: 24 }}>
                   <div style={{ fontSize: 17, fontWeight: 800, color: C.text, marginBottom: 6 }}>{t('group.deleteTripPrompt', { name: tTrip?.name })}</div>
                   <div style={{ color: C.textMuted, fontSize: 13 }}>{t('group.deleteTripDesc')}</div>
