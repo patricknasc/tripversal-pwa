@@ -5945,6 +5945,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
 };
 
 const LoginScreen = ({ onLogin }: { onLogin: (user: any) => void }) => {
+  const { t } = useTranslation();
   const login = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       try {
@@ -5972,7 +5973,7 @@ const LoginScreen = ({ onLogin }: { onLogin: (user: any) => void }) => {
     <div style={{ background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ width: "100%", maxWidth: 430, minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 40 }}>
         <div style={{ color: C.cyan, fontSize: 32, fontWeight: 900, letterSpacing: 5, marginBottom: 8 }}>VOYASYNC</div>
-        <div style={{ color: C.textMuted, fontSize: 14, marginBottom: 60 }}>Your travel companion</div>
+        <div style={{ color: C.textMuted, fontSize: 14, marginBottom: 60 }}>{t('auth.subtitle')}</div>
         <button
           onClick={() => login()}
           style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", color: "#000", border: "none", borderRadius: 14, padding: "14px 28px", fontSize: 16, fontWeight: 700, cursor: "pointer", width: "100%", justifyContent: "center", fontFamily: "inherit" }}
@@ -5983,7 +5984,7 @@ const LoginScreen = ({ onLogin }: { onLogin: (user: any) => void }) => {
             <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
             <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
           </svg>
-          Continue with Google
+          {t('auth.continueWithGoogle')}
         </button>
       </div>
     </div>

@@ -209,6 +209,18 @@ const resources = {
                 needBudgetAlert: "You need to create and activate a budget before adding a transaction.",
                 budgetsTitle: "BUDGETS"
             },
+            auth: {
+                subtitle: "Your travel companion",
+                continueWithGoogle: "Continue with Google"
+            },
+            liveMap: {
+                back: "Back",
+                liveTracking: "LIVE SOS TRACKING",
+                resolved: "SOS RESOLVED",
+                sosLocation: "SOS Location",
+                you: "You",
+                loading: "Consulting real-time location..."
+            },
             itinerary: {
                 headerTitle: "ITINERARY",
                 myScheduleBtn: "My Schedule",
@@ -718,6 +730,18 @@ const resources = {
                 deleteBudgetWarning: "Isso removerá permanentemente este orçamento.",
                 needBudgetAlert: "Você precisa criar e ativar um orçamento antes de adicionar uma transação.",
                 budgetsTitle: "ORÇAMENTOS"
+            },
+            auth: {
+                subtitle: "Seu companheiro de viagem",
+                continueWithGoogle: "Continuar com Google"
+            },
+            liveMap: {
+                back: "Voltar",
+                liveTracking: "RASTREAMENTO SOS AO VIVO",
+                resolved: "SOS RESOLVIDO",
+                sosLocation: "Localização do SOS",
+                you: "Você",
+                loading: "Consultando a localização em tempo real..."
             },
             itinerary: {
                 headerTitle: "ITINERÁRIO",
@@ -1229,6 +1253,18 @@ const resources = {
                 needBudgetAlert: "Necesitas crear y activar un presupuesto primero.",
                 budgetsTitle: "PRESUPUESTOS"
             },
+            auth: {
+                subtitle: "Tu compañero de viaje",
+                continueWithGoogle: "Continuar con Google"
+            },
+            liveMap: {
+                back: "Volver",
+                liveTracking: "SEGUIMIENTO SOS EN VIVO",
+                resolved: "SOS RESUELTO",
+                sosLocation: "Ubicación del SOS",
+                you: "Tú",
+                loading: "Consultando ubicación en tiempo real..."
+            },
             itinerary: {
                 headerTitle: "ITINERARIO",
                 myScheduleBtn: "Mi Agenda",
@@ -1739,6 +1775,18 @@ const resources = {
                 needBudgetAlert: "Сначала создайте и активируйте бюджет.",
                 budgetsTitle: "БЮДЖЕТЫ"
             },
+            auth: {
+                subtitle: "Ваш попутчик",
+                continueWithGoogle: "Продолжить с Google"
+            },
+            liveMap: {
+                back: "Назад",
+                liveTracking: "SOS ОТСЛЕЖИВАНИЕ",
+                resolved: "SOS РАЗРЕШЕН",
+                sosLocation: "Локация SOS",
+                you: "Вы",
+                loading: "Определение местоположения в реальном времени..."
+            },
             itinerary: {
                 headerTitle: "МАРШРУТ",
                 myScheduleBtn: "Мое Расписание",
@@ -2248,6 +2296,18 @@ const resources = {
                 deleteBudgetWarning: "此预算将被永久删除。",
                 needBudgetAlert: "在添加交易之前，请先创建并激活一个预算。",
                 budgetsTitle: "预算列表"
+            },
+            auth: {
+                subtitle: "您的旅行伴侣",
+                continueWithGoogle: "使用 Google 继续"
+            },
+            liveMap: {
+                back: "返回",
+                liveTracking: "实时 SOS 追踪",
+                resolved: "SOS 已解决",
+                sosLocation: "SOS 位置",
+                you: "您",
+                loading: "正在查询实时位置..."
             },
             itinerary: {
                 headerTitle: "行程",

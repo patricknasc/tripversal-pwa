@@ -5,6 +5,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { getSupabaseAnon } from '../../lib/supabase';
+import { useTranslation } from 'react-i18next';
 
 const victimIcon = new L.DivIcon({
     className: 'victim-marker',
@@ -31,6 +32,7 @@ function AutoPan({ position }: { position: [number, number] | null }) {
 const anonSupabase = getSupabaseAnon();
 
 export default function LiveMap({ tripId, onBack }: { tripId: string, onBack: () => void }) {
+    const { t } = useTranslation();
     const [victimLoc, setVictimLoc] = useState<[number, number] | null>(null);
     const [myLoc, setMyLoc] = useState<[number, number] | null>(null);
     const [isSOSActive, setIsSOSActive] = useState(true);
@@ -93,10 +95,10 @@ export default function LiveMap({ tripId, onBack }: { tripId: string, onBack: ()
 
             <div style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: '20px', zIndex: 10000, display: 'flex', gap: 10, background: 'linear-gradient(to bottom, rgba(0,0,0,0.8), transparent)' }}>
                 <button onClick={onBack} style={{ cursor: 'pointer', background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)', border: 'none', color: '#fff', padding: '10px 16px', borderRadius: 20, fontWeight: 700 }}>
-                    ← Back
+                    ← {t('liveMap.back')}
                 </button>
                 <div style={{ background: isSOSActive ? 'rgba(255,0,0,0.8)' : 'rgba(100,100,100,0.8)', color: '#fff', padding: '10px 16px', borderRadius: 20, fontWeight: 700, flex: 1, textAlign: 'center' }}>
-                    {isSOSActive ? '🚨 LIVE SOS TRACKING' : 'SOS RESOLVED'}
+                    {isSOSActive ? `🚨 ${t('liveMap.liveTracking')}` : t('liveMap.resolved')}
                 </div>
             </div>
 
@@ -108,19 +110,19 @@ export default function LiveMap({ tripId, onBack }: { tripId: string, onBack: ()
                     />
                     {victimLoc && isSOSActive && (
                         <Marker position={victimLoc} icon={victimIcon}>
-                            <Popup>SOS Location</Popup>
+                            <Popup>{t('liveMap.sosLocation')}</Popup>
                         </Marker>
                     )}
                     {myLoc && (
                         <Marker position={myLoc} icon={searcherIcon}>
-                            <Popup>You</Popup>
+                            <Popup>{t('liveMap.you')}</Popup>
                         </Marker>
                     )}
                     <AutoPan position={victimLoc} />
                 </MapContainer>
             ) : (
                 <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
-                    Consultando a localização em tempo real...
+                    {t('liveMap.loading')}
                 </div>
             )}
         </div>
