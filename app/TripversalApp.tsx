@@ -4667,8 +4667,8 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
       <SectionLabel icon="bell">{t('settings.notifications')}</SectionLabel>
       <Card style={{ marginBottom: 20 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: pushEnabled ? C.cyan : C.redDim, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Icon d={icons.bell} size={18} stroke={pushEnabled ? "#000" : C.red} />
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: pushEnabled ? C.cyan : C.redDim, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>
+            {pushEnabled ? <Icon d={icons.bell} size={18} stroke="#000" /> : "🚨"}
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2 }}>{pushEnabled ? t('settings.active') : t('settings.emergencyPush')}</div>
@@ -6415,7 +6415,7 @@ function AppShell() {
     mutedSOSRef.current = next;
   };
 
-  useLiveLocation(isPanicModeActive, user?.sub, activeTripId || undefined);
+  useLiveLocation(isPanicModeActive || showLiveMap, user?.sub, activeTripId || undefined);
 
   useGlobalSOSListener(activeTripId || undefined, user?.sub, useCallback((row: any) => {
     setIncomingSOSUser(row.user_sub);
@@ -6568,23 +6568,6 @@ function AppShell() {
   let content;
   if (showLiveMap) {
     content = <LiveMap tripId={activeTripId!} onBack={() => setShowLiveMap(false)} />;
-  } else if (pendingInviteToken) {
-    content = (
-      <InviteAcceptScreen
-        token={pendingInviteToken}
-        user={user}
-        onDone={(trip: Trip) => {
-          setTrips(p => [...p, trip]);
-          switchActiveTrip(trip.id);
-          setPendingInviteToken(null);
-          window.history.replaceState({}, '', '/');
-        }}
-        onDecline={() => {
-          setPendingInviteToken(null);
-          window.history.replaceState({}, '', '/');
-        }}
-      />
-    );
   } else if (showAddExpense) {
     content = <AddExpenseScreen onBack={() => setShowAddExpense(false)} onGoToBudget={handleGoToBudget} activeTripId={activeTripId} activeTrip={activeTrip} user={user} />;
   } else if (showHistory) {
@@ -6649,7 +6632,34 @@ function AppShell() {
     }
   }
 
-  const activeTab = showSettings || showManageCrew || showAddExpense || showHistory || pendingInviteToken ? null : tab;
+  const activeTab = showSettings || showManageCrew || showAddExpense || showHistory ? null : tab;
+
+  if (pendingInviteToken) {
+    return (
+      <div style={{ background: "#000", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <GlobalStyles />
+        <div style={{ width: "100%", maxWidth: 430, minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
+          <InviteAcceptScreen
+            token={pendingInviteToken}
+            user={{ ...user, name: user.name || user.email.split('@')[0] }}
+            onDone={(trip: any) => {
+              setPendingInviteToken(null);
+              setTrips(p => {
+                const arr = p.filter((t: any) => t.id !== trip.id);
+                return [...arr, trip];
+              });
+              setActiveTripId(trip.id);
+              if (typeof window !== 'undefined') window.history.replaceState(null, '', window.location.pathname);
+            }}
+            onDecline={() => {
+              setPendingInviteToken(null);
+              if (typeof window !== 'undefined') window.history.replaceState(null, '', window.location.pathname);
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ background: "#000", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -6696,7 +6706,7 @@ function AppShell() {
             <div style={{ fontSize: 50, marginBottom: 12 }}>🚨</div>
             <div style={{ fontSize: 20, fontWeight: 800, color: C.red, marginBottom: 12, textTransform: "uppercase" }}>{t('sos.alertTitle')}</div>
             <div style={{ color: C.text, fontSize: 16, marginBottom: 24, lineHeight: 1.5, fontWeight: 500 }}>
-              {t('sos.alertBody')}
+              {t('sos.alertBody', { name: (activeTrip as any)?.trip_members?.find((m: any) => m.google_sub === incomingSOSUser)?.name || t('sos.fallbackName', 'Um membro') })}
             </div>
             <Btn variant="danger" style={{ width: "100%", padding: 16, fontSize: 16, fontWeight: "bold" }} onClick={() => { setIncomingSOSUser(null); setShowLiveMap(true); }}>{t('sos.openMap')}</Btn>
             <Btn variant="primary" style={{ width: "100%", marginTop: 12, padding: 12, background: "transparent", border: `1px solid ${C.cyan}`, color: C.cyan }} onClick={toggleMuteSOS}>

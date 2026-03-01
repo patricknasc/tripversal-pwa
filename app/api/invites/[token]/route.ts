@@ -41,6 +41,15 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
     status: 'accepted', accepted_at: new Date().toISOString(),
   }).eq('id', tokenRow.member_id);
 
+  await sb.from('trip_activities').insert({
+    trip_id: tokenRow.trip_id,
+    user_id: googleSub,
+    user_name: name,
+    action: 'joined',
+    entity_type: 'member',
+    entity_name: name
+  });
+
   const { data: trip } = await sb
     .from('trips')
     .select(`
