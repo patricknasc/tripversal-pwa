@@ -1811,8 +1811,8 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
             <Icon d={icons.calendar} size={32} stroke={C.textMuted} />
             <div style={{ marginTop: 12, fontSize: 14 }}>
               {segEvents.length === 0 && itinEvents.length === 0
-                ? "Add segment dates or tap + to create your first event"
-                : "No events on this day"}
+                ? t('itinerary.emptyTrip')
+                : t('itinerary.emptyDay')}
             </div>
           </div>
         ) : (
@@ -2574,7 +2574,7 @@ const WalletScreen = ({ onAddExpense, onShowGroup, activeTripId, user, trips = [
               {dailyBudget > 0 && <div style={{ fontSize: 10, color: C.textSub }}>{currSym(budgetCurrency)}{fmtAmt(dailyBudget, 0)}/day · {tripDays}d</div>}
             </div>
           ) : (
-            <button onClick={() => setWalletTab('budget')} style={{ background: C.cyan, color: "#000", border: "none", borderRadius: 16, padding: "6px 14px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{t('wallet.createBudgetBtn')}</button>
+            <button onClick={(e) => { e.stopPropagation(); setWalletTab('budget'); }} style={{ background: C.cyan, color: "#000", border: "none", borderRadius: 16, padding: "6px 14px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{t('wallet.createBudgetBtn')}</button>
           )}
         </div>
       )}
