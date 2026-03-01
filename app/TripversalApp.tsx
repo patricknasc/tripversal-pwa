@@ -5277,6 +5277,15 @@ const MemberProfileModal = ({ googleSub, fallbackName, fallbackAvatar, onClose }
 const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
   const { t } = useTranslation();
   const [crewTab, setCrewTab] = useState<'crew' | 'segments' | 'budget'>('crew');
+
+  // Auto-refresh trip data on mount to get latest member statuses
+  useEffect(() => {
+    if (!trip?.id) return;
+    fetch(`/api/trips/${trip.id}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(row => { if (row) onTripUpdate(rowToTrip(row)); })
+      .catch(() => { });
+  }, [trip?.id]);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviting, setInviting] = useState(false);
   const [inviteToast, setInviteToast] = useState<string | null>(null);
