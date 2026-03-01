@@ -263,6 +263,7 @@ const resources = {
                 reactionsTitle: "Reactions",
                 viewedByTitle: "Viewed by",
                 noViews: "No views yet.",
+            },
             segments: {
                 addSegmentBtn: "Add Segment",
                 newSegmentTitle: "New Segment",
@@ -294,6 +295,7 @@ const resources = {
                 captureOrUpload: "Capture or upload",
                 noAttachments: "No attachments.",
                 leaveSegmentBtn: "Leave Segment",
+            },
             group: {
                 groupTitle: "Group",
                 tripSingular: "TRIP",
@@ -327,8 +329,6 @@ const resources = {
                 offlineInfo: "Store copies of passports, visas, and insurance cards for offline access.",
                 documentsLabel: "DOCUMENTS",
                 noSafetyInfo: "{{name}} hasn't shared any safety information yet."
-            }
-            }
             }
         }
     },
@@ -591,6 +591,7 @@ const resources = {
                 reactionsTitle: "Reações",
                 viewedByTitle: "Visualizado por",
                 noViews: "Nenhuma visualização ainda.",
+            },
             segments: {
                 addSegmentBtn: "Adicionar Segmento",
                 newSegmentTitle: "Novo Segmento",
@@ -622,6 +623,7 @@ const resources = {
                 captureOrUpload: "Capturar ou enviar",
                 noAttachments: "Nenhum anexo.",
                 leaveSegmentBtn: "Sair do Segmento",
+            },
             group: {
                 groupTitle: "Grupo",
                 tripSingular: "VIAGEM",
@@ -655,8 +657,6 @@ const resources = {
                 offlineInfo: "Armazene cópias de passaportes, vistos e cartões de seguro para acesso offline.",
                 documentsLabel: "DOCUMENTOS",
                 noSafetyInfo: "{{name}} ainda não compartilhou informações de segurança."
-            }
-            }
             }
         }
     },
@@ -919,6 +919,7 @@ const resources = {
                 reactionsTitle: "Reacciones",
                 viewedByTitle: "Visto por",
                 noViews: "No hay vistas aún.",
+            },
             segments: {
                 addSegmentBtn: "Añadir Segmento",
                 newSegmentTitle: "Nuevo Segmento",
@@ -950,6 +951,7 @@ const resources = {
                 captureOrUpload: "Capturar o subir",
                 noAttachments: "No hay adjuntos.",
                 leaveSegmentBtn: "Salir del Segmento",
+            },
             group: {
                 groupTitle: "Grupo",
                 tripSingular: "VIAJE",
@@ -983,8 +985,6 @@ const resources = {
                 offlineInfo: "Guarda copias de pasaportes, visas y tarjetas de seguro para acceso sin conexión.",
                 documentsLabel: "DOCUMENTOS",
                 noSafetyInfo: "{{name}} aún no ha compartido información de seguridad."
-            }
-            }
             }
         }
     },
@@ -1247,6 +1247,7 @@ const resources = {
                 reactionsTitle: "Реакции",
                 viewedByTitle: "Просмотрено",
                 noViews: "Пока нет просмотров.",
+            },
             segments: {
                 addSegmentBtn: "Добавить Сегмент",
                 newSegmentTitle: "Новый Сегмент",
@@ -1278,6 +1279,7 @@ const resources = {
                 captureOrUpload: "Снять или загрузить",
                 noAttachments: "Нет вложений.",
                 leaveSegmentBtn: "Покинуть Сегмент",
+            },
             group: {
                 groupTitle: "Группа",
                 tripSingular: "ПОЕЗДКА",
@@ -1311,8 +1313,6 @@ const resources = {
                 offlineInfo: "Храните копии паспортов, виз и страховых полисов для офлайн-доступа.",
                 documentsLabel: "ДОКУМЕНТЫ",
                 noSafetyInfo: "{{name}} пока не поделился(ась) информацией о безопасности."
-            }
-            }
             }
         }
     },
@@ -1575,6 +1575,7 @@ const resources = {
                 reactionsTitle: "回应",
                 viewedByTitle: "浏览者",
                 noViews: "暂无浏览记录。",
+            },
             segments: {
                 addSegmentBtn: "添加行程段",
                 newSegmentTitle: "新行程段",
@@ -1606,6 +1607,7 @@ const resources = {
                 captureOrUpload: "拍摄或上传",
                 noAttachments: "暂无附件。",
                 leaveSegmentBtn: "退出行程段",
+            },
             group: {
                 groupTitle: "群组",
                 tripSingular: "行程",
@@ -1639,8 +1641,6 @@ const resources = {
                 offlineInfo: "在此存储护照、签证和保险卡的副本以便离线访问。",
                 documentsLabel: "文档",
                 noSafetyInfo: "{{name}} 暂未分享任何安全信息。"
-            }
-            }
             }
         }
     }
