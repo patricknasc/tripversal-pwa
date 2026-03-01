@@ -1490,12 +1490,12 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
         if (!geocodeCache[loc]) {
           try {
             const gRes = await fetch(
-              `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(loc)}&format=json&limit=1`,
-              { headers: { 'Accept-Language': 'en' } }
+              `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(loc)}&count=1&language=en&format=json`
             );
             const gData = await gRes.json();
-            if (gData[0]) geocodeCache[loc] = { lat: parseFloat(gData[0].lat), lon: parseFloat(gData[0].lon) };
-            else return null;
+            if (gData.results && gData.results[0]) {
+              geocodeCache[loc] = { lat: parseFloat(gData.results[0].latitude), lon: parseFloat(gData.results[0].longitude) };
+            } else { return null; }
           } catch { return null; }
         }
         const coords = geocodeCache[loc];
@@ -1555,9 +1555,13 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
   useEffect(() => {
     if (!activeTrip) { setSelectedDay(localDateKey(new Date())); return; }
     const today = localDateKey(new Date());
-    if (dateRange.includes(today)) { setSelectedDay(today); return; }
-    const firstEvent = [...eventDates, ...customEventDates].sort()[0];
-    setSelectedDay(firstEvent ?? activeTrip.startDate);
+    if (today >= activeTrip.startDate && today <= activeTrip.endDate) {
+      setSelectedDay(today);
+    } else if (today < activeTrip.startDate) {
+      setSelectedDay(activeTrip.startDate);
+    } else {
+      setSelectedDay(activeTrip.endDate);
+    }
   }, [activeTripId]);
 
   const daySegEvents = segEvents.filter(e => e.date === selectedDay);
@@ -2557,9 +2561,9 @@ const WalletScreen = ({ onAddExpense, onShowGroup, activeTripId, user, trips = [
     <div style={{ padding: "0 20px 100px" }}>
       {/* ── Active trip banner ── */}
       {activeTrip && (
-        <div onClick={onShowGroup} style={{ cursor: "pointer", background: C.card3, borderRadius: 14, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, marginTop: 16, marginBottom: 12 }}>
+        <div style={{ background: C.card3, borderRadius: 14, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, marginTop: 16, marginBottom: 12 }}>
           <span style={{ fontSize: 18 }}>✈️</span>
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div onClick={onShowGroup} style={{ flex: 1, minWidth: 0, cursor: "pointer" }}>
             <div style={{ fontSize: 11, color: C.textMuted, letterSpacing: 1 }}>{t('wallet.activeTrip')}</div>
             <div style={{ fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{activeTrip.name}</div>
           </div>
