@@ -1354,8 +1354,19 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
   const { t } = useTranslation();
   const [now, setNow] = useState(() => new Date());
   const todayKey = localDateKey(now);
-  const [selectedDay, setSelectedDay] = useState<string>(todayKey);
+  // Default to trip start date if today is before the trip
+  const defaultDay = activeTrip && todayKey < activeTrip.startDate ? activeTrip.startDate : todayKey;
+  const [selectedDay, setSelectedDay] = useState<string>(defaultDay);
   const [conflicts, setConflicts] = useState<SegmentConflict[]>([]);
+
+  // Sync selectedDay to trip range when trip changes
+  useEffect(() => {
+    if (activeTrip) {
+      const today = localDateKey(new Date());
+      if (today < activeTrip.startDate) setSelectedDay(activeTrip.startDate);
+      else if (today > activeTrip.endDate) setSelectedDay(activeTrip.startDate);
+    }
+  }, [activeTrip?.id]);
 
   // Custom events
   const [itinEvents, setItinEvents] = useState<ItineraryEventRecord[]>([]);
@@ -1422,10 +1433,17 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
   const segmentRangeDates = activeTrip?.segments.flatMap(seg =>
     seg.startDate ? getDatesRange(seg.startDate, seg.endDate ?? seg.startDate) : []
   ) ?? [];
-  const forecastRange = getDatesRange(todayKey, localDateKey(new Date(now.getTime() + 15 * 86400000)));
+  // Only include forecast dates that overlap with the trip range
+  const forecastEnd = localDateKey(new Date(now.getTime() + 15 * 86400000));
+  const forecastRange = activeTrip
+    ? getDatesRange(
+      todayKey < activeTrip.startDate ? activeTrip.startDate : todayKey,
+      forecastEnd > activeTrip.endDate ? activeTrip.endDate : forecastEnd
+    )
+    : getDatesRange(todayKey, forecastEnd);
 
   const allDates = activeTrip
-    ? [...getDatesRange(activeTrip.startDate, activeTrip.endDate), ...eventDates, ...customEventDates, ...segmentRangeDates, ...forecastRange]
+    ? [...getDatesRange(activeTrip.startDate, activeTrip.endDate), ...forecastRange]
     : [todayKey, ...customEventDates, ...forecastRange];
   const dateRange = Array.from(new Set(allDates)).sort();
 
