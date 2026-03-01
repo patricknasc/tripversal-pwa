@@ -6652,6 +6652,11 @@ function AppShell() {
   const [incomingSOSUser, setIncomingSOSUser] = useState<string | null>(null);
   const [mutedSOS, setMutedSOS] = useState(false);
   const mutedSOSRef = useRef(false);
+  const [deactivatedSOS, setDeactivatedSOS] = useState(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('voyasync_sos_deactivated') === 'true';
+    return false;
+  });
+  const deactivatedSOSRef = useRef(deactivatedSOS);
 
   const toggleMuteSOS = () => {
     const next = !mutedSOS;
@@ -6659,9 +6664,19 @@ function AppShell() {
     mutedSOSRef.current = next;
   };
 
+  const handleDeactivateSOS = () => {
+    setDeactivatedSOS(true);
+    deactivatedSOSRef.current = true;
+    mutedSOSRef.current = true;
+    setMutedSOS(true);
+    setIncomingSOSUser(null);
+    localStorage.setItem('voyasync_sos_deactivated', 'true');
+  };
+
   useLiveLocation(isPanicModeActive || showLiveMap, user?.sub, activeTripId || undefined, user?.name || user?.email?.split('@')[0]);
 
   useGlobalSOSListener(activeTripId || undefined, user?.sub, useCallback((row: any) => {
+    if (deactivatedSOSRef.current) return;
     setIncomingSOSUser(row.user_sub);
     if (mutedSOSRef.current) return;
     try {
@@ -6967,7 +6982,10 @@ function AppShell() {
             <Btn variant="primary" style={{ width: "100%", marginTop: 12, padding: 12, background: "transparent", border: `1px solid ${C.cyan}`, color: C.cyan }} onClick={toggleMuteSOS}>
               {mutedSOS ? t('sos.unmuteAlert', '🔊 Ativar Som') : t('sos.muteAlert', '🔇 Silenciar')}
             </Btn>
-            <Btn variant="ghost" style={{ width: "100%", marginTop: 12, padding: 12 }} onClick={() => setIncomingSOSUser(null)}>{t('sos.closeAlert')}</Btn>
+            <Btn variant="ghost" style={{ width: "100%", marginTop: 8, padding: 12, color: C.red, border: `1px solid ${C.redDim}` }} onClick={handleDeactivateSOS}>
+              {t('sos.deactivateSiren', '🚫 Desativar Sirene')}
+            </Btn>
+            <Btn variant="ghost" style={{ width: "100%", marginTop: 8, padding: 12 }} onClick={() => setIncomingSOSUser(null)}>{t('sos.closeAlert')}</Btn>
           </div>
         </>
       )}
