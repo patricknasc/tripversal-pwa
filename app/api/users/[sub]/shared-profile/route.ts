@@ -10,7 +10,7 @@ export async function GET(_req: NextRequest, { params }: { params: { sub: string
     { data: insurance },
     { data: documents },
   ] = await Promise.all([
-    sb.from('users').select('google_sub, name, email, avatar_url').eq('google_sub', params.sub).single(),
+    sb.from('users').select('google_sub, name, email, phone, avatar_url, share_email, share_phone').eq('google_sub', params.sub).single(),
     sb.from('user_medical_ids').select('*').eq('google_sub', params.sub).eq('sharing', true).single(),
     sb.from('user_insurance').select('*').eq('google_sub', params.sub).eq('sharing', true).single(),
     sb.from('user_documents').select('id, name, doc_type, file_data, created_at').eq('google_sub', params.sub).eq('sharing', true).order('created_at', { ascending: false }),

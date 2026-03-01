@@ -4,16 +4,19 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 // Upsert user profile on login and return stored profile
 export async function POST(req: NextRequest, { params }: { params: { sub: string } }) {
   const body = await req.json();
-  const { name, email, avatarUrl } = body;
+  const { name, email, avatarUrl, phone, shareEmail, sharePhone } = body;
 
   const sb = getSupabaseAdmin();
-  const row = {
+  const row: any = {
     google_sub: params.sub,
     name: name ?? null,
     email: email ?? null,
     avatar_url: avatarUrl ?? null,
     updated_at: new Date().toISOString(),
   };
+  if (phone !== undefined) row.phone = phone;
+  if (shareEmail !== undefined) row.share_email = shareEmail;
+  if (sharePhone !== undefined) row.share_phone = sharePhone;
 
   const { data, error } = await sb
     .from('users')

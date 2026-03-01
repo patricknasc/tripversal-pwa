@@ -4431,6 +4431,8 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
 
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
+  const [shareEmail, setShareEmail] = useState(false);
+  const [sharePhone, setSharePhone] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
@@ -4503,11 +4505,19 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
 
 
   const saveProfile = () => {
-    localStorage.setItem('voyasync_profile', JSON.stringify({ username, email, phone, avatarUrl }));
+    localStorage.setItem('voyasync_profile', JSON.stringify({ username, email, phone, avatarUrl, shareEmail, sharePhone }));
     const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     setSavedAt(time);
     setProfileSaved(true);
     setTimeout(() => setProfileSaved(false), 2000);
+    // Sync sharing prefs to server
+    if (user?.sub) {
+      fetch(`/api/users/${user.sub}/profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: username, email, phone, avatarUrl, shareEmail, sharePhone }),
+      }).catch(() => { });
+    }
   };
 
   useEffect(() => {
@@ -4519,6 +4529,8 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
         setEmail(p.email || user?.email || "");
         setPhone(p.phone || "");
         setAvatarUrl(p.avatarUrl || user?.picture || null);
+        setShareEmail(p.shareEmail ?? false);
+        setSharePhone(p.sharePhone ?? false);
       } catch { }
     } else {
       setUsername(user?.name || "");
@@ -4663,8 +4675,18 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
                 <Input placeholder={t('settings.username')} value={username} onChange={setUsername} />
-                <Input placeholder={t('settings.email')} value={email} onChange={setEmail} />
-                <Input placeholder={t('settings.phone')} value={phone} onChange={setPhone} />
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <div style={{ flex: 1 }}><Input placeholder={t('settings.email')} value={email} onChange={setEmail} /></div>
+                  <button onClick={() => setShareEmail(!shareEmail)} title={shareEmail ? t('settings.shared') : t('settings.notShared')} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: shareEmail ? C.cyan + '22' : C.card3, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Icon d={icons.share} size={14} stroke={shareEmail ? C.cyan : C.textMuted} />
+                  </button>
+                </div>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <div style={{ flex: 1 }}><Input placeholder={t('settings.phone')} value={phone} onChange={setPhone} /></div>
+                  <button onClick={() => setSharePhone(!sharePhone)} title={sharePhone ? t('settings.shared') : t('settings.notShared')} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: sharePhone ? C.cyan + '22' : C.card3, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Icon d={icons.share} size={14} stroke={sharePhone ? C.cyan : C.textMuted} />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -5164,7 +5186,7 @@ const InviteAcceptScreen = ({ token, user, onDone, onDecline }: any) => {
 
 // ─── Member Profile Modal ────────────────────────────────────────────────────
 interface SharedProfile {
-  profile: { google_sub: string; name: string; email: string; avatar_url?: string } | null;
+  profile: { google_sub: string; name: string; email: string; phone?: string; avatar_url?: string; share_email?: boolean; share_phone?: boolean } | null;
   medical: { bloodType?: string; contactName?: string; contactPhone?: string; allergies?: string; medications?: string; notes?: string } | null;
   insurance: { provider?: string; policyNumber?: string; emergencyPhone?: string; coverageStart?: string; coverageEnd?: string; notes?: string } | null;
   documents: { id: string; name: string; docType: string; dataUrl: string; createdAt: string }[];
@@ -5202,7 +5224,8 @@ const MemberProfileModal = ({ googleSub, fallbackName, fallbackAvatar, onClose }
           <Avatar name={name} src={avatar} size={72} />
           <div>
             <div style={{ fontWeight: 800, fontSize: 22 }}>{name}</div>
-            {data?.profile?.email && <div style={{ color: C.textMuted, fontSize: 13, marginTop: 2 }}>{data.profile.email}</div>}
+            {data?.profile?.email && data.profile.share_email && <div style={{ color: C.textMuted, fontSize: 13, marginTop: 2 }}>✉️ {data.profile.email}</div>}
+            {data?.profile?.phone && data.profile.share_phone && <div style={{ color: C.textMuted, fontSize: 13, marginTop: 2 }}>📞 {data.profile.phone}</div>}
           </div>
         </div>
 
