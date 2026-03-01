@@ -4440,17 +4440,17 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
     setPushLoading(true);
     try {
       if (!('Notification' in window) || !('serviceWorker' in navigator)) {
-        throw new Error('Navegador não suporta Push. Tente adicionar à Tela de Início (iOS).');
+        throw new Error(t('settings.pushNotSupported'));
       }
       let perm = Notification.permission;
       if (perm === 'default') perm = await Notification.requestPermission();
-      if (perm !== 'granted') throw new Error('Permissão negada.');
+      if (perm !== 'granted') throw new Error(t('settings.pushDenied'));
 
       const reg = await navigator.serviceWorker.register('/sw.js');
       await navigator.serviceWorker.ready;
 
       const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-      if (!vapidPublicKey) throw new Error("VAPID URL ausente");
+      if (!vapidPublicKey) throw new Error(t('settings.vapidMissing'));
 
       const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
       const sub = await reg.pushManager.subscribe({
@@ -4463,12 +4463,12 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userSub: user.sub, subscription: sub.toJSON() })
       });
-      if (!res.ok) throw new Error('Falha ao salvar a inscrição.');
+      if (!res.ok) throw new Error(t('settings.pushSubFailed'));
 
       setPushEnabled(true);
-      alert('Alertas de Emergência ativados!');
+      alert(t('settings.pushSuccess'));
     } catch (e: any) {
-      alert('Aviso: ' + e.message);
+      alert(t('settings.pushWarn') + e.message);
     }
     setPushLoading(false);
   };
