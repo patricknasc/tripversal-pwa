@@ -1348,6 +1348,7 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
 };
 
 const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: string | null; activeTrip?: Trip | null; userSub?: string }) => {
+  const { t } = useTranslation();
   const [now, setNow] = useState(() => new Date());
   const todayKey = localDateKey(now);
   const [selectedDay, setSelectedDay] = useState<string>(todayKey);
@@ -1895,8 +1896,8 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
                       )}
                       {confirmDeleteId === event.id && (
                         <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
-                          <button onClick={() => handleDeleteEvent(event.id)} style={{ flex: 1, background: C.redDim, border: `1px solid ${C.red}40`, borderRadius: 8, padding: "8px", color: C.red, cursor: "pointer", fontSize: 13, fontFamily: "inherit", fontWeight: 700 }}>Delete</button>
-                          <button onClick={() => setConfirmDeleteId(null)} style={{ flex: 1, background: C.card3, border: "none", borderRadius: 8, padding: "8px", color: C.textMuted, cursor: "pointer", fontSize: 13, fontFamily: "inherit" }}>Cancel</button>
+                          <button onClick={() => handleDeleteEvent(event.id)} style={{ flex: 1, background: C.redDim, border: `1px solid ${C.red}40`, borderRadius: 8, padding: "8px", color: C.red, cursor: "pointer", fontSize: 13, fontFamily: "inherit", fontWeight: 700 }}>{t('itinerary.deleteMenu')}</button>
+                          <button onClick={() => setConfirmDeleteId(null)} style={{ flex: 1, background: C.card3, border: "none", borderRadius: 8, padding: "8px", color: C.textMuted, cursor: "pointer", fontSize: 13, fontFamily: "inherit" }}>{t('itinerary.cancelBtn')}</button>
                         </div>
                       )}
                     </div>
@@ -1922,7 +1923,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
           <div onClick={() => setShowEventForm(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 200 }} />
           <div style={{ position: "fixed", bottom: 0, left: "max(0px, calc(50% - 215px))", right: "max(0px, calc(50% - 215px))", background: C.card, borderRadius: "24px 24px 0 0", padding: "20px 20px 44px", zIndex: 201, maxHeight: "92vh", overflowY: "auto" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-              <div style={{ fontSize: 17, fontWeight: 700 }}>{editingEventId ? "Edit Event" : "Add Event"}</div>
+              <div style={{ fontSize: 17, fontWeight: 700 }}>{editingEventId ? "Edit Event" : t("itinerary.addBtn")}</div>
               <button onClick={() => setShowEventForm(false)} style={{ background: C.card3, border: "none", borderRadius: "50%", width: 30, height: 30, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Icon d={icons.x} size={16} stroke={C.textMuted} />
               </button>
@@ -2090,10 +2091,10 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
             </div>
 
             <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setShowEventForm(false)} style={{ flex: 1, background: C.card3, border: "none", borderRadius: 14, padding: "14px", color: C.textMuted, cursor: "pointer", fontSize: 14, fontFamily: "inherit" }}>Cancel</button>
+              <button onClick={() => setShowEventForm(false)} style={{ flex: 1, background: C.card3, border: "none", borderRadius: 14, padding: "14px", color: C.textMuted, cursor: "pointer", fontSize: 14, fontFamily: "inherit" }}>{t('itinerary.cancelBtn')}</button>
               <button onClick={handleSaveEvent} disabled={evtSaving || !evtTitle.trim() || !evtDate || !evtTime}
                 style={{ flex: 2, background: evtSaving || !evtTitle.trim() ? C.card3 : C.cyan, border: "none", borderRadius: 14, padding: "14px", color: evtSaving || !evtTitle.trim() ? C.textMuted : "#000", cursor: "pointer", fontSize: 14, fontWeight: 700, fontFamily: "inherit" }}>
-                {evtSaving ? "Saving…" : editingEventId ? "Save Changes" : "Add Event"}
+                {evtSaving ? t("itinerary.savingBtn") : editingEventId ? t("itinerary.saveChangesBtn") : t("itinerary.addBtn")}
               </button>
             </div>
           </div>
@@ -3223,6 +3224,7 @@ function compressImage(file: File, maxPx = 800, quality = 0.7): Promise<string> 
 }
 
 const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user }: any) => {
+  const { t } = useTranslation();
   const [amount, setAmount] = useState("0");
   const [cat, setCat] = useState("food");
   const [expType, setExpType] = useState("group");
@@ -3343,7 +3345,7 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
           <Icon d={icons.wallet} size={36} stroke={C.textMuted} />
         </div>
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>No Active Budget</div>
+          <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>{t('addExpense.noBudgetTitle')}</div>
           <div style={{ color: C.textSub, fontSize: 13, lineHeight: 1.5, maxWidth: 280, margin: "0 auto" }}>
             You need to create and activate a budget before you can add expenses to this trip.
           </div>
@@ -3359,7 +3361,7 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
   return (
     <div style={{ padding: "0 20px 100px", overflowY: "auto" }}>
       <div style={{ textAlign: "center", padding: "24px 0 16px", borderBottom: `1px solid ${C.border}` }}>
-        <div style={{ color: C.textMuted, fontSize: 12, letterSpacing: 1.5, marginBottom: 12 }}>AMOUNT</div>
+        <div style={{ color: C.textMuted, fontSize: 12, letterSpacing: 1.5, marginBottom: 12 }}>{t('addExpense.amountLabel')}</div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
           <span style={{ fontSize: 32, color: C.textMuted }}>{currSym(localCurrency)}</span>
           <span style={{ fontSize: amount.length > 6 ? 32 : 44, fontWeight: 800, color: C.text, letterSpacing: -2 }}>{amount}</span>
@@ -3371,7 +3373,7 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
         </div>
       </div>
       <div style={{ paddingTop: 20 }}>
-        <SectionLabel>MOEDA LOCAL</SectionLabel>
+        <SectionLabel>{t('addExpense.currencyLabel')}</SectionLabel>
         <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
           {(["EUR", "USD", "BRL", "GBP", "COP"] as Currency[]).map(c => {
             const active = localCurrency === c;
@@ -3384,7 +3386,7 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
         </div>
         {activeSources.length > 0 && (
           <>
-            <SectionLabel>PAYMENT SOURCE</SectionLabel>
+            <SectionLabel>{t('addExpense.sourceLabel')}</SectionLabel>
             <div style={{ position: "relative", margin: "0 -20px", padding: "0 20px", marginBottom: 12 }}>
               <div className="no-scrollbar" style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 8, scrollbarWidth: "none", msOverflowStyle: "none" as any, scrollSnapType: "x mandatory", WebkitMaskImage: "linear-gradient(to right, transparent 0%, black 6%, black 94%, transparent 100%)", maskImage: "linear-gradient(to right, transparent 0%, black 6%, black 94%, transparent 100%)" }}>
                 {activeSources.map(src => {
@@ -3403,7 +3405,7 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
             </div>
           </>
         )}
-        <SectionLabel>CATEGORY</SectionLabel>
+        <SectionLabel>{t('addExpense.categoryLabel')}</SectionLabel>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
           {categories.map(c => {
             const active = cat === c.id;
@@ -3417,12 +3419,12 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
         </div>
       </div>
       <div style={{ marginTop: 20 }}>
-        <SectionLabel>TAX, DISCOUNTS & CAMBIO</SectionLabel>
+        <SectionLabel>{t('addExpense.taxExchangeLabel')}</SectionLabel>
         <div style={{ background: C.card3, borderRadius: 14, padding: 16 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 11, color: C.textSub, marginBottom: 4 }}>Tax / Fees</div>
+                <div style={{ fontSize: 11, color: C.textSub, marginBottom: 4 }}>{t('addExpense.taxLabel')}</div>
                 <div style={{ display: "flex", background: C.bg, borderRadius: 8, padding: 4 }}>
                   <input value={taxAmountStr} onChange={e => setTaxAmountStr(e.target.value)} placeholder="0.00" style={{ background: "transparent", border: "none", color: C.text, width: "100%", outline: "none", paddingLeft: 8 }} />
                   <button onClick={() => setTaxType(t => t === 'fixed' ? 'percentage' : 'fixed')} style={{ background: C.card3, color: C.cyan, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontWeight: 700 }}>
@@ -3431,7 +3433,7 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
                 </div>
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 11, color: C.textSub, marginBottom: 4 }}>Discount</div>
+                <div style={{ fontSize: 11, color: C.textSub, marginBottom: 4 }}>{t('addExpense.discountLabel')}</div>
                 <div style={{ display: "flex", background: C.bg, borderRadius: 8, padding: 4 }}>
                   <input value={discountAmountStr} onChange={e => setDiscountAmountStr(e.target.value)} placeholder="0.00" style={{ background: "transparent", border: "none", color: C.text, width: "100%", outline: "none", paddingLeft: 8 }} />
                   <button onClick={() => setDiscountType(t => t === 'fixed' ? 'percentage' : 'fixed')} style={{ background: C.card3, color: C.cyan, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontWeight: 700 }}>
@@ -3457,7 +3459,7 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
               </div>
             )}
             <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12, marginTop: 4 }}>
-              <div style={{ fontSize: 11, color: C.textSub, letterSpacing: 1 }}>FINAL PREVIEW</div>
+              <div style={{ fontSize: 11, color: C.textSub, letterSpacing: 1 }}>{t('addExpense.finalPreviewLabel')}</div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                 <div style={{ fontSize: 13, color: C.textMuted }}>{currSym(localCurrency)}{fmtAmt(effectiveLocal)}</div>
                 <div style={{ fontSize: 18, fontWeight: 800, color: C.cyan }}>{currSym(budget.baseCurrency)}{fmtAmt(previewBaseAmount)}</div>
@@ -3467,7 +3469,7 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
         </div>
       </div>
       <div style={{ marginTop: 20 }}>
-        <SectionLabel>DATE & TIME</SectionLabel>
+        <SectionLabel>{t('addExpense.dateLabel')}</SectionLabel>
         <Card style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Icon d={icons.calendar} size={16} stroke={C.textMuted} />
           <input type="date" value={expDate} onChange={e => setExpDate(e.target.value)}
@@ -3483,7 +3485,7 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
         </Card>
       </div>
       <div style={{ marginTop: 20 }}>
-        <SectionLabel>LOCATION</SectionLabel>
+        <SectionLabel>{t('addExpense.locationLabel')}</SectionLabel>
         <Card style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Icon d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z M12 10a2 2 0 100-4 2 2 0 000 4z" size={16} stroke={C.textMuted} />
           <input value={city} onChange={e => setCity(e.target.value)} placeholder="City (auto-detected)"
@@ -3492,7 +3494,7 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
       </div>
       <div style={{ marginTop: 20, display: "flex", gap: 10 }}>
         <div style={{ background: C.card3, borderRadius: 14, padding: "12px 16px", flex: 1 }}>
-          <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 4 }}>DAILY BALANCE REMAINING</div>
+          <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 4 }}>{t('addExpense.dailyBalanceLabel')}</div>
           <div style={{ color: remainingBase >= 0 ? C.green : C.red, fontSize: 15, fontWeight: 800 }}>
             {currSym(budget.baseCurrency)}{fmtAmt(remainingBase)}
             {localCurrency !== budget.baseCurrency ? ` / ${currSym(localCurrency)}${fmtAmt(remainingLocal)}` : ""}
@@ -3511,7 +3513,7 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
         )}
       </div>
       <div style={{ marginTop: 20 }}>
-        <SectionLabel>EXPENSE TYPE</SectionLabel>
+        <SectionLabel>{t('addExpense.expenseTypeLabel')}</SectionLabel>
         <div style={{ background: C.card3, borderRadius: 14, padding: 4, display: "flex" }}>
           {["personal", "group"].map(t => (
             <button key={t} onClick={() => setExpType(t)} style={{ flex: 1, padding: "12px", borderRadius: 10, border: "none", cursor: "pointer", background: expType === t ? C.cyan : "transparent", color: expType === t ? "#000" : C.textMuted, fontWeight: expType === t ? 700 : 400, fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit", transition: "all 0.2s" }}>
@@ -3523,7 +3525,7 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
       {expType === "group" && (
         <div style={{ marginTop: 20 }}>
           <div style={{ marginBottom: 10 }}>
-            <span style={{ color: C.textMuted, fontSize: 12, fontWeight: 700, letterSpacing: 1 }}>SPLIT</span>
+            <span style={{ color: C.textMuted, fontSize: 12, fontWeight: 700, letterSpacing: 1 }}>{t('addExpense.splitLabel')}</span>
           </div>
           {members.map(m => {
             const toPay = totalShares > 0 ? (total * shares[m] / totalShares).toFixed(2) : "0.00";
@@ -3538,7 +3540,7 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
                   <div style={{ flex: 1, background: C.card3, borderRadius: 10, padding: 12 }}>
-                    <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 8 }}>SHARES</div>
+                    <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 8 }}>{t('addExpense.sharesLabel')}</div>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                       <button onClick={() => setShares((s: any) => ({ ...s, [m]: Math.max(0, s[m] - 1) }))} style={{ width: 30, height: 30, borderRadius: "50%", background: C.card, border: "none", cursor: "pointer", color: C.text, fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
                       <span style={{ fontWeight: 700, fontSize: 16 }}>{shares[m]}</span>
@@ -3556,7 +3558,7 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
         </div>
       )}
       <div style={{ marginTop: 20 }}>
-        <SectionLabel>DESCRIPTION</SectionLabel>
+        <SectionLabel>{t('addExpense.descriptionLabel')}</SectionLabel>
         <Input placeholder="e.g. Dinner" value={desc} onChange={setDesc} />
       </div>
       <div style={{ marginTop: 20 }}>
@@ -3568,7 +3570,7 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
         </div>
       </div>
       <div style={{ marginTop: 20, marginBottom: 20 }}>
-        <SectionLabel>RECEIPT</SectionLabel>
+        <SectionLabel>{t('addExpense.receiptLabel')}</SectionLabel>
         <input type="file" accept="image/*" id="receiptInput" style={{ display: "none" }}
           onChange={async e => {
             const f = e.target.files?.[0];
@@ -3593,7 +3595,7 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
             display: "flex", alignItems: "center", justifyContent: "center", gap: 10, cursor: "pointer"
           }}>
             <Icon d={icons.receipt} size={20} stroke={C.textMuted} />
-            <span style={{ color: C.textMuted, fontSize: 14 }}>Add Receipt</span>
+            <span style={{ color: C.textMuted, fontSize: 14 }}>{t('addExpense.addReceiptBtn')}</span>
           </label>
         )}
       </div>
@@ -3782,6 +3784,7 @@ class UploadManager {
 const uploadManager = new UploadManager();
 
 const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
+  const { t } = useTranslation();
   const [posts, setPosts] = useState<SocialPost[]>([]);
   const [managerTasks, setManagerTasks] = useState<PendingUpload[]>([]);
   const [loading, setLoading] = useState(false);
@@ -3925,12 +3928,12 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
 
   if (!isOnline) return (
     <div style={{ padding: "16px 20px 100px" }}>
-      <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5, marginBottom: 4 }}>SOCIAL STREAM</div>
-      <div style={{ color: C.textMuted, fontSize: 12, letterSpacing: 1, marginBottom: 32 }}>SHARED MEMORIES</div>
+      <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5, marginBottom: 4 }}>{t('social.title')}</div>
+      <div style={{ color: C.textMuted, fontSize: 12, letterSpacing: 1, marginBottom: 32 }}>{t('social.subtitle')}</div>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "60px 20px", border: `1px dashed ${C.border}`, borderRadius: 20 }}>
         <Icon d={icons.wifi} size={40} stroke={C.textMuted} />
-        <div style={{ fontWeight: 700, fontSize: 16 }}>You're offline</div>
-        <div style={{ color: C.textMuted, fontSize: 13, textAlign: "center" }}>Social Stream requires an internet connection. Photos and videos are stored in the cloud.</div>
+        <div style={{ fontWeight: 700, fontSize: 16 }}>{t('social.offlineTitle')}</div>
+        <div style={{ color: C.textMuted, fontSize: 13, textAlign: "center" }}>{t('social.offlineDesc')}</div>
       </div>
     </div>
   );
@@ -3940,13 +3943,13 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 20 }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5 }}>SOCIAL STREAM</div>
-          <div style={{ color: C.textMuted, fontSize: 12, letterSpacing: 1 }}>SHARED MEMORIES</div>
+          <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5 }}>{t('social.title')}</div>
+          <div style={{ color: C.textMuted, fontSize: 12, letterSpacing: 1 }}>{t('social.subtitle')}</div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <div style={{ background: "#1a2a1a", borderRadius: 20, padding: "5px 12px", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700 }}>
             <div style={{ width: 7, height: 7, borderRadius: "50%", background: C.green }} />
-            <span style={{ color: C.green }}>LIVE</span>
+            <span style={{ color: C.green }}>{t('social.liveBadge')}</span>
           </div>
           <button onClick={() => setShowUpload(v => !v)} style={{ width: 40, height: 40, borderRadius: 14, background: showUpload ? C.card3 : C.cyan, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Icon d={showUpload ? icons.x : icons.plus} size={20} stroke={showUpload ? C.text : "#000"} />
@@ -3957,7 +3960,7 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
       {/* Upload panel */}
       {showUpload && (
         <Card style={{ marginBottom: 16, border: `1px solid ${C.cyan}30` }}>
-          <div style={{ fontWeight: 700, marginBottom: 12 }}>Share a moment</div>
+          <div style={{ fontWeight: 700, marginBottom: 12 }}>{t('social.shareMomentTitle')}</div>
           <input type="file" accept="image/*,video/*" id="socialMediaInput" style={{ display: "none" }} onChange={handleFileChange} />
           {previewUrl && file ? (
             <div style={{ position: "relative", marginBottom: 12 }}>
@@ -3973,24 +3976,24 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
           ) : (
             <label htmlFor="socialMediaInput" style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 8, border: `2px dashed ${C.border}`, borderRadius: 12, padding: "32px 16px", cursor: "pointer", marginBottom: 12, color: C.textMuted, fontSize: 13 }}>
               <Icon d={icons.camera} size={28} stroke={C.textMuted} />
-              <span>Tap to add photo or video</span>
+              <span>{t('social.tapToAdd')}</span>
             </label>
           )}
-          <Input placeholder="Add a caption…" value={caption} onChange={setCaption} style={{ marginBottom: 12 }} />
-          <Btn style={{ width: "100%" }} disabled={!file} onClick={handleShare}>Share</Btn>
+          <Input placeholder={t('social.addCaption')} value={caption} onChange={setCaption} style={{ marginBottom: 12 }} />
+          <Btn style={{ width: "100%" }} disabled={!file} onClick={handleShare}>{t('social.shareBtn')}</Btn>
         </Card>
       )}
 
       {/* Feed */}
       {loading && allPosts.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "60px 0", color: C.textMuted, fontSize: 13 }}>Loading...</div>
+        <div style={{ textAlign: "center", padding: "60px 0", color: C.textMuted, fontSize: 13 }}>{t('social.loading')}</div>
       ) : allPosts.length === 0 ? (
         <Card style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", padding: "50px 20px", gap: 14 }}>
           <div style={{ width: 72, height: 72, borderRadius: "50%", background: C.card3, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Icon d={icons.camera} size={32} stroke={C.textMuted} />
           </div>
-          <div style={{ color: C.textMuted, fontSize: 14, textAlign: "center" }}>No posts yet. Be the first to share a moment!</div>
-          <Btn onClick={() => setShowUpload(true)} icon={<Icon d={icons.plus} size={16} stroke="#000" />}>Post Memory</Btn>
+          <div style={{ color: C.textMuted, fontSize: 14, textAlign: "center" }}>{t('social.noPosts')}</div>
+          <Btn onClick={() => setShowUpload(true)} icon={<Icon d={icons.plus} size={16} stroke="#000" />}>{t('social.postMemoryBtn')}</Btn>
         </Card>
       ) : allPosts.map(post => {
         const counts: Record<string, number> = {};
@@ -4005,7 +4008,7 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <Avatar name={post.userName || "?"} src={post.userAvatar} size={36} />
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: 14 }}>{post.userName || "Unknown"}</div>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{post.userName || t('social.unknownUser')}</div>
                   <div style={{ color: C.textSub, fontSize: 11 }}>{new Date(post.createdAt).toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
                 </div>
               </div>
@@ -4035,7 +4038,7 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
               {/* Upload progress overlay */}
               {isUploading && (
                 <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.55)", display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", gap: 10 }}>
-                  <div style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>Uploading… {post.uploadProgress ?? 0}%</div>
+                  <div style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{t('social.uploading', { progress: post.uploadProgress ?? 0 })}</div>
                   <div style={{ width: "60%", height: 4, background: "rgba(255,255,255,0.2)", borderRadius: 4, overflow: "hidden" }}>
                     <div style={{ width: `${post.uploadProgress ?? 0}%`, height: "100%", background: C.cyan, transition: "width 0.2s" }} />
                   </div>
@@ -4044,10 +4047,10 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
               {/* Upload error overlay */}
               {post.uploadError && (
                 <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", gap: 10 }}>
-                  <div style={{ color: C.red, fontWeight: 700, fontSize: 14 }}>Upload failed</div>
+                  <div style={{ color: C.red, fontWeight: 700, fontSize: 14 }}>{t('social.uploadFailed')}</div>
                   <div style={{ display: "flex", gap: 8 }}>
-                    <button onClick={() => uploadManager.retry(post.id)} style={{ background: C.cyan, border: "none", borderRadius: 8, padding: "6px 14px", color: "#000", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>Retry</button>
-                    <button onClick={() => uploadManager.dismiss(post.id)} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 14px", color: C.text, cursor: "pointer", fontSize: 13 }}>Dismiss</button>
+                    <button onClick={() => uploadManager.retry(post.id)} style={{ background: C.cyan, border: "none", borderRadius: 8, padding: "6px 14px", color: "#000", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>{t('social.retryBtn')}</button>
+                    <button onClick={() => uploadManager.dismiss(post.id)} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 14px", color: C.text, cursor: "pointer", fontSize: 13 }}>{t('social.dismissBtn')}</button>
                   </div>
                 </div>
               )}
@@ -4062,10 +4065,10 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
                   onChange={e => setEditCaption(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') handleEditSave(post.id); if (e.key === 'Escape') setEditingPostId(null); }}
                   style={{ flex: 1, background: C.card3, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none" }}
-                  placeholder="Edit caption…"
+                  placeholder={t('social.editCaption')}
                 />
-                <button onClick={() => handleEditSave(post.id)} style={{ background: C.cyan, border: "none", borderRadius: 8, padding: "6px 12px", color: "#000", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Save</button>
-                <button onClick={() => setEditingPostId(null)} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 10px", color: C.textMuted, fontSize: 12, cursor: "pointer" }}>Cancel</button>
+                <button onClick={() => handleEditSave(post.id)} style={{ background: C.cyan, border: "none", borderRadius: 8, padding: "6px 12px", color: "#000", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{t('social.saveBtn')}</button>
+                <button onClick={() => setEditingPostId(null)} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 10px", color: C.textMuted, fontSize: 12, cursor: "pointer" }}>{t('social.cancelBtn')}</button>
               </div>
             ) : post.caption ? (
               <div style={{ padding: "10px 14px 4px", fontSize: 14 }}>
@@ -4092,7 +4095,7 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
               {/* Reaction detail link */}
               {post.reactions.length > 0 && (
                 <button onClick={() => setReactionDetailPost(post)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, fontSize: 11, marginLeft: 4 }}>
-                  Who reacted?
+                  {t('social.whoReacted')}
                 </button>
               )}
             </div>
@@ -4121,7 +4124,7 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
       {reactionDetailPost && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 400, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => setReactionDetailPost(null)}>
           <div style={{ background: C.card, borderRadius: "20px 20px 0 0", padding: "20px 20px 40px", width: "100%", maxWidth: 480, maxHeight: "60vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 16 }}>Reactions</div>
+            <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 16 }}>{t('social.reactionsTitle')}</div>
             {(() => {
               const grouped: Record<string, SocialReaction[]> = {};
               reactionDetailPost.reactions.forEach(r => { (grouped[r.emoji] = grouped[r.emoji] || []).push(r); });
@@ -4145,11 +4148,11 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
       {viewerPostId && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 400, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => setViewerPostId(null)}>
           <div style={{ background: C.card, borderRadius: "20px 20px 0 0", padding: "20px 20px 40px", width: "100%", maxWidth: 480, maxHeight: "55vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 16 }}>Viewed by</div>
+            <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 16 }}>{t('social.viewedByTitle')}</div>
             {viewersLoading ? (
-              <div style={{ textAlign: "center", color: C.textMuted, fontSize: 13, padding: "20px 0" }}>Loading...</div>
+              <div style={{ textAlign: "center", color: C.textMuted, fontSize: 13, padding: "20px 0" }}>{t('social.loading')}</div>
             ) : viewers.length === 0 ? (
-              <div style={{ color: C.textMuted, fontSize: 13 }}>No views yet.</div>
+              <div style={{ color: C.textMuted, fontSize: 13 }}>{t('social.noViews')}</div>
             ) : viewers.map(v => (
               <div key={v.user_sub} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                 <Avatar name={v.user_name || v.user_sub} size={32} />
@@ -4167,6 +4170,7 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
 };
 
 const SOSScreen = ({ user }: { user?: any }) => {
+  const { t } = useTranslation();
   const [medical, setMedical] = useState<MedicalId>(() => { try { const s = localStorage.getItem('voyasync_medical_id'); return s ? JSON.parse(s) : DEFAULT_MEDICAL; } catch { return DEFAULT_MEDICAL; } });
   const [editMedical, setEditMedical] = useState(false);
   const [medDraft, setMedDraft] = useState<MedicalId>(medical);
@@ -4365,7 +4369,7 @@ const SOSScreen = ({ user }: { user?: any }) => {
       {documents.length === 0 && !showAddDoc ? (
         <Card style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", padding: 40, gap: 12 }}>
           <div style={{ width: 60, height: 60, borderRadius: "50%", background: C.card3, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon d={icons.fileText} size={28} stroke={C.textMuted} /></div>
-          <div style={{ color: C.textMuted, fontSize: 13, textAlign: "center" }}>Store copies of passports, visas, and insurance cards for offline access.</div>
+          <div style={{ color: C.textMuted, fontSize: 13, textAlign: "center" }}>{t('crewProfile.offlineInfo')}</div>
         </Card>
       ) : documents.map(doc => (
         <Card key={doc.id} style={{ marginBottom: 8, cursor: "pointer" }} onClick={() => setViewDoc(doc)}>
@@ -4892,7 +4896,7 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
         documents.filter(d => !d.archived).length === 0 && !showAddDoc ? (
           <Card style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", padding: 40, gap: 12, marginBottom: 16 }}>
             <div style={{ width: 60, height: 60, borderRadius: "50%", background: C.card3, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon d={icons.fileText} size={28} stroke={C.textMuted} /></div>
-            <div style={{ color: C.textMuted, fontSize: 13, textAlign: "center" }}>Store copies of passports, visas, and insurance cards for offline access.</div>
+            <div style={{ color: C.textMuted, fontSize: 13, textAlign: "center" }}>{t('crewProfile.offlineInfo')}</div>
           </Card>
         ) : documents.filter(d => !d.archived).map(doc => (
           <Card key={doc.id} style={{ marginBottom: 8 }}>
@@ -5112,6 +5116,7 @@ interface SharedProfile {
 }
 
 const MemberProfileModal = ({ googleSub, fallbackName, fallbackAvatar, onClose }: { googleSub: string; fallbackName: string; fallbackAvatar?: string; onClose: () => void }) => {
+  const { t } = useTranslation();
   const [data, setData] = useState<SharedProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewDoc, setViewDoc] = useState<{ name: string; docType: string; dataUrl: string } | null>(null);
@@ -5201,7 +5206,7 @@ const MemberProfileModal = ({ googleSub, fallbackName, fallbackAvatar, onClose }
             {/* Documents */}
             {data.documents.length > 0 && (
               <>
-                <SectionLabel>DOCUMENTS</SectionLabel>
+                <SectionLabel>{t('crewProfile.documentsLabel')}</SectionLabel>
                 {data.documents.map(doc => (
                   <Card key={doc.id} style={{ marginBottom: 8, cursor: "pointer" }} onClick={() => setViewDoc(doc)}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -5218,7 +5223,7 @@ const MemberProfileModal = ({ googleSub, fallbackName, fallbackAvatar, onClose }
 
             {!data.medical && !data.insurance && data.documents.length === 0 && (
               <div style={{ color: C.textMuted, fontSize: 13, textAlign: "center", padding: "40px 0", fontStyle: "italic" }}>
-                {name} hasn't shared any safety information yet.
+                {t('crewProfile.noSafetyInfo', { name })}
               </div>
             )}
           </>
@@ -5243,6 +5248,7 @@ const MemberProfileModal = ({ googleSub, fallbackName, fallbackAvatar, onClose }
 };
 
 const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
+  const { t } = useTranslation();
   const [crewTab, setCrewTab] = useState<'crew' | 'segments' | 'budget'>('crew');
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviting, setInviting] = useState(false);
@@ -5621,52 +5627,52 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
           {/* Segments tab */}
           {isAdmin && (
             <button onClick={() => setShowAddSeg(p => !p)} style={{ display: "flex", alignItems: "center", gap: 6, background: C.cyan, color: "#000", border: "none", borderRadius: 12, padding: "10px 16px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 13, marginBottom: 16 }}>
-              <Icon d={icons.plus} size={14} stroke="#000" strokeWidth={2.5} /> Add Segment
+              <Icon d={icons.plus} size={14} stroke="#000" strokeWidth={2.5} /> {t('segments.addSegmentBtn')}
             </button>
           )}
 
           {showAddSeg && (
             <Card style={{ marginBottom: 16, border: `1px solid ${C.cyan}30` }}>
-              <div style={{ fontWeight: 700, marginBottom: 12 }}>New Segment</div>
-              <Input placeholder="Segment name" value={segName} onChange={setSegName} style={{ marginBottom: 10 }} />
+              <div style={{ fontWeight: 700, marginBottom: 12 }}>{t('segments.newSegmentTitle')}</div>
+              <Input placeholder={t('segments.segmentNamePlace')} value={segName} onChange={setSegName} style={{ marginBottom: 10 }} />
               <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>FROM</div>
-                  <Input placeholder="Origin" value={segOrigin} onChange={setSegOrigin} />
+                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.fromLabel')}</div>
+                  <Input placeholder={t('segments.originPlace')} value={segOrigin} onChange={setSegOrigin} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TO</div>
-                  <Input placeholder="Destination" value={segDest} onChange={setSegDest} />
+                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.toLabel')}</div>
+                  <Input placeholder={t('segments.destinationPlace')} value={segDest} onChange={setSegDest} />
                 </div>
               </div>
               <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>START</div>
+                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.startLabel')}</div>
                   <Card style={{ padding: 10 }}>
                     <input type="date" value={segStart} onChange={e => setSegStart(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%" }} />
                   </Card>
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>END</div>
+                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.endLabel')}</div>
                   <Card style={{ padding: 10 }}>
                     <input type="date" value={segEnd} onChange={e => setSegEnd(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%" }} />
                   </Card>
                 </div>
               </div>
               <div style={{ marginBottom: 12 }}>
-                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>ICON</div>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>{t('segments.iconLabel')}</div>
                 {/* Preview */}
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                   <div style={{ width: 36, height: 36, borderRadius: 10, background: C.card3, display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <SegmentIcon color={segColor} size={18} />
                   </div>
-                  <span style={{ color: C.textSub, fontSize: 12 }}>Selected</span>
+                  <span style={{ color: C.textSub, fontSize: 12 }}>{t('segments.selectedLabel')}</span>
                 </div>
                 {/* Tab switcher */}
                 <div style={{ background: C.card3, borderRadius: 10, padding: 3, display: "flex", marginBottom: 10 }}>
-                  {(['colors', 'flags', 'emojis'] as const).map(t => (
-                    <button key={t} onClick={() => setSegIconTab(t)} style={{ flex: 1, padding: "7px", borderRadius: 8, border: "none", cursor: "pointer", background: segIconTab === t ? C.card : "transparent", color: segIconTab === t ? C.text : C.textMuted, fontWeight: segIconTab === t ? 700 : 400, fontSize: 11, fontFamily: "inherit", letterSpacing: 0.8 }}>
-                      {t.toUpperCase()}
+                  {(['colors', 'flags', 'emojis'] as const).map(tabKey => (
+                    <button key={tabKey} onClick={() => setSegIconTab(tabKey)} style={{ flex: 1, padding: "7px", borderRadius: 8, border: "none", cursor: "pointer", background: segIconTab === tabKey ? C.card : "transparent", color: segIconTab === tabKey ? C.text : C.textMuted, fontWeight: segIconTab === tabKey ? 700 : 400, fontSize: 11, fontFamily: "inherit", letterSpacing: 0.8 }}>
+                      {tabKey === 'colors' ? t('segments.colorsTab') : tabKey === 'flags' ? t('segments.flagsTab') : t('segments.emojisTab')}
                     </button>
                   ))}
                 </div>
@@ -5700,7 +5706,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
               </div>
               {accepted.length > 0 && (
                 <div style={{ marginBottom: 12 }}>
-                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>INVITE MEMBERS</div>
+                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>{t('segments.inviteMembersLabel')}</div>
                   {accepted.filter(m => m.id !== myMemberId).map((m: TripMember) => (
                     <label key={m.id} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, cursor: "pointer" }}>
                       <input type="checkbox" checked={segAssigned.includes(m.id)} onChange={e => setSegAssigned(prev => e.target.checked ? [...prev, m.id] : prev.filter(id => id !== m.id))} />
@@ -5709,14 +5715,14 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
                     </label>
                   ))}
                   {accepted.filter(m => m.id !== myMemberId).length === 0 && (
-                    <div style={{ color: C.textSub, fontSize: 12, fontStyle: "italic" }}>No other members to invite.</div>
+                    <div style={{ color: C.textSub, fontSize: 12, fontStyle: "italic" }}>{t('segments.noOtherMembers')}</div>
                   )}
                 </div>
               )}
               {segError && <div style={{ color: C.red, fontSize: 13, marginBottom: 8 }}>{segError}</div>}
               <div style={{ display: "flex", gap: 10 }}>
-                <Btn style={{ flex: 1 }} variant="ghost" onClick={() => { setShowAddSeg(false); setSegError(null); }}>Cancel</Btn>
-                <Btn style={{ flex: 1 }} onClick={handleAddSegment}>{segSaving ? "Saving…" : "Create"}</Btn>
+                <Btn style={{ flex: 1 }} variant="ghost" onClick={() => { setShowAddSeg(false); setSegError(null); }}>{t('segments.cancelBtn')}</Btn>
+                <Btn style={{ flex: 1 }} onClick={handleAddSegment}>{segSaving ? t('segments.savingBtn') : t('segments.createBtn')}</Btn>
               </div>
             </Card>
           )}
@@ -5724,21 +5730,23 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
           {/* Edit Segment form */}
           {editSegId && (
             <Card style={{ marginBottom: 16, border: `1px solid ${C.yellow}30` }}>
-              <div style={{ fontWeight: 700, marginBottom: 12 }}>Edit Segment</div>
-              <Input placeholder="Segment name *" value={editSegName} onChange={setEditSegName} style={{ marginBottom: 10 }} />
+              <div style={{ fontWeight: 700, marginBottom: 12 }}>{t('segments.editSegmentTitle')}</div>
+              <Input placeholder={t('segments.segmentNameReqPlace')} value={editSegName} onChange={setEditSegName} style={{ marginBottom: 10 }} />
               <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
-                <div style={{ flex: 1 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>FROM</div><Input placeholder="Origin" value={editSegOrigin} onChange={setEditSegOrigin} /></div>
-                <div style={{ flex: 1 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TO</div><Input placeholder="Destination" value={editSegDest} onChange={setEditSegDest} /></div>
+                <div style={{ flex: 1 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.fromLabel')}</div><Input placeholder={t('segments.originPlace')} value={editSegOrigin} onChange={setEditSegOrigin} /></div>
+                <div style={{ flex: 1 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.toLabel')}</div><Input placeholder={t('segments.destinationPlace')} value={editSegDest} onChange={setEditSegDest} /></div>
               </div>
               <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
-                <div style={{ flex: 1 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>START</div><Card style={{ padding: 10 }}><input type="date" value={editSegStart} onChange={e => setEditSegStart(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} /></Card></div>
-                <div style={{ flex: 1 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>END</div><Card style={{ padding: 10 }}><input type="date" value={editSegEnd} onChange={e => setEditSegEnd(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} /></Card></div>
+                <div style={{ flex: 1 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.startLabel')}</div><Card style={{ padding: 10 }}><input type="date" value={editSegStart} onChange={e => setEditSegStart(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} /></Card></div>
+                <div style={{ flex: 1 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.endLabel')}</div><Card style={{ padding: 10 }}><input type="date" value={editSegEnd} onChange={e => setEditSegEnd(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} /></Card></div>
               </div>
               <div style={{ marginBottom: 12 }}>
-                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>ICON</div>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.iconLabel')}</div>
                 <div style={{ background: C.card3, borderRadius: 10, padding: 3, display: "flex", marginBottom: 8 }}>
-                  {(['colors', 'flags', 'emojis'] as const).map(t => (
-                    <button key={t} onClick={() => setEditSegIconTab(t)} style={{ flex: 1, padding: "6px", borderRadius: 8, border: "none", cursor: "pointer", background: editSegIconTab === t ? C.card : "transparent", color: editSegIconTab === t ? C.text : C.textMuted, fontWeight: editSegIconTab === t ? 700 : 400, fontSize: 11, fontFamily: "inherit" }}>{t.toUpperCase()}</button>
+                  {(['colors', 'flags', 'emojis'] as const).map(tabKey => (
+                    <button key={tabKey} onClick={() => setEditSegIconTab(tabKey)} style={{ flex: 1, padding: "6px", borderRadius: 8, border: "none", cursor: "pointer", background: editSegIconTab === tabKey ? C.card : "transparent", color: editSegIconTab === tabKey ? C.text : C.textMuted, fontWeight: editSegIconTab === tabKey ? 700 : 400, fontSize: 11, fontFamily: "inherit" }}>
+                      {tabKey === 'colors' ? t('segments.colorsTab') : tabKey === 'flags' ? t('segments.flagsTab') : t('segments.emojisTab')}
+                    </button>
                   ))}
                 </div>
                 {editSegIconTab === 'colors' && (
@@ -5759,7 +5767,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
               </div>
               {accepted.length > 0 && (
                 <div style={{ marginBottom: 12 }}>
-                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>ASSIGN MEMBERS</div>
+                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>{t('segments.assignMembersLabel')}</div>
                   {accepted.map((m: TripMember) => (
                     <label key={m.id} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, cursor: "pointer" }}>
                       <input type="checkbox" checked={editSegAssigned.includes(m.id)} onChange={e => setEditSegAssigned(prev => e.target.checked ? [...prev, m.id] : prev.filter(id => id !== m.id))} />
@@ -5770,14 +5778,14 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
                 </div>
               )}
               <div style={{ display: "flex", gap: 10 }}>
-                <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setEditSegId(null)}>Cancel</Btn>
-                <Btn style={{ flex: 1 }} onClick={handleEditSegment}>{editSegSaving ? "Saving…" : "Save Changes"}</Btn>
+                <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setEditSegId(null)}>{t('segments.cancelBtn')}</Btn>
+                <Btn style={{ flex: 1 }} onClick={handleEditSegment}>{editSegSaving ? t('segments.savingBtn') : t('segments.saveChangesBtn')}</Btn>
               </div>
             </Card>
           )}
 
           {segments.length === 0 && !showAddSeg && (
-            <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "40px 0" }}>No segments yet. Add one above.</div>
+            <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "40px 0" }}>{t('segments.noSegmentsYet')}</div>
           )}
           {segments.filter(seg => seg.visibility === 'public' || isAdmin || seg.assignedMemberIds.includes(myMemberId) || seg.invitedMemberIds?.includes(myMemberId) || seg.assignedMemberIds.length === 0).map((seg: TripSegment) => {
             const assignedNames = seg.assignedMemberIds.length === 0 ? 'Everyone'
@@ -5839,12 +5847,12 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
                 {isExpanded && !isInvited && (
                   <div style={{ marginTop: 12, borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1 }}>ATTACHMENTS</div>
-                      <button onClick={() => { setAddAttSegId(seg.id); setAttName(''); setAttDataUrl(null); }} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "4px 10px", cursor: "pointer", color: C.cyan, fontSize: 11, fontFamily: "inherit", fontWeight: 700 }}>+ Add</button>
+                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1 }}>{t('segments.attachmentsLabel')}</div>
+                      <button onClick={() => { setAddAttSegId(seg.id); setAttName(''); setAttDataUrl(null); }} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "4px 10px", cursor: "pointer", color: C.cyan, fontSize: 11, fontFamily: "inherit", fontWeight: 700 }}>{t('segments.addBtn')}</button>
                     </div>
                     {addAttSegId === seg.id && (
                       <div style={{ background: C.card3, borderRadius: 12, padding: 12, marginBottom: 8 }}>
-                        <input placeholder="File name (e.g. Boarding Pass)" value={attName} onChange={e => setAttName(e.target.value)} style={{ background: C.card2, border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", color: C.text, fontSize: 13, width: "100%", outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const, marginBottom: 10 }} />
+                        <input placeholder={t('segments.fileNamePlace')} value={attName} onChange={e => setAttName(e.target.value)} style={{ background: C.card2, border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", color: C.text, fontSize: 13, width: "100%", outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const, marginBottom: 10 }} />
                         <input type="file" accept="image/*" id={`attInput_${seg.id}`} style={{ display: "none" }} onChange={async e => { const f = e.target.files?.[0]; if (f) setAttDataUrl(await compressImage(f, 1200, 0.8)); }} />
                         {attDataUrl ? (
                           <div style={{ position: "relative", marginBottom: 10 }}>
@@ -5853,24 +5861,24 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
                           </div>
                         ) : (
                           <label htmlFor={`attInput_${seg.id}`} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, border: `2px dashed ${C.border}`, borderRadius: 10, padding: 12, cursor: "pointer", marginBottom: 10, color: C.textMuted, fontSize: 12 }}>
-                            <Icon d={icons.camera} size={16} stroke={C.textMuted} /> Capture or upload
+                            <Icon d={icons.camera} size={16} stroke={C.textMuted} /> {t('segments.captureOrUpload')}
                           </label>
                         )}
                         {attError && <div style={{ color: C.red, fontSize: 12, marginBottom: 8 }}>{attError}</div>}
                         <div style={{ display: "flex", gap: 8 }}>
-                          <button onClick={() => { setAddAttSegId(null); setAttError(null); }} style={{ flex: 1, background: C.card2, border: "none", borderRadius: 10, padding: "8px", color: C.textMuted, cursor: "pointer", fontSize: 12, fontFamily: "inherit" }}>Cancel</button>
+                          <button onClick={() => { setAddAttSegId(null); setAttError(null); }} style={{ flex: 1, background: C.card2, border: "none", borderRadius: 10, padding: "8px", color: C.textMuted, cursor: "pointer", fontSize: 12, fontFamily: "inherit" }}>{t('segments.cancelBtn')}</button>
                           <button onClick={() => {
                             if (!attName.trim()) { setAttError("File name is required."); return; }
                             if (!attDataUrl) { setAttError("Please capture or upload a file."); return; }
                             setAttError(null);
                             const att: SegmentAttachment = { id: crypto.randomUUID(), segmentId: seg.id, tripId: trip.id, name: attName.trim(), fileData: attDataUrl, createdAt: new Date().toISOString() };
                             addSegAttachment(att); setAddAttSegId(null);
-                          }} style={{ flex: 1, background: C.cyan, border: "none", borderRadius: 10, padding: "8px", color: "#000", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit" }}>Save</button>
+                          }} style={{ flex: 1, background: C.cyan, border: "none", borderRadius: 10, padding: "8px", color: "#000", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit" }}>{t('segments.saveChangesBtn')}</button>
                         </div>
                       </div>
                     )}
                     {segAtts.length === 0 && addAttSegId !== seg.id && (
-                      <div style={{ color: C.textSub, fontSize: 12, fontStyle: "italic", marginBottom: 12, padding: "10px 0", textAlign: "center" }}>No attachments.</div>
+                      <div style={{ color: C.textSub, fontSize: 12, fontStyle: "italic", marginBottom: 12, padding: "10px 0", textAlign: "center" }}>{t('segments.noAttachments')}</div>
                     )}
                     {segAtts.map(att => (
                       <div key={att.id} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, background: C.card2, padding: "8px 12px", borderRadius: 10 }}>
@@ -5894,7 +5902,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
                             handleSegmentMembership(seg.id, 'leave_segment');
                           }
                         }} style={{ width: "100%", background: "transparent", border: "none", color: C.red, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-                          Leave Segment
+                          {t('segments.leaveSegmentBtn')}
                         </button>
                       </div>
                     )}
@@ -5981,6 +5989,7 @@ const LoginScreen = ({ onLogin }: { onLogin: (user: any) => void }) => {
 };
 
 const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUpdate, onTripCreate, onTripDelete }: any) => {
+  const { t } = useTranslation();
   const [managingTrip, setManagingTrip] = useState<Trip | null>(null);
   const [showNewTrip, setShowNewTrip] = useState(false);
   const [newTripName, setNewTripName] = useState("");
@@ -6067,40 +6076,40 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
           </button>
         )}
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>Group</div>
-          <div style={{ color: C.textMuted, fontSize: 12, letterSpacing: 1 }}>{(trips as Trip[]).length} TRIP{(trips as Trip[]).length !== 1 ? 'S' : ''}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>{t('group.groupTitle')}</div>
+          <div style={{ color: C.textMuted, fontSize: 12, letterSpacing: 1 }}>{(trips as Trip[]).length} {(trips as Trip[]).length !== 1 ? t('group.tripPlural') : t('group.tripSingular')}</div>
         </div>
         <button onClick={() => { setShowNewTrip(p => !p); setTripError(""); }} style={{ background: C.cyan, color: "#000", border: "none", borderRadius: 20, padding: "8px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-          + New
+          {t('group.newBtn')}
         </button>
       </div>
 
       <div style={{ padding: "0 20px" }}>
         {showNewTrip && (
           <Card style={{ marginBottom: 12, border: `1px solid ${C.cyan}30` }}>
-            <div style={{ fontWeight: 700, marginBottom: 12 }}>New Trip</div>
-            <Input placeholder="Trip Name (e.g. Europe Summer)" value={newTripName} onChange={setNewTripName} style={{ marginBottom: 10 }} />
-            <Input placeholder="Destination (optional)" value={newTripDest} onChange={setNewTripDest} style={{ marginBottom: 10 }} />
+            <div style={{ fontWeight: 700, marginBottom: 12 }}>{t('group.newTripTitle')}</div>
+            <Input placeholder={t('group.tripNamePlace')} value={newTripName} onChange={setNewTripName} style={{ marginBottom: 10 }} />
+            <Input placeholder={t('group.destPlace')} value={newTripDest} onChange={setNewTripDest} style={{ marginBottom: 10 }} />
             <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
               <div style={{ flex: 1 }}>
-                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>START DATE</div>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('group.startDateLabel')}</div>
                 <Card style={{ padding: 10 }}><input type="date" value={newTripStart} onChange={e => setNewTripStart(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} /></Card>
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>END DATE</div>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('group.endDateLabel')}</div>
                 <Card style={{ padding: 10 }}><input type="date" value={newTripEnd} onChange={e => setNewTripEnd(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} /></Card>
               </div>
             </div>
             {tripError && <div style={{ color: C.red, fontSize: 12, marginBottom: 10, padding: "8px 12px", background: C.redDim, borderRadius: 10 }}>{tripError}</div>}
             <div style={{ display: "flex", gap: 10 }}>
-              <Btn style={{ flex: 1 }} variant="ghost" onClick={() => { setShowNewTrip(false); setTripError(""); }}>Cancel</Btn>
-              <Btn style={{ flex: 1 }} onClick={handleCreateTrip}>{creatingTrip ? "Creating…" : "Create"}</Btn>
+              <Btn style={{ flex: 1 }} variant="ghost" onClick={() => { setShowNewTrip(false); setTripError(""); }}>{t('group.cancelBtn')}</Btn>
+              <Btn style={{ flex: 1 }} onClick={handleCreateTrip}>{creatingTrip ? t('group.creatingBtn') : t('group.createBtn')}</Btn>
             </div>
           </Card>
         )}
 
         {(trips as Trip[]).length === 0 && !showNewTrip && (
-          <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", padding: "40px 0", textAlign: "center" }}>No trips yet. Tap "+ New" to create one.</div>
+          <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", padding: "40px 0", textAlign: "center" }}>{t('group.noTrips')}</div>
         )}
 
         {([...(trips as Trip[])].sort((a, b) => (b.id === activeTripId ? 1 : 0) - (a.id === activeTripId ? 1 : 0))).map((trip: Trip) => {
@@ -6110,26 +6119,26 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
           const isEditing = editingTripId === trip.id;
           return (
             <Card key={trip.id} style={{ marginBottom: 10, border: isActive ? `1.5px solid ${C.cyan}30` : undefined, position: "relative", overflow: "visible" }}>
-              {isActive && <div style={{ position: "absolute", top: -1, right: 0, background: C.cyan, color: "#000", fontSize: 11, fontWeight: 800, padding: "3px 12px", borderRadius: "0 14px 0 12px" }}>Active</div>}
+              {isActive && <div style={{ position: "absolute", top: -1, right: 0, background: C.cyan, color: "#000", fontSize: 11, fontWeight: 800, padding: "3px 12px", borderRadius: "0 14px 0 12px" }}>{t('group.activeBadge')}</div>}
               {isEditing ? (
                 <>
-                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>Edit Trip</div>
-                  <Input placeholder="Trip Name" value={editTripName} onChange={setEditTripName} style={{ marginBottom: 10 }} />
-                  <Input placeholder="Destination (optional)" value={editTripDest} onChange={setEditTripDest} style={{ marginBottom: 10 }} />
+                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>{t('group.editTripTitle')}</div>
+                  <Input placeholder={t('group.tripNamePlace')} value={editTripName} onChange={setEditTripName} style={{ marginBottom: 10 }} />
+                  <Input placeholder={t('group.destPlace')} value={editTripDest} onChange={setEditTripDest} style={{ marginBottom: 10 }} />
                   <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>START</div>
+                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('group.startDateLabel')}</div>
                       <Card style={{ padding: 10 }}><input type="date" value={editTripStart} onChange={e => setEditTripStart(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} /></Card>
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>END</div>
+                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('group.endDateLabel')}</div>
                       <Card style={{ padding: 10 }}><input type="date" value={editTripEnd} onChange={e => setEditTripEnd(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} /></Card>
                     </div>
                   </div>
                   {tripError && <div style={{ color: C.red, fontSize: 12, marginBottom: 10 }}>{tripError}</div>}
                   <div style={{ display: "flex", gap: 10 }}>
-                    <Btn style={{ flex: 1 }} variant="ghost" onClick={() => { setEditingTripId(null); setTripError(""); }}>Cancel</Btn>
-                    <Btn style={{ flex: 1 }} onClick={() => handleSaveTrip(trip.id)}>{savingTrip ? "Saving…" : "Save"}</Btn>
+                    <Btn style={{ flex: 1 }} variant="ghost" onClick={() => { setEditingTripId(null); setTripError(""); }}>{t('group.cancelBtn')}</Btn>
+                    <Btn style={{ flex: 1 }} onClick={() => handleSaveTrip(trip.id)}>{savingTrip ? t('group.savingBtn') : t('group.saveBtn')}</Btn>
                   </div>
                 </>
               ) : (
@@ -6140,8 +6149,8 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
                       {trip.destination && <div style={{ color: C.textMuted, fontSize: 12 }}>{trip.destination}</div>}
                       <div style={{ color: C.textSub, fontSize: 11, marginTop: 2 }}>{formatDateRange(trip.startDate, trip.endDate)}</div>
                       <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                        <span style={{ background: C.card3, color: C.textMuted, borderRadius: 8, padding: "3px 8px", fontSize: 11, fontWeight: 600 }}>{accepted} member{accepted !== 1 ? 's' : ''}</span>
-                        <span style={{ background: C.card3, color: C.textMuted, borderRadius: 8, padding: "3px 8px", fontSize: 11, fontWeight: 600 }}>{segCount} segment{segCount !== 1 ? 's' : ''}</span>
+                        <span style={{ background: C.card3, color: C.textMuted, borderRadius: 8, padding: "3px 8px", fontSize: 11, fontWeight: 600 }}>{accepted} {accepted !== 1 ? t('group.memberPlural') : t('group.memberSingular')}</span>
+                        <span style={{ background: C.card3, color: C.textMuted, borderRadius: 8, padding: "3px 8px", fontSize: 11, fontWeight: 600 }}>{segCount} {segCount !== 1 ? t('group.segmentPlural') : t('group.segmentSingular')}</span>
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
@@ -6154,8 +6163,8 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                    {!isActive && <Btn variant="ghost" style={{ flex: 1, padding: "10px" }} onClick={() => onSwitchTrip(trip.id)}>Set Active</Btn>}
-                    <Btn variant="secondary" style={{ flex: 1, padding: "10px" }} onClick={() => setManagingTrip(trip)} icon={<Icon d={icons.users} size={15} />}>Manage</Btn>
+                    {!isActive && <Btn variant="ghost" style={{ flex: 1, padding: "10px" }} onClick={() => onSwitchTrip(trip.id)}>{t('group.setActiveBtn')}</Btn>}
+                    <Btn variant="secondary" style={{ flex: 1, padding: "10px" }} onClick={() => setManagingTrip(trip)} icon={<Icon d={icons.users} size={15} />}>{t('group.manageBtn')}</Btn>
                   </div>
                 </>
               )}
@@ -6164,17 +6173,17 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
         })}
 
         {confirmDeleteTripId && (() => {
-          const t = (trips as Trip[]).find(tr => tr.id === confirmDeleteTripId);
+          const tTrip = (trips as Trip[]).find(tr => tr.id === confirmDeleteTripId);
           return (
             <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 300, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
               <div style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "20px 20px 0 0", padding: "28px 20px 44px" }}>
                 <div style={{ textAlign: "center", marginBottom: 24 }}>
-                  <div style={{ fontSize: 17, fontWeight: 800, color: C.text, marginBottom: 6 }}>Delete "{t?.name}"?</div>
-                  <div style={{ color: C.textMuted, fontSize: 13 }}>This will permanently delete the trip and all its data. This cannot be undone.</div>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: C.text, marginBottom: 6 }}>{t('group.deleteTripPrompt', { name: tTrip?.name })}</div>
+                  <div style={{ color: C.textMuted, fontSize: 13 }}>{t('group.deleteTripDesc')}</div>
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
-                  <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setConfirmDeleteTripId(null)}>Cancel</Btn>
-                  <Btn style={{ flex: 1 }} variant="danger" onClick={() => handleDeleteTrip(confirmDeleteTripId)}>{deletingTripId === confirmDeleteTripId ? "Deleting…" : "Delete Trip"}</Btn>
+                  <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setConfirmDeleteTripId(null)}>{t('group.cancelBtn')}</Btn>
+                  <Btn style={{ flex: 1 }} variant="danger" onClick={() => handleDeleteTrip(confirmDeleteTripId)}>{deletingTripId === confirmDeleteTripId ? t('group.deletingTripBtn') : t('group.deleteTripBtn')}</Btn>
                 </div>
               </div>
             </div>
