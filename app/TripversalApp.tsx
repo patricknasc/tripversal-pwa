@@ -6122,6 +6122,27 @@ function ConfirmDialog({ isOpen, isPanicModeActive, onCancel, onConfirm }: { isO
   );
 }
 
+function useGlobalSOSListener(tripId?: string, currentUserSub?: string, onSOSIncoming?: (row: any) => void) {
+  useEffect(() => {
+    if (!tripId || !currentUserSub) return;
+    const channel = anonSupabase.channel('global_sos_listener')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'trip_sos_sessions', filter: `trip_id=eq.${tripId}` }, (payload) => {
+        const row = payload.new as any;
+        if (row.is_active && row.user_sub !== currentUserSub) {
+          if (onSOSIncoming) onSOSIncoming(row);
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'trip_sos_sessions', filter: `trip_id=eq.${tripId}` }, (payload) => {
+        const row = payload.new as any;
+        if (row.is_active && row.user_sub !== currentUserSub) {
+          if (onSOSIncoming) onSOSIncoming(row);
+        }
+      })
+      .subscribe();
+    return () => { anonSupabase.removeChannel(channel); };
+  }, [tripId, currentUserSub, onSOSIncoming]);
+}
+
 import dynamic from 'next/dynamic';
 
 const LiveMap = dynamic(() => import('./components/LiveMap'), { ssr: false });
@@ -6145,7 +6166,35 @@ function AppShell() {
   const [showPanicModal, setShowPanicModal] = useState(false);
   const [showLiveMap, setShowLiveMap] = useState(false);
 
+  const [incomingSOSUser, setIncomingSOSUser] = useState<string | null>(null);
+
   useLiveLocation(isPanicModeActive, user?.sub, activeTripId || undefined);
+
+  useGlobalSOSListener(activeTripId || undefined, user?.sub, useCallback((row: any) => {
+    setIncomingSOSUser(row.user_sub);
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const playBeep = () => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.setValueAtTime(1100, ctx.currentTime + 0.2);
+        gain.gain.setValueAtTime(0.5, ctx.currentTime);
+        osc.start();
+        setTimeout(() => osc.stop(), 800);
+      };
+      playBeep();
+      let count = 1;
+      const interval = setInterval(() => {
+        if (count >= 3) return clearInterval(interval);
+        playBeep();
+        count++;
+      }, 1000);
+    } catch (e) { console.warn("Audio play failed", e); }
+  }, []));
 
   const activeTrip = trips.find(t => t.id === activeTripId) ?? null;
 
@@ -6359,6 +6408,20 @@ function AppShell() {
         }}
       />
       {showLiveMap && activeTripId && <LiveMap tripId={activeTripId} onBack={() => setShowLiveMap(false)} />}
+      {incomingSOSUser && (
+        <>
+          <div style={{ position: "fixed", inset: 0, background: "rgba(100,0,0,0.8)", zIndex: 1000 }} onClick={() => setIncomingSOSUser(null)} />
+          <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "90%", maxWidth: 400, background: C.card, borderRadius: 20, padding: 24, zIndex: 1001, textAlign: "center", border: `2px solid ${C.red}` }}>
+            <div style={{ fontSize: 50, marginBottom: 12 }}>🚨</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: C.red, marginBottom: 12, textTransform: "uppercase" }}>ALERTA DE EMERGÊNCIA!</div>
+            <div style={{ color: C.text, fontSize: 16, marginBottom: 24, lineHeight: 1.5, fontWeight: 500 }}>
+              Um membro do seu grupo acabou de acionar o botão de Pânico!
+            </div>
+            <Btn variant="danger" style={{ width: "100%", padding: 16, fontSize: 16, fontWeight: "bold" }} onClick={() => { setIncomingSOSUser(null); setShowLiveMap(true); }}>Abrir Mapa ao Vivo</Btn>
+            <Btn variant="ghost" style={{ width: "100%", marginTop: 12, padding: 12 }} onClick={() => setIncomingSOSUser(null)}>Fechar Aviso</Btn>
+          </div>
+        </>
+      )}
     </div>
   );
 }
