@@ -5990,6 +5990,7 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
   const { t } = useTranslation();
   const [managingTrip, setManagingTrip] = useState<Trip | null>(null);
   const [showNewTrip, setShowNewTrip] = useState(false);
+  const [confirmToggleActive, setConfirmToggleActive] = useState<{ id: string, action: 'set' | 'unset' } | null>(null);
   const [newTripName, setNewTripName] = useState("");
   const [newTripDest, setNewTripDest] = useState("");
   const [newTripStart, setNewTripStart] = useState("");
@@ -6162,9 +6163,9 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
                   </div>
                   <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                     {isActive ? (
-                      <Btn variant="ghost" style={{ flex: 1, padding: "10px", color: C.redDim }} onClick={() => onSwitchTrip(null)}>{t('group.unsetActiveBtn', 'Deselect')}</Btn>
+                      <Btn style={{ flex: 1, padding: "10px", background: "transparent", border: `1px solid ${C.red}`, color: C.red }} onClick={() => setConfirmToggleActive({ id: trip.id, action: 'unset' })}>{t('group.unsetActiveBtn', 'Deselect')}</Btn>
                     ) : (
-                      <Btn variant="ghost" style={{ flex: 1, padding: "10px" }} onClick={() => onSwitchTrip(trip.id)}>{t('group.setActiveBtn')}</Btn>
+                      <Btn variant="primary" style={{ flex: 1, padding: "10px" }} onClick={() => setConfirmToggleActive({ id: trip.id, action: 'set' })}>{t('group.setActiveBtn')}</Btn>
                     )}
                     <Btn variant="secondary" style={{ flex: 1, padding: "10px" }} onClick={() => setManagingTrip(trip)} icon={<Icon d={icons.users} size={15} />}>{t('group.manageBtn')}</Btn>
                   </div>
@@ -6186,6 +6187,21 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
                 <div style={{ display: "flex", gap: 10 }}>
                   <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setConfirmDeleteTripId(null)}>{t('group.cancelBtn')}</Btn>
                   <Btn style={{ flex: 1 }} variant="danger" onClick={() => handleDeleteTrip(confirmDeleteTripId)}>{deletingTripId === confirmDeleteTripId ? t('group.deletingTripBtn') : t('group.deleteTripBtn')}</Btn>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {confirmToggleActive && (() => {
+          const actionText = confirmToggleActive.action === 'set' ? t('group.promptSet') : t('group.promptUnset');
+          return (
+            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setConfirmToggleActive(null)}>
+              <div style={{ width: "90%", maxWidth: 360, background: C.card, borderRadius: 24, padding: "28px 20px", textAlign: "center" }} onClick={e => e.stopPropagation()}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: C.text, marginBottom: 12 }}>{actionText}</div>
+                <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+                  <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setConfirmToggleActive(null)}>{t('group.cancelBtn')}</Btn>
+                  <Btn style={{ flex: 1 }} variant={confirmToggleActive.action === 'unset' ? 'danger' : 'primary'} onClick={() => { onSwitchTrip(confirmToggleActive.action === 'unset' ? null : confirmToggleActive.id); setConfirmToggleActive(null); }}>{t('group.confirmBtn', 'Confirm')}</Btn>
                 </div>
               </div>
             </div>
@@ -6323,11 +6339,20 @@ function AppShell() {
   const [showLiveMap, setShowLiveMap] = useState(false);
 
   const [incomingSOSUser, setIncomingSOSUser] = useState<string | null>(null);
+  const [mutedSOS, setMutedSOS] = useState(false);
+  const mutedSOSRef = useRef(false);
+
+  const toggleMuteSOS = () => {
+    const next = !mutedSOS;
+    setMutedSOS(next);
+    mutedSOSRef.current = next;
+  };
 
   useLiveLocation(isPanicModeActive, user?.sub, activeTripId || undefined);
 
   useGlobalSOSListener(activeTripId || undefined, user?.sub, useCallback((row: any) => {
     setIncomingSOSUser(row.user_sub);
+    if (mutedSOSRef.current) return;
     try {
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
       const playBeep = () => {
@@ -6345,7 +6370,7 @@ function AppShell() {
       playBeep();
       let count = 1;
       const interval = setInterval(() => {
-        if (count >= 3) return clearInterval(interval);
+        if (count >= 3 || mutedSOSRef.current) return clearInterval(interval);
         playBeep();
         count++;
       }, 1000);
@@ -6582,6 +6607,9 @@ function AppShell() {
               {t('sos.alertBody')}
             </div>
             <Btn variant="danger" style={{ width: "100%", padding: 16, fontSize: 16, fontWeight: "bold" }} onClick={() => { setIncomingSOSUser(null); setShowLiveMap(true); }}>{t('sos.openMap')}</Btn>
+            <Btn variant="primary" style={{ width: "100%", marginTop: 12, padding: 12, background: "transparent", border: `1px solid ${C.cyan}`, color: C.cyan }} onClick={toggleMuteSOS}>
+              {mutedSOS ? t('sos.unmuteAlert', '🔊 Ativar Som') : t('sos.muteAlert', '🔇 Silenciar')}
+            </Btn>
             <Btn variant="ghost" style={{ width: "100%", marginTop: 12, padding: 12 }} onClick={() => setIncomingSOSUser(null)}>{t('sos.closeAlert')}</Btn>
           </div>
         </>

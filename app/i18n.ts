@@ -107,6 +107,8 @@ const resources = {
                 signOut: "Sign Out"
             },
             sos: {
+                muteAlert: "🔇 Mute Siren",
+                unmuteAlert: "🔊 Unmute Siren",
                 alertTitle: "EMERGENCY ALERT!",
                 alertBody: "A member of your group just triggered the Panic Button!",
                 openMap: "Open Live Map",
@@ -378,6 +380,9 @@ const resources = {
                 leaveSegmentBtn: "Leave Segment",
             },
             group: {
+                promptSet: "Set this trip as active?",
+                promptUnset: "Deselect this trip?",
+                confirmBtn: "Confirm",
                 tripNameReq: "Trip name is required.",
                 tripStartReq: "Start date is required.",
                 tripEndReq: "End date is required.",
@@ -610,6 +615,8 @@ const resources = {
                 signOut: "Sair"
             },
             sos: {
+                muteAlert: "🔇 Silenciar Sirene",
+                unmuteAlert: "🔊 Ativar Sirene",
                 alertTitle: "ALERTA DE EMERGÊNCIA!",
                 alertBody: "Um membro do seu grupo acabou de acionar o botão de Pânico!",
                 openMap: "Abrir Mapa ao Vivo",
@@ -881,6 +888,9 @@ const resources = {
                 leaveSegmentBtn: "Sair do Segmento",
             },
             group: {
+                promptSet: "Definir esta viagem como ativa?",
+                promptUnset: "Desativar esta viagem?",
+                confirmBtn: "Confirmar",
                 tripNameReq: "O nome da viagem é obrigatório.",
                 tripStartReq: "A data de início é obrigatória.",
                 tripEndReq: "A data de término é obrigatória.",
@@ -1113,6 +1123,8 @@ const resources = {
                 signOut: "Cerrar Sesión"
             },
             sos: {
+                muteAlert: "🔇 Silenciar Sirena",
+                unmuteAlert: "🔊 Activar Sirena",
                 alertTitle: "¡ALERTA DE EMERGENCIA!",
                 alertBody: "¡Un miembro de tu grupo acaba de activar el botón de Pánico!",
                 openMap: "Abrir Mapa en Vivo",
@@ -1384,6 +1396,9 @@ const resources = {
                 leaveSegmentBtn: "Salir del Segmento",
             },
             group: {
+                promptSet: "¿Activar este viaje?",
+                promptUnset: "¿Desactivar este viaje?",
+                confirmBtn: "Confirmar",
                 tripNameReq: "El nombre del viaje es obligatorio.",
                 tripStartReq: "La fecha de inicio es obligatoria.",
                 tripEndReq: "La fecha de fin es obligatoria.",
@@ -1616,6 +1631,8 @@ const resources = {
                 signOut: "Выйти"
             },
             sos: {
+                muteAlert: "🔇 Отключить сирену",
+                unmuteAlert: "🔊 Включить сирену",
                 alertTitle: "ТРЕВОГА!",
                 alertBody: "Член вашей группы нажал кнопку SOS!",
                 openMap: "Открыть Карту",
@@ -1887,6 +1904,9 @@ const resources = {
                 leaveSegmentBtn: "Покинуть Сегмент",
             },
             group: {
+                promptSet: "Сделать эту поездку активной?",
+                promptUnset: "Отменить выбор этой поездки?",
+                confirmBtn: "Подтвердить",
                 tripNameReq: "Укажите название.",
                 tripStartReq: "Укажите дату начала.",
                 tripEndReq: "Укажите дату окончания.",
@@ -2119,6 +2139,8 @@ const resources = {
                 signOut: "退出登录"
             },
             sos: {
+                muteAlert: "🔇 静音警报",
+                unmuteAlert: "🔊 开启警报",
                 alertTitle: "紧急警报！",
                 alertBody: "您团队中的一名成员触发了恐慌按钮！",
                 openMap: "打开实时地图",
@@ -2390,6 +2412,9 @@ const resources = {
                 leaveSegmentBtn: "退出行程段",
             },
             group: {
+                promptSet: "将此行程设为活动？",
+                promptUnset: "取消选择此行程？",
+                confirmBtn: "确认",
                 tripNameReq: "行程名称为必填项。",
                 tripStartReq: "开始日期为必填项。",
                 tripEndReq: "结束日期为必填项。",
