@@ -378,6 +378,7 @@ const resources = {
                 leaveSegmentBtn: "Leave Segment",
             },
             group: {
+                unsetActiveBtn: "Deselect",
                 groupTitle: "Group",
                 tripSingular: "TRIP",
                 tripPlural: "TRIPS",
@@ -873,6 +874,7 @@ const resources = {
                 leaveSegmentBtn: "Sair do Segmento",
             },
             group: {
+                unsetActiveBtn: "Desativar",
                 groupTitle: "Grupo",
                 tripSingular: "VIAGEM",
                 tripPlural: "VIAGENS",
@@ -1368,6 +1370,7 @@ const resources = {
                 leaveSegmentBtn: "Salir del Segmento",
             },
             group: {
+                unsetActiveBtn: "Desactivar",
                 groupTitle: "Grupo",
                 tripSingular: "VIAJE",
                 tripPlural: "VIAJES",
@@ -1863,6 +1866,7 @@ const resources = {
                 leaveSegmentBtn: "Покинуть Сегмент",
             },
             group: {
+                unsetActiveBtn: "Отключить",
                 groupTitle: "Группа",
                 tripSingular: "ПОЕЗДКА",
                 tripPlural: "ПОЕЗДОК",
@@ -2358,6 +2362,7 @@ const resources = {
                 leaveSegmentBtn: "退出行程段",
             },
             group: {
+                unsetActiveBtn: "取消选择",
                 groupTitle: "群组",
                 tripSingular: "行程",
                 tripPlural: "行程",

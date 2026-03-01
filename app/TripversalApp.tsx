@@ -2104,7 +2104,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
   );
 };
 
-const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab = 'transactions' }: any) => {
+const WalletScreen = ({ onAddExpense, onShowGroup, activeTripId, user, trips = [], initialTab = 'transactions' }: any) => {
   const { t } = useTranslation();
   const [budget, setBudgetState] = useState<TripBudget>(DEFAULT_BUDGET);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -2562,7 +2562,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
     <div style={{ padding: "0 20px 100px" }}>
       {/* ── Active trip banner ── */}
       {activeTrip && (
-        <div style={{ background: C.card3, borderRadius: 14, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, marginTop: 16, marginBottom: 12 }}>
+        <div onClick={onShowGroup} style={{ cursor: "pointer", background: C.card3, borderRadius: 14, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, marginTop: 16, marginBottom: 12 }}>
           <span style={{ fontSize: 18 }}>✈️</span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 11, color: C.textMuted, letterSpacing: 1 }}>{t('wallet.activeTrip')}</div>
@@ -6166,7 +6166,11 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                    {!isActive && <Btn variant="ghost" style={{ flex: 1, padding: "10px" }} onClick={() => onSwitchTrip(trip.id)}>{t('group.setActiveBtn')}</Btn>}
+                    {isActive ? (
+                      <Btn variant="ghost" style={{ flex: 1, padding: "10px", color: C.redDim }} onClick={() => onSwitchTrip(null)}>{t('group.unsetActiveBtn', 'Deselect')}</Btn>
+                    ) : (
+                      <Btn variant="ghost" style={{ flex: 1, padding: "10px" }} onClick={() => onSwitchTrip(trip.id)}>{t('group.setActiveBtn')}</Btn>
+                    )}
                     <Btn variant="secondary" style={{ flex: 1, padding: "10px" }} onClick={() => setManagingTrip(trip)} icon={<Icon d={icons.users} size={15} />}>{t('group.manageBtn')}</Btn>
                   </div>
                 </>
@@ -6362,11 +6366,15 @@ function AppShell() {
   // offlineSim overlays the real network state (Dev Controls toggle)
   const effectiveIsOnline = isOnline && !offlineSim;
 
-  const switchActiveTrip = (id: string) => {
+  const switchActiveTrip = (id: string | null) => {
     setActiveTripId(id);
-    localStorage.setItem('voyasync_active_trip_id', id);
-    const t = trips.find(tr => tr.id === id);
-    if (t?.budget) localStorage.setItem('voyasync_budget', JSON.stringify(t.budget));
+    if (id) {
+      localStorage.setItem('voyasync_active_trip_id', id);
+      const t = trips.find(tr => tr.id === id);
+      if (t?.budget) localStorage.setItem('voyasync_budget', JSON.stringify(t.budget));
+    } else {
+      localStorage.removeItem('voyasync_active_trip_id');
+    }
   };
 
   // Restore user from localStorage
@@ -6493,13 +6501,13 @@ function AppShell() {
     switch (tab) {
       case "home": content = <HomeScreen onNav={handleNav} onAddExpense={handleOpenExpense} onCreateBudget={handleGoToBudget} onShowGroup={() => handleNav("group")} activeTripId={activeTripId} activeTrip={activeTrip} user={user} isPanicModeActive={isPanicModeActive} onSOS={() => setShowPanicModal(true)} onShowMap={() => setShowLiveMap(true)} />; break;
       case "itinerary": content = <ItineraryScreen activeTripId={activeTripId} activeTrip={activeTrip} userSub={user?.sub} />; break;
-      case "wallet": content = <WalletScreen key={walletInitTab} initialTab={walletInitTab} onAddExpense={handleOpenExpense} activeTripId={activeTripId} user={user} trips={trips} />; break;
+      case "wallet": content = <WalletScreen key={walletInitTab} initialTab={walletInitTab} onAddExpense={handleOpenExpense} activeTripId={activeTripId} user={user} trips={trips} onShowGroup={() => handleNav("group")} />; break;
       case "photos": content = <SocialStreamScreen activeTripId={activeTripId} user={user} isOnline={effectiveIsOnline} />; break;
       case "group": content = <GroupScreen
         trips={trips}
         activeTripId={activeTripId}
         user={user}
-        onSwitchTrip={(id: string) => { switchActiveTrip(id); }}
+        onSwitchTrip={(id: string | null) => { switchActiveTrip(id); }}
         onTripUpdate={(updated: Trip) => setTrips(p => p.map(t => t.id === updated.id ? updated : t))}
         onTripCreate={(trip: Trip) => { setTrips(p => [...p, trip]); switchActiveTrip(trip.id); }}
         onTripDelete={(id: string) => {
