@@ -1095,6 +1095,23 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
                     </div>
                   </Card>
                 );
+              } else if (a.action === 'SOS_RESOLVED') {
+                return (
+                  <Card key={`act-${a.id}`} style={{ marginBottom: 8, borderLeft: `3px solid ${C.cyan}` }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 12, background: C.card3, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 18 }}>✅</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: C.cyan, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
+                          {a.actor_name || a.actor_sub.slice(0, 8)} encerrou o SOS.
+                        </div>
+                        <div style={{ color: C.textMuted, fontSize: 12 }}>Emergency Resolved</div>
+                      </div>
+                      <div style={{ color: C.textMuted, fontSize: 11, flexShrink: 0 }}>
+                        {new Date(a.created_at).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}
+                      </div>
+                    </div>
+                  </Card>
+                );
               }
               const actionLabel = a.action === 'event_created' ? 'added' : a.action === 'event_updated' ? 'updated' : 'removed';
               return (
@@ -6079,20 +6096,26 @@ function useLiveLocation(isActive: boolean, userSub?: string, tripId?: string) {
   }, [isActive, userSub, tripId]);
 }
 
-function ConfirmDialog({ isOpen, onCancel, onConfirm }: { isOpen: boolean, onCancel: () => void, onConfirm: () => void }) {
+function ConfirmDialog({ isOpen, isPanicModeActive, onCancel, onConfirm }: { isOpen: boolean, isPanicModeActive: boolean, onCancel: () => void, onConfirm: () => void }) {
   if (!isOpen) return null;
   return (
     <>
       <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 900 }} onClick={onCancel} />
       <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "90%", maxWidth: 400, background: C.card, borderRadius: 20, padding: 24, zIndex: 901, textAlign: "center" }}>
-        <div style={{ fontSize: 40, marginBottom: 12 }}>🚨</div>
-        <div style={{ fontSize: 18, fontWeight: 800, color: C.text, marginBottom: 12 }}>Ativar Botão de Pânico?</div>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>{isPanicModeActive ? '✅' : '🚨'}</div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: C.text, marginBottom: 12 }}>
+          {isPanicModeActive ? 'Desativar SOS?' : 'Ativar Botão de Pânico?'}
+        </div>
         <div style={{ color: C.textMuted, fontSize: 14, marginBottom: 24, lineHeight: 1.5 }}>
-          Você tem certeza que deseja acionar o botão de pânico? Sua localização será compartilhada em tempo real com o grupo.
+          {isPanicModeActive
+            ? 'Deseja encerrar o modo de emergência? Seu rastreamento de localização será interrompido.'
+            : 'Você tem certeza que deseja acionar o botão de pânico? Sua localização será compartilhada em tempo real com o grupo.'}
         </div>
         <div style={{ display: "flex", gap: 12 }}>
           <Btn variant="ghost" style={{ flex: 1, padding: 14 }} onClick={onCancel}>Cancelar</Btn>
-          <Btn variant="danger" style={{ flex: 1, padding: 14, background: C.red, color: "#fff" }} onClick={onConfirm}>Ativar SOS</Btn>
+          <Btn variant="danger" style={{ flex: 1, padding: 14, background: isPanicModeActive ? C.card3 : C.red, color: isPanicModeActive ? C.text : "#fff" }} onClick={onConfirm}>
+            {isPanicModeActive ? 'Desativar SOS' : 'Ativar SOS'}
+          </Btn>
         </div>
       </div>
     </>
@@ -6317,18 +6340,20 @@ function AppShell() {
 
       <ConfirmDialog
         isOpen={showPanicModal}
+        isPanicModeActive={isPanicModeActive}
         onCancel={() => setShowPanicModal(false)}
         onConfirm={() => {
           setShowPanicModal(false);
-          setIsPanicModeActive(true);
+          const newState = !isPanicModeActive;
+          setIsPanicModeActive(newState);
           // Request permissions to avoid silent failure on watchPosition
-          if ("geolocation" in navigator) navigator.geolocation.getCurrentPosition(() => { });
+          if (newState && "geolocation" in navigator) navigator.geolocation.getCurrentPosition(() => { });
 
           if (activeTripId && user) {
             fetch(`/api/trips/${activeTripId}/activity`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ callerSub: user.sub, callerName: user.name, action: 'SOS_ALERT', subject: 'Emergency' })
+              body: JSON.stringify({ callerSub: user.sub, callerName: user.name, action: newState ? 'SOS_ALERT' : 'SOS_RESOLVED', subject: newState ? 'Emergency' : 'Resolved' })
             }).catch(console.error);
           }
         }}
