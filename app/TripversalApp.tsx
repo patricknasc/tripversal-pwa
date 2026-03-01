@@ -6255,7 +6255,7 @@ import { getSupabaseAnon } from '../lib/supabase';
 
 const anonSupabase = getSupabaseAnon();
 
-function useLiveLocation(isActive: boolean, userSub?: string, tripId?: string) {
+function useLiveLocation(isActive: boolean, userSub?: string, tripId?: string, userName?: string) {
   useEffect(() => {
     if (!isActive || !userSub || !tripId) return;
     let watchId: number;
@@ -6267,6 +6267,7 @@ function useLiveLocation(isActive: boolean, userSub?: string, tripId?: string) {
           await anonSupabase.from('trip_sos_sessions').upsert({
             trip_id: tripId,
             user_sub: userSub,
+            user_name: userName || '',
             lat: latitude,
             lng: longitude,
             is_active: true,
@@ -6288,7 +6289,7 @@ function useLiveLocation(isActive: boolean, userSub?: string, tripId?: string) {
         .eq('user_sub', userSub)
         .then();
     };
-  }, [isActive, userSub, tripId]);
+  }, [isActive, userSub, tripId, userName]);
 }
 
 function ConfirmDialog({ isOpen, isPanicModeActive, onCancel, onConfirm }: { isOpen: boolean, isPanicModeActive: boolean, onCancel: () => void, onConfirm: () => void }) {
@@ -6637,7 +6638,7 @@ function AppShell() {
     mutedSOSRef.current = next;
   };
 
-  useLiveLocation(isPanicModeActive || showLiveMap, user?.sub, activeTripId || undefined);
+  useLiveLocation(isPanicModeActive || showLiveMap, user?.sub, activeTripId || undefined, user?.name || user?.email?.split('@')[0]);
 
   useGlobalSOSListener(activeTripId || undefined, user?.sub, useCallback((row: any) => {
     setIncomingSOSUser(row.user_sub);
@@ -6789,7 +6790,7 @@ function AppShell() {
 
   let content;
   if (showLiveMap) {
-    content = <LiveMap tripId={activeTripId!} onBack={() => setShowLiveMap(false)} />;
+    content = <LiveMap tripId={activeTripId!} onBack={() => setShowLiveMap(false)} currentUserSub={user?.sub} />;
   } else if (showAddExpense) {
     content = <AddExpenseScreen onBack={() => setShowAddExpense(false)} onGoToBudget={handleGoToBudget} activeTripId={activeTripId} activeTrip={activeTrip} user={user} />;
   } else if (showTodo) {

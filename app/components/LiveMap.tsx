@@ -1,72 +1,68 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { getSupabaseAnon } from '../../lib/supabase';
 import { useTranslation } from 'react-i18next';
 
-const victimIcon = new L.DivIcon({
-    className: 'victim-marker',
-    html: `<div style="width: 24px; height: 24px; background: red; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px rgba(255,0,0,0.8); animation: pulse 1s infinite;"></div>`,
-    iconSize: [30, 30],
-    iconAnchor: [15, 15]
-});
+interface ActiveSession {
+    user_sub: string;
+    user_name: string;
+    lat: number;
+    lng: number;
+    is_active: boolean;
+}
 
-const searcherIcon = new L.DivIcon({
-    className: 'searcher-marker',
-    html: `<div style="width: 20px; height: 20px; background: #0a84ff; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 8px rgba(10,132,255,0.6);"></div>`,
-    iconSize: [24, 24],
-    iconAnchor: [12, 12]
-});
+function createLabeledIcon(name: string, color: string, pulse: boolean) {
+    return new L.DivIcon({
+        className: '',
+        html: `<div style="display:flex;flex-direction:column;align-items:center;pointer-events:none;">
+            <div style="background:rgba(0,0,0,0.75);color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:8px;white-space:nowrap;margin-bottom:4px;border:1px solid ${color};backdrop-filter:blur(6px);">${name || '?'}</div>
+            <div style="width:20px;height:20px;background:${color};border-radius:50%;border:3px solid #fff;box-shadow:0 0 10px ${color}80;${pulse ? 'animation:pulse 1s infinite;' : ''}"></div>
+        </div>`,
+        iconSize: [80, 46],
+        iconAnchor: [40, 46]
+    });
+}
 
 function AutoPan({ position }: { position: [number, number] | null }) {
     const map = useMap();
+    const didPan = useRef(false);
     useEffect(() => {
-        if (position) map.setView(position, map.getZoom(), { animate: true });
+        if (position && !didPan.current) {
+            map.setView(position, map.getZoom(), { animate: true });
+            didPan.current = true;
+        }
     }, [position, map]);
     return null;
 }
 
 const anonSupabase = getSupabaseAnon();
 
-export default function LiveMap({ tripId, onBack }: { tripId: string, onBack: () => void }) {
+export default function LiveMap({ tripId, onBack, currentUserSub }: { tripId: string; onBack: () => void; currentUserSub?: string }) {
     const { t } = useTranslation();
-    const [victimLoc, setVictimLoc] = useState<[number, number] | null>(null);
-    const [myLoc, setMyLoc] = useState<[number, number] | null>(null);
+    const [sessions, setSessions] = useState<ActiveSession[]>([]);
     const [isSOSActive, setIsSOSActive] = useState(true);
-
-    useEffect(() => {
-        if ("geolocation" in navigator) {
-            const watchId = navigator.geolocation.watchPosition(
-                (pos) => setMyLoc([pos.coords.latitude, pos.coords.longitude]),
-                (err) => console.error("Searcher LOC err:", err),
-                { enableHighAccuracy: true }
-            );
-            return () => navigator.geolocation.clearWatch(watchId);
-        }
-    }, []);
 
     useEffect(() => {
         if (!tripId) return;
 
-        // Fetch initial
+        // Fetch all active sessions
         anonSupabase.from('trip_sos_sessions')
-            .select('lat, lng, is_active')
+            .select('user_sub, user_name, lat, lng, is_active')
             .eq('trip_id', tripId)
             .eq('is_active', true)
-            .order('updated_at', { ascending: false })
-            .limit(1)
             .then(({ data }) => {
                 if (data && data.length > 0) {
-                    setVictimLoc([data[0].lat, data[0].lng]);
-                    setIsSOSActive(data[0].is_active);
+                    setSessions(data as ActiveSession[]);
+                    setIsSOSActive(true);
                 }
             });
 
-        // Subscribe
-        const channel = anonSupabase.channel('sos_updates')
+        // Subscribe to all changes
+        const channel = anonSupabase.channel(`sos_updates_${tripId}`)
             .on('postgres_changes', {
                 event: '*',
                 schema: 'public',
@@ -74,14 +70,21 @@ export default function LiveMap({ tripId, onBack }: { tripId: string, onBack: ()
                 filter: `trip_id=eq.${tripId}`
             }, (payload) => {
                 const row = payload.new as any;
-                setIsSOSActive(row.is_active);
-                if (row.is_active) setVictimLoc([row.lat, row.lng]);
+                setSessions(prev => {
+                    const filtered = prev.filter(s => s.user_sub !== row.user_sub);
+                    if (row.is_active) {
+                        return [...filtered, { user_sub: row.user_sub, user_name: row.user_name || '', lat: row.lat, lng: row.lng, is_active: true }];
+                    }
+                    return filtered;
+                });
             }).subscribe();
 
         return () => {
             anonSupabase.removeChannel(channel);
         };
     }, [tripId]);
+
+    const firstLoc: [number, number] | null = sessions.length > 0 ? [sessions[0].lat, sessions[0].lng] : null;
 
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: '#000' }}>
@@ -97,28 +100,28 @@ export default function LiveMap({ tripId, onBack }: { tripId: string, onBack: ()
                 <button onClick={onBack} style={{ cursor: 'pointer', background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)', border: 'none', color: '#fff', padding: '10px 16px', borderRadius: 20, fontWeight: 700 }}>
                     ← {t('liveMap.back')}
                 </button>
-                <div style={{ background: isSOSActive ? 'rgba(255,0,0,0.8)' : 'rgba(100,100,100,0.8)', color: '#fff', padding: '10px 16px', borderRadius: 20, fontWeight: 700, flex: 1, textAlign: 'center' }}>
-                    {isSOSActive ? `🚨 ${t('liveMap.liveTracking')}` : t('liveMap.resolved')}
+                <div style={{ background: sessions.length > 0 ? 'rgba(255,0,0,0.8)' : 'rgba(100,100,100,0.8)', color: '#fff', padding: '10px 16px', borderRadius: 20, fontWeight: 700, flex: 1, textAlign: 'center' }}>
+                    {sessions.length > 0 ? `🚨 ${t('liveMap.liveTracking')}` : t('liveMap.resolved')}
                 </div>
             </div>
 
-            {(victimLoc || myLoc) ? (
-                <MapContainer center={victimLoc || myLoc || [0, 0]} zoom={16} zoomControl={false} style={{ width: '100vw', height: '100vh' }}>
+            {firstLoc ? (
+                <MapContainer center={firstLoc} zoom={16} zoomControl={false} style={{ width: '100vw', height: '100vh' }}>
                     <TileLayer
                         attribution='&copy; OpenStreetMap'
                         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     />
-                    {victimLoc && isSOSActive && (
-                        <Marker position={victimLoc} icon={victimIcon}>
-                            <Popup>{t('liveMap.sosLocation')}</Popup>
-                        </Marker>
-                    )}
-                    {myLoc && (
-                        <Marker position={myLoc} icon={searcherIcon}>
-                            <Popup>{t('liveMap.you')}</Popup>
-                        </Marker>
-                    )}
-                    <AutoPan position={victimLoc} />
+                    {sessions.map(s => {
+                        const isMe = s.user_sub === currentUserSub;
+                        const color = isMe ? '#0a84ff' : '#ff3b30';
+                        const label = isMe ? `📍 ${s.user_name || t('liveMap.you')}` : `🚨 ${s.user_name || t('liveMap.sosLocation')}`;
+                        return (
+                            <Marker key={s.user_sub} position={[s.lat, s.lng]} icon={createLabeledIcon(label, color, !isMe)}>
+                                <Popup>{s.user_name || (isMe ? t('liveMap.you') : t('liveMap.sosLocation'))}</Popup>
+                            </Marker>
+                        );
+                    })}
+                    <AutoPan position={firstLoc} />
                 </MapContainer>
             ) : (
                 <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
