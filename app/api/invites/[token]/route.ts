@@ -62,3 +62,21 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
 
   return NextResponse.json(trip);
 }
+
+export async function DELETE(_req: NextRequest, { params }: { params: { token: string } }) {
+  const sb = getSupabaseAdmin();
+
+  const { data: tokenRow, error } = await sb
+    .from('invite_tokens').select('*').eq('token', params.token).single();
+
+  if (error || !tokenRow) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (tokenRow.used_at || new Date(tokenRow.expires_at) < new Date())
+    return NextResponse.json({ error: 'Expired or already used' }, { status: 410 });
+
+  // Mark token as used
+  await sb.from('invite_tokens').update({ used_at: new Date().toISOString() }).eq('id', tokenRow.id);
+  // Update member status to declined
+  await sb.from('trip_members').update({ status: 'declined' }).eq('id', tokenRow.member_id);
+
+  return new NextResponse(null, { status: 204 });
+}

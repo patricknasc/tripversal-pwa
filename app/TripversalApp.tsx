@@ -75,7 +75,7 @@ interface TripMember {
   avatarUrl?: string;
   googleSub?: string;
   role: "admin" | "member";
-  status: "pending" | "accepted";
+  status: "pending" | "accepted" | "declined";
   invitedAt: string;
   acceptedAt?: string;
 }
@@ -396,7 +396,7 @@ function rowToTrip(row: any): Trip {
       avatarUrl: m.avatar_url,
       googleSub: m.google_sub,
       role: m.role as "admin" | "member",
-      status: m.status as "pending" | "accepted",
+      status: m.status as "pending" | "accepted" | "declined",
       invitedAt: m.invited_at,
       acceptedAt: m.accepted_at,
     })),
@@ -5146,6 +5146,13 @@ const InviteAcceptScreen = ({ token, user, onDone, onDecline }: any) => {
     } catch { setState('valid'); }
   };
 
+  const handleDecline = async () => {
+    try {
+      await fetch(`/api/invites/${token}`, { method: 'DELETE' });
+    } catch { }
+    onDecline();
+  };
+
   if (state === 'loading' || state === 'accepting') return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", gap: 16 }}>
       <div style={{ width: 48, height: 48, border: `3px solid ${C.card3}`, borderTopColor: C.cyan, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
@@ -5178,7 +5185,7 @@ const InviteAcceptScreen = ({ token, user, onDone, onDecline }: any) => {
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
         <Btn onClick={handleAccept} style={{ width: "100%" }}>{t('invite.joinBtn')}</Btn>
-        <Btn onClick={onDecline} variant="ghost" style={{ width: "100%" }}>{t('invite.declineBtn')}</Btn>
+        <Btn onClick={handleDecline} variant="ghost" style={{ width: "100%" }}>{t('invite.declineBtn')}</Btn>
       </div>
     </div>
   );
@@ -5432,6 +5439,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
   const segments: TripSegment[] = trip.segments || [];
   const accepted = crew.filter((m: TripMember) => m.status === 'accepted');
   const pending = crew.filter((m: TripMember) => m.status === 'pending');
+  const declinedMembers = crew.filter((m: TripMember) => m.status === 'declined');
   const myMember = crew.find((m: TripMember) => m.googleSub === user?.sub);
   const myMemberId = myMember?.id || '';
   const isAdmin = myMember?.role === 'admin';
@@ -5656,6 +5664,26 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
                     </div>
                     {isAdmin && (
                       <button onClick={() => setConfirmRemoveId(m.id)} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "6px 10px", cursor: "pointer", color: C.red, fontSize: 12, fontFamily: "inherit" }}>{t('crew.revoke')}</button>
+                    )}
+                  </div>
+                </Card>
+              ))}
+            </>
+          )}
+
+          {declinedMembers.length > 0 && (
+            <>
+              <div style={{ color: C.red, fontSize: 11, letterSpacing: 1, marginBottom: 8, marginTop: 16 }}>{t('crew.declinedLabel', { count: declinedMembers.length })}</div>
+              {declinedMembers.map((m: TripMember) => (
+                <Card key={m.id} style={{ marginBottom: 8, opacity: 0.6 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 42, height: 42, borderRadius: "50%", background: C.card3, border: `2px solid ${C.red}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>❌</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{m.email}</div>
+                      <div style={{ color: C.red, fontSize: 11 }}>{t('crew.declinedInvite', 'Recusou o convite')}</div>
+                    </div>
+                    {isAdmin && (
+                      <button onClick={() => setConfirmRemoveId(m.id)} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "6px 10px", cursor: "pointer", color: C.red, fontSize: 12, fontFamily: "inherit" }}>{t('crew.remove', 'Remover')}</button>
                     )}
                   </div>
                 </Card>
