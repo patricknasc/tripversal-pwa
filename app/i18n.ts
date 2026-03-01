@@ -19,6 +19,13 @@ const resources = {
                 syncing: "Syncing..."
             },
             settings: {
+                vapidMissing: 'Push credentials missing. Contact support.',
+                pushAlreadyActive: 'Push is already active!',
+                pushNotSupported: 'Browser does not support Push. Try adding to Home Screen (iOS).',
+                pushDenied: 'Permission denied.',
+                pushSubFailed: 'Failed to save subscription.',
+                pushSuccess: 'Emergency Alerts activated!',
+                pushWarn: 'Warning: ',
                 general: "GENERAL",
                 language: "Language",
                 changeAvatar: "Change Avatar",
@@ -507,6 +514,13 @@ const resources = {
                 syncing: "Sincronizando..."
             },
             settings: {
+                vapidMissing: 'VAPID URL ausente',
+                pushAlreadyActive: 'Push já ativado!',
+                pushNotSupported: 'Navegador não suporta Push. Tente adicionar à Tela de Início (iOS).',
+                pushDenied: 'Permissão negada.',
+                pushSubFailed: 'Falha ao salvar a inscrição.',
+                pushSuccess: 'Alertas de Emergência ativados!',
+                pushWarn: 'Aviso: ',
                 general: "GERAL",
                 language: "Idioma",
                 changeAvatar: "Mudar Foto",
@@ -995,6 +1009,13 @@ const resources = {
                 syncing: "Sincronizando..."
             },
             settings: {
+                vapidMissing: 'Falta la URL de VAPID.',
+                pushAlreadyActive: '¡Push ya activado!',
+                pushNotSupported: 'El navegador no soporta Push. Intenta añadir a Inicio (iOS).',
+                pushDenied: 'Permiso denegado.',
+                pushSubFailed: 'Fallo al guardar la suscripción.',
+                pushSuccess: '¡Alertas de Emergencia activadas!',
+                pushWarn: 'Aviso: ',
                 general: "GENERAL",
                 language: "Idioma",
                 changeAvatar: "Cambiar Foto",
@@ -1483,6 +1504,13 @@ const resources = {
                 syncing: "Синхронизация..."
             },
             settings: {
+                vapidMissing: 'Внимание: отсутствует VAPID URL',
+                pushAlreadyActive: 'Push уже активирован!',
+                pushNotSupported: 'Браузер не поддерживает Push. Попробуйте добавить на главный экран (iOS).',
+                pushDenied: 'Доступ запрещен.',
+                pushSubFailed: 'Не удалось сохранить подписку.',
+                pushSuccess: 'Экстренные оповещения активированы!',
+                pushWarn: 'Предупреждение: ',
                 general: "ОБЩИЕ",
                 language: "Язык",
                 changeAvatar: "Сменить Аватар",
@@ -1971,6 +1999,13 @@ const resources = {
                 syncing: "同步中..."
             },
             settings: {
+                vapidMissing: '缺少VAPID URL配置',
+                pushAlreadyActive: '推送已启用！',
+                pushNotSupported: '浏览器不支持推送。请尝试添加到主屏幕 (iOS)。',
+                pushDenied: '权限被拒绝。',
+                pushSubFailed: '保存订阅失败。',
+                pushSuccess: '紧急警报已激活！',
+                pushWarn: '警告：',
                 general: "常规",
                 language: "语言",
                 changeAvatar: "更改头像",

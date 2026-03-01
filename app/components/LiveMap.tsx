@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAnon } from '../../lib/supabase';
 
 const victimIcon = new L.DivIcon({
     className: 'victim-marker',
@@ -28,10 +28,7 @@ function AutoPan({ position }: { position: [number, number] | null }) {
     return null;
 }
 
-const anonSupabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const anonSupabase = getSupabaseAnon();
 
 export default function LiveMap({ tripId, onBack }: { tripId: string, onBack: () => void }) {
     const [victimLoc, setVictimLoc] = useState<[number, number] | null>(null);

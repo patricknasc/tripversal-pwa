@@ -6197,12 +6197,9 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
   );
 };
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAnon } from '../lib/supabase';
 
-const anonSupabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const anonSupabase = getSupabaseAnon();
 
 function useLiveLocation(isActive: boolean, userSub?: string, tripId?: string) {
   useEffect(() => {
