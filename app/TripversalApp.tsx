@@ -3114,7 +3114,7 @@ const WalletScreen = ({ onAddExpense, onShowGroup, activeTripId, user, trips = [
         <div style={{ position: "fixed", bottom: 90, right: "calc(50% - 200px)", width: 56, height: 56, borderRadius: "50%", background: C.cyan, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: `0 4px 20px ${C.cyan}50` }}
           onClick={() => {
             if (totalBudgetInBase <= 0) {
-              alert(t('wallet.needBudgetAlert'));
+              showToast(t('wallet.needBudgetAlert'), 'error');
               setWalletTab('budget');
             } else {
               onAddExpense();
@@ -3978,11 +3978,18 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
 
   const handleDelete = async (postId: string) => {
     if (!isOnline) return;
-    if (!confirm('Delete this post? This cannot be undone.')) return;
-    setPosts(prev => prev.filter(p => p.id !== postId));
-    await fetch(`/api/trips/${activeTripId}/social/${postId}`, {
-      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userSub: user?.sub }),
+    showConfirmModal({
+      title: t('photos.deletePost', 'Excluir post'),
+      message: t('photos.deletePostConfirm', 'Excluir este post? Essa ação não pode ser desfeita.'),
+      confirmLabel: t('photos.deleteConfirmBtn', 'Excluir'),
+      variant: 'danger',
+      onConfirm: async () => {
+        setPosts(prev => prev.filter(p => p.id !== postId));
+        await fetch(`/api/trips/${activeTripId}/social/${postId}`, {
+          method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userSub: user?.sub }),
+        });
+      },
     });
   };
 
@@ -4547,9 +4554,9 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
       if (!res.ok) throw new Error(t('settings.pushSubFailed'));
 
       setPushEnabled(true);
-      alert(t('settings.pushSuccess'));
+      showToast(t('settings.pushSuccess'), 'success');
     } catch (e: any) {
-      alert(t('settings.pushWarn') + e.message);
+      showToast(t('settings.pushWarn') + e.message, 'error');
     }
     setPushLoading(false);
   };
@@ -6107,9 +6114,13 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
                     {isAssigned && !isOnlyCreator && !isAdmin && (
                       <div style={{ marginTop: 16, borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
                         <button onClick={() => {
-                          if (confirm("Are you sure you want to leave this segment?")) {
-                            handleSegmentMembership(seg.id, 'leave_segment');
-                          }
+                          showConfirmModal({
+                            title: t('segments.leaveSegmentTitle', 'Sair do segmento'),
+                            message: t('segments.leaveSegmentConfirm', 'Tem certeza que deseja sair deste segmento?'),
+                            confirmLabel: t('segments.leaveSegmentBtn'),
+                            variant: 'danger',
+                            onConfirm: () => handleSegmentMembership(seg.id, 'leave_segment'),
+                          });
                         }} style={{ width: "100%", background: "transparent", border: "none", color: C.red, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
                           {t('segments.leaveSegmentBtn')}
                         </button>
@@ -7226,6 +7237,8 @@ export default function TripversalApp() {
   return (
     <GoogleOAuthProvider clientId="389526326520-u55cak6f7dg9ckondrn97slfqj86f2j9.apps.googleusercontent.com">
       <AppShell />
+      <ToastOverlay />
+      <ConfirmOverlay />
     </GoogleOAuthProvider>
   );
 }
