@@ -139,6 +139,7 @@ interface ConflictSegment {
 interface SegmentConflict { a: ConflictSegment; b: ConflictSegment; }
 
 type ItinEventType = 'flight' | 'train' | 'bus' | 'car' | 'ferry' | 'hotel_in' | 'hotel_out' | 'tour' | 'meal' | 'event' | 'place' | 'other';
+type TripversalTab = 'home' | 'itinerary' | 'wallet' | 'photos' | 'group';
 
 interface ItineraryEventRecord {
   id: string;
@@ -1263,9 +1264,9 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
             <div onClick={() => { setSelectedActivityExp(null); setHomeEditMode(false); setHomeConfirmDelete(false); }}
               style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 200 }} />
             <div style={{
-              position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
-              width: "100%", maxWidth: 430, background: C.card, borderRadius: "20px 20px 0 0",
-              padding: "20px 20px 40px", zIndex: 201, maxHeight: "80vh", overflowY: "auto"
+              position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+              width: "calc(100% - 40px)", maxWidth: 390, background: C.card, borderRadius: 24,
+              padding: "24px 20px 32px", zIndex: 201, maxHeight: "85vh", overflowY: "auto"
             }}>
               <div style={{ width: 40, height: 4, background: C.border, borderRadius: 2, margin: "0 auto 16px" }} />
               {!homeEditMode && !homeConfirmDelete ? (
@@ -2013,7 +2014,11 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub, onNav, onShowGroup
       {showEventForm && (
         <>
           <div onClick={() => setShowEventForm(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 200 }} />
-          <div style={{ position: "fixed", bottom: 0, left: "max(0px, calc(50% - 215px))", right: "max(0px, calc(50% - 215px))", background: C.card, borderRadius: "24px 24px 0 0", padding: "20px 20px 44px", zIndex: 201, maxHeight: "92vh", overflowY: "auto" }}>
+          <div style={{
+            position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+            width: "calc(100% - 40px)", maxWidth: 410, background: C.card, borderRadius: 24,
+            padding: "20px", zIndex: 201, maxHeight: "90vh", overflowY: "auto"
+          }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
               <div style={{ fontSize: 17, fontWeight: 700 }}>{editingEventId ? "Edit Event" : t("itinerary.addBtn")}</div>
               <button onClick={() => setShowEventForm(false)} style={{ background: C.card3, border: "none", borderRadius: "50%", width: 30, height: 30, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -3106,8 +3111,8 @@ const WalletScreen = ({ onAddExpense, onShowGroup, activeTripId, user, trips = [
           })}
 
           {confirmDeleteBudgetId && (
-            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 300, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-              <div style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "20px 20px 0 0", padding: "28px 20px 44px" }}>
+            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+              <div style={{ width: "100%", maxWidth: 380, background: C.card, borderRadius: 24, padding: "28px 20px" }}>
                 <div style={{ textAlign: "center", marginBottom: 24 }}>
                   <div style={{ fontSize: 17, fontWeight: 800, color: C.text, marginBottom: 6 }}>{t('wallet.deleteBudgetTitle')}</div>
                   <div style={{ color: C.textMuted, fontSize: 13 }}>{t('wallet.deleteBudgetWarning')}</div>
@@ -3143,9 +3148,9 @@ const WalletScreen = ({ onAddExpense, onShowGroup, activeTripId, user, trips = [
             <div onClick={() => { setSelectedExpenseId(null); setEditMode(false); setConfirmDelete(false); }}
               style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 200 }} />
             <div style={{
-              position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
-              width: "100%", maxWidth: 430, background: C.card, borderRadius: "20px 20px 0 0",
-              padding: "20px 20px 40px", zIndex: 201, maxHeight: "80vh", overflowY: "auto"
+              position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+              width: "calc(100% - 40px)", maxWidth: 390, background: C.card, borderRadius: 24,
+              padding: "24px 20px 32px", zIndex: 201, maxHeight: "85vh", overflowY: "auto"
             }}>
               <div style={{ width: 40, height: 4, background: C.border, borderRadius: 2, margin: "0 auto 16px" }} />
               {!editMode && !confirmDelete ? (
@@ -4222,8 +4227,8 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
 
       {/* Reaction detail modal */}
       {reactionDetailPost && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 400, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => setReactionDetailPost(null)}>
-          <div style={{ background: C.card, borderRadius: "20px 20px 0 0", padding: "20px 20px 40px", width: "100%", maxWidth: 480, maxHeight: "60vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={() => setReactionDetailPost(null)}>
+          <div style={{ background: C.card, borderRadius: 24, padding: "24px 20px", width: "100%", maxWidth: 380, maxHeight: "70vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
             <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 16 }}>{t('social.reactionsTitle')}</div>
             {(() => {
               const grouped: Record<string, SocialReaction[]> = {};
@@ -4246,8 +4251,8 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
 
       {/* Viewer modal */}
       {viewerPostId && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 400, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => setViewerPostId(null)}>
-          <div style={{ background: C.card, borderRadius: "20px 20px 0 0", padding: "20px 20px 40px", width: "100%", maxWidth: 480, maxHeight: "55vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={() => setViewerPostId(null)}>
+          <div style={{ background: C.card, borderRadius: 24, padding: "24px 20px", width: "100%", maxWidth: 380, maxHeight: "65vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
             <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 16 }}>{t('social.viewedByTitle')}</div>
             {viewersLoading ? (
               <div style={{ textAlign: "center", color: C.textMuted, fontSize: 13, padding: "20px 0" }}>{t('social.loading')}</div>
@@ -5822,9 +5827,9 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
           )}
 
           {confirmRemoveId && (
-            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-              <div style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "20px 20px 0 0", padding: "24px 20px 40px" }}>
-                <div style={{ textAlign: "center", marginBottom: 20 }}>
+            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+              <div style={{ width: "100%", maxWidth: 380, background: C.card, borderRadius: 24, padding: "28px 20px" }}>
+                <div style={{ textAlign: "center", marginBottom: 24 }}>
                   <div style={{ fontSize: 16, fontWeight: 800, color: C.red, marginBottom: 8 }}>{t('crew.removeTitle')}</div>
                   <div style={{ color: C.textMuted, fontSize: 13 }}>{t('crew.removeDesc')}</div>
                 </div>
@@ -5844,9 +5849,9 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
           </div>
 
           {confirmLeave && (
-            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-              <div style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "20px 20px 0 0", padding: "24px 20px 40px" }}>
-                <div style={{ textAlign: "center", marginBottom: 20 }}>
+            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+              <div style={{ width: "100%", maxWidth: 380, background: C.card, borderRadius: 24, padding: "28px 20px" }}>
+                <div style={{ textAlign: "center", marginBottom: 24 }}>
                   <div style={{ fontSize: 16, fontWeight: 800, color: C.red, marginBottom: 8 }}>{t('crew.leaveTitle')}</div>
                   <div style={{ color: C.textMuted, fontSize: 13 }}>{t('crew.leaveDesc')}</div>
                 </div>
@@ -6153,8 +6158,8 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
           })}
           {/* Fullscreen attachment viewer */}
           {viewAtt && (
-            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.95)", zIndex: 400, display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", padding: 20 }}>
-              <div style={{ width: "100%", maxWidth: 400 }}>
+            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+              <div style={{ background: C.card, borderRadius: 24, padding: "28px 20px", width: "100%", maxWidth: 380, textAlign: "center" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
                   <div style={{ fontWeight: 700, fontSize: 16 }}>{viewAtt.name}</div>
                   <button onClick={() => setViewAtt(null)} style={{ background: C.card3, border: "none", borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><Icon d={icons.x} size={18} stroke={C.text} /></button>
@@ -6421,8 +6426,8 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
         {confirmDeleteTripId && (() => {
           const tTrip = (trips as Trip[]).find(tr => tr.id === confirmDeleteTripId);
           return (
-            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 380, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setConfirmDeleteTripId(null)}>
-              <div style={{ width: "90%", maxWidth: 400, background: C.card, borderRadius: 24, padding: "28px 20px", textAlign: "center" }} onClick={e => e.stopPropagation()}>
+            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 380, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={() => setConfirmDeleteTripId(null)}>
+              <div style={{ width: "100%", maxWidth: 400, background: C.card, borderRadius: 24, padding: "28px 20px", textAlign: "center" }} onClick={e => e.stopPropagation()}>
                 <div style={{ textAlign: "center", marginBottom: 24 }}>
                   <div style={{ fontSize: 17, fontWeight: 800, color: C.text, marginBottom: 6 }}>{t('group.deleteTripPrompt', { name: tTrip?.name })}</div>
                   <div style={{ color: C.textMuted, fontSize: 13 }}>{t('group.deleteTripDesc')}</div>
@@ -6439,8 +6444,8 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
         {confirmToggleActive && (() => {
           const actionText = confirmToggleActive.action === 'set' ? t('group.promptSet') : t('group.promptUnset');
           return (
-            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setConfirmToggleActive(null)}>
-              <div style={{ width: "90%", maxWidth: 360, background: C.card, borderRadius: 24, padding: "28px 20px", textAlign: "center" }} onClick={e => e.stopPropagation()}>
+            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={() => setConfirmToggleActive(null)}>
+              <div style={{ width: "100%", maxWidth: 360, background: C.card, borderRadius: 24, padding: "28px 20px", textAlign: "center" }} onClick={e => e.stopPropagation()}>
                 <div style={{ fontSize: 18, fontWeight: 800, color: C.text, marginBottom: 12 }}>{actionText}</div>
                 <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
                   <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setConfirmToggleActive(null)}>{t('group.cancelBtn')}</Btn>
@@ -6502,7 +6507,7 @@ function ConfirmDialog({ isOpen, isPanicModeActive, onCancel, onConfirm }: { isO
   return (
     <>
       <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 900 }} onClick={onCancel} />
-      <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "90%", maxWidth: 400, background: C.card, borderRadius: 20, padding: 24, zIndex: 901, textAlign: "center" }}>
+      <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "calc(100% - 40px)", maxWidth: 400, background: C.card, borderRadius: 24, padding: 24, zIndex: 901, textAlign: "center" }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>{isPanicModeActive ? '✅' : '🚨'}</div>
         <div style={{ fontSize: 18, fontWeight: 800, color: C.text, marginBottom: 12 }}>
           {isPanicModeActive ? t('sos.deactivateTitle') : t('sos.activateTitle')}
@@ -7140,7 +7145,7 @@ function AppShell() {
   const sosAlertOverlay = incomingSOSUser ? (
     <>
       <div style={{ position: "fixed", inset: 0, background: "rgba(100,0,0,0.8)", zIndex: 10000 }} onClick={() => setIncomingSOSUser(null)} />
-      <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "90%", maxWidth: 400, background: C.card, borderRadius: 20, padding: 24, zIndex: 10001, textAlign: "center", border: `2px solid ${C.red}` }}>
+      <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "calc(100% - 40px)", maxWidth: 400, background: C.card, borderRadius: 24, padding: 24, zIndex: 10001, textAlign: "center", border: `2px solid ${C.red}` }}>
         <div style={{ fontSize: 50, marginBottom: 12 }}>🚨</div>
         <div style={{ fontSize: 20, fontWeight: 800, color: C.red, marginBottom: 12, textTransform: "uppercase" }}>{t('sos.alertTitle')}</div>
         <div style={{ color: C.text, fontSize: 16, marginBottom: 24, lineHeight: 1.5, fontWeight: 500 }}>
