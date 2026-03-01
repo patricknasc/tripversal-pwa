@@ -504,6 +504,7 @@ const resources = {
             },
             crew: {
                 manageTitle: "Manage",
+                permissionDenied: "Permission denied. Your role may have changed.",
                 crewTab: "CREW",
                 segmentsTab: "SEGMENTS",
                 accepted: "ACCEPTED ({{count}})",
@@ -987,7 +988,7 @@ const resources = {
                 noSafetyInfo: "{{name}} ainda não compartilhou informações de segurança."
             },
             todo: {
-                title: "Afazeres",
+                title: "Tarefas",
                 addTask: "Adicionar Tarefa",
                 newTask: "Nova Tarefa",
                 editTask: "Editar Tarefa",
@@ -1001,7 +1002,7 @@ const resources = {
                 save: "Salvar",
                 cancel: "Cancelar",
                 delete: "Excluir",
-                noTasks: "Nenhum afazer ainda.",
+                noTasks: "Nenhuma tarefa ainda.",
                 overdue: "Atrasado",
                 completed: "Concluído",
                 pending: "Pendente",
@@ -1022,7 +1023,7 @@ const resources = {
                 photo: "FOTO",
                 group: "GRUPO",
                 sos: "SOS",
-                todo: "AFAZERES",
+                todo: "TAREFAS",
                 recentActivity: "ATIVIDADE RECENTE",
                 noExpenses: "Nenhuma atividade ainda.",
                 today: "Hoje",
@@ -1051,6 +1052,7 @@ const resources = {
             },
             crew: {
                 manageTitle: "Gerenciar",
+                permissionDenied: "Permissão negada. Sua função pode ter sido alterada.",
                 crewTab: "GRUPO",
                 segmentsTab: "SEGMENTOS",
                 accepted: "ACEITOS ({{count}})",
@@ -1598,6 +1600,7 @@ const resources = {
             },
             crew: {
                 manageTitle: "Gestionar",
+                permissionDenied: "Permiso denegado. Tu rol puede haber cambiado.",
                 crewTab: "GRUPO",
                 segmentsTab: "SEGMENTOS",
                 accepted: "ACEPTADOS ({{count}})",
@@ -2145,6 +2148,7 @@ const resources = {
             },
             crew: {
                 manageTitle: "Управление",
+                permissionDenied: "Доступ запрещён. Ваша роль могла измениться.",
                 crewTab: "УЧАСТНИКИ",
                 segmentsTab: "СЕГМЕНТЫ",
                 accepted: "ПРИНЯТО ({{count}})",
@@ -2692,6 +2696,7 @@ const resources = {
             },
             crew: {
                 manageTitle: "管理",
+                permissionDenied: "权限被拒绝。您的角色可能已更改。",
                 crewTab: "成员",
                 segmentsTab: "行程段",
                 accepted: "已接受 ({{count}})",

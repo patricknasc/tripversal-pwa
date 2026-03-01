@@ -5286,6 +5286,25 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
       .then(row => { if (row) onTripUpdate(rowToTrip(row)); })
       .catch(() => { });
   }, [trip?.id]);
+
+  // Real-time subscription to trip_members changes
+  useEffect(() => {
+    if (!trip?.id) return;
+    const channel = anonSupabase.channel(`crew_sync_${trip.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'trip_members',
+        filter: `trip_id=eq.${trip.id}`
+      }, () => {
+        // Re-fetch the full trip to get the latest member data
+        fetch(`/api/trips/${trip.id}`)
+          .then(r => r.ok ? r.json() : null)
+          .then(row => { if (row) onTripUpdate(rowToTrip(row)); })
+          .catch(() => { });
+      }).subscribe();
+    return () => { anonSupabase.removeChannel(channel); };
+  }, [trip?.id]);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviting, setInviting] = useState(false);
   const [inviteToast, setInviteToast] = useState<string | null>(null);
@@ -5404,11 +5423,12 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
   const handleRoleChange = async (memberId: string, role: 'admin' | 'member') => {
     setMenuMemberId(null);
     try {
-      await fetch(`/api/trips/${trip.id}/members/${memberId}`, {
+      const res = await fetch(`/api/trips/${trip.id}/members/${memberId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ callerSub: user.sub, role }),
       });
+      if (!res.ok) { showToast(t('crew.permissionDenied') || 'Permission denied'); return; }
       onTripUpdate({ ...trip, crew: crew.map((m: TripMember) => m.id === memberId ? { ...m, role } : m) });
     } catch { showToast("Failed to update role."); }
   };
@@ -5416,11 +5436,12 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
   const handleRemoveMember = async (memberId: string) => {
     setConfirmRemoveId(null);
     try {
-      await fetch(`/api/trips/${trip.id}/members/${memberId}`, {
+      const res = await fetch(`/api/trips/${trip.id}/members/${memberId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ callerSub: user.sub }),
       });
+      if (!res.ok) { showToast(t('crew.permissionDenied') || 'Permission denied'); return; }
       onTripUpdate({ ...trip, crew: crew.filter((m: TripMember) => m.id !== memberId) });
     } catch { showToast("Failed to remove member."); }
   };
@@ -6793,8 +6814,6 @@ function AppShell() {
     content = <LiveMap tripId={activeTripId!} onBack={() => setShowLiveMap(false)} currentUserSub={user?.sub} />;
   } else if (showAddExpense) {
     content = <AddExpenseScreen onBack={() => setShowAddExpense(false)} onGoToBudget={handleGoToBudget} activeTripId={activeTripId} activeTrip={activeTrip} user={user} />;
-  } else if (showTodo) {
-    content = <TodoScreen activeTripId={activeTripId} onBack={() => setShowTodo(false)} />;
   } else if (showHistory) {
     content = <TransactionHistoryScreen onBack={() => setShowHistory(false)} />;
   } else if (showManageCrew) {
@@ -6858,6 +6877,17 @@ function AppShell() {
   }
 
   const activeTab = showSettings || showManageCrew || showAddExpense || showHistory || showTodo ? null : tab;
+
+  if (showTodo) {
+    return (
+      <div style={{ background: "#000", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <GlobalStyles />
+        <div style={{ width: "100%", maxWidth: 430, minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", overflowY: 'auto' }}>
+          <TodoScreen activeTripId={activeTripId} onBack={() => setShowTodo(false)} />
+        </div>
+      </div>
+    );
+  }
 
   if (pendingInviteToken) {
     return (
