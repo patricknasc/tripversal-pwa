@@ -15,52 +15,67 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
 import webpush from 'web-push';
 
-webpush.setVapidDetails(
-  'mailto:support@voyasync.com',
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '',
-  process.env.VAPID_PRIVATE_KEY || ''
-);
+let webpushConfigured = false;
+function getConfiguredWebPush() {
+  if (!webpushConfigured && process.env.VAPID_PRIVATE_KEY && process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) {
+    webpush.setVapidDetails(
+      'mailto:support@voyasync.com',
+      process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+      process.env.VAPID_PRIVATE_KEY
+    );
+    webpushConfigured = true;
+  }
+  return webpushConfigured ? webpush : null;
+}
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const body = await req.json();
   const { callerSub, callerName, action, subject } = body;
   if (!callerSub || !action) return NextResponse.json({ error: 'callerSub and action required' }, { status: 400 });
 
+  // SOS broadcast logic (fire-and-forget for speed)
   if (action === 'SOS_ALERT') {
-    // Broadcast Web Push to all trip members EXCEPT caller
-    const { data: members } = await getSupabaseAdmin()
-      .from('user_trips')
-      .select('user_sub')
-      .eq('trip_id', params.id)
-      .neq('user_sub', callerSub);
+    const wp = getConfiguredWebPush();
+    if (wp) {
+      const sb = getSupabaseAdmin(); // Renamed to sb for brevity as in the provided diff
+      // Fetch trip members (excluding the caller) and their push subscriptions concurrently
+      Promise.all([
+        sb.from('trips').select('members').eq('id', params.id).single(),
+        sb.from('user_trips').select('user_sub').eq('trip_id', params.id).neq('user_sub', callerSub)
+      ]).then(async (promisesResults) => {
+        const tripData = promisesResults[0]?.data;
+        const members = promisesResults[1]?.data;
 
-    if (members && members.length > 0) {
-      const memberSubs = members.map((m: any) => m.user_sub);
-      const { data: subs } = await getSupabaseAdmin()
-        .from('user_push_subscriptions')
-        .select('*')
-        .in('user_sub', memberSubs);
+        if (members && members.length > 0) {
+          const memberSubs = members.map((m: any) => m.user_sub);
+          const { data: subs } = await sb
+            .from('user_push_subscriptions')
+            .select('*')
+            .in('user_sub', memberSubs);
 
-      if (subs && subs.length > 0) {
-        const payload = JSON.stringify({
-          title: `🚨 EMERGÊNCIA: ${callerName || 'Membro'} ativou o SOS!`,
-          body: `Abra o aplicativo agora para ver a localização ao vivo.`,
-          url: `/`
-        });
-
-        await Promise.allSettled(subs.map(async sub => {
-          try {
-            await webpush.sendNotification({
-              endpoint: sub.endpoint,
-              keys: { p256dh: sub.p256dh, auth: sub.auth }
-            }, payload);
-          } catch (e: any) {
-            if (e.statusCode === 410 || e.statusCode === 404) {
-              await getSupabaseAdmin().from('user_push_subscriptions').delete().eq('endpoint', sub.endpoint);
-            }
+          if (subs && subs.length > 0) {
+            const notifications = subs.map(async (sub: any) => {
+              const payload = JSON.stringify({
+                title: `🚨 EMERGÊNCIA: ${callerName || 'Membro'} ativou o SOS!`,
+                body: `Abra o aplicativo agora para ver a localização ao vivo.`,
+                url: `/`
+              });
+              try {
+                await wp.sendNotification(
+                  { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+                  payload
+                );
+              } catch (e: any) {
+                console.error('Push error:', e);
+                if (e.statusCode === 410 || e.statusCode === 404) {
+                  await sb.from('user_push_subscriptions').delete().eq('endpoint', sub.endpoint);
+                }
+              }
+            });
+            Promise.allSettled(notifications).catch(console.error);
           }
-        }));
-      }
+        }
+      }).catch(console.error);
     }
   }
 

@@ -758,6 +758,7 @@ const BottomNav = ({ active, onNav }: any) => {
 };
 
 const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTripId, activeTrip, user, isPanicModeActive, onSOS, onShowMap }: any) => {
+  const { t } = useTranslation();
   const [budget, setBudget] = useState<TripBudget>(DEFAULT_BUDGET);
   const [todaySpent, setTodaySpent] = useState(0);
   const [yesterdaySpent, setYesterdaySpent] = useState(0);
@@ -985,16 +986,16 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
         </div>
         {yesterdaySpent > 0 && (
           <div style={{ color: C.textSub, fontSize: 11, marginTop: 6, textAlign: "right" }}>
-            vs yesterday {currSym(budgetCurrency)}{fmtAmt(yesterdaySpent)}
+            {t('home.vsYesterday')} {currSym(budgetCurrency)}{fmtAmt(yesterdaySpent)}
           </div>
         )}
         {!activeSavedBudget && (
           <div style={{ marginTop: 16, background: C.card3, border: `1px dashed ${C.border}`, borderRadius: 14, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.red }} />
-              <span style={{ color: C.textMuted, fontSize: 13, fontWeight: 600 }}>No budget set</span>
+              <span style={{ color: C.textMuted, fontSize: 13, fontWeight: 600 }}>{t('home.noBudget')}</span>
             </div>
-            <button onClick={() => onCreateBudget ? onCreateBudget() : onNav('wallet')} style={{ background: C.card, border: `1px solid ${C.cyan}`, color: C.cyan, borderRadius: 16, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Create one</button>
+            <button onClick={() => onCreateBudget ? onCreateBudget() : onNav('wallet')} style={{ background: C.card, border: `1px solid ${C.cyan}`, color: C.cyan, borderRadius: 16, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{t('home.createOne')}</button>
           </div>
         )}
       </div>
@@ -1008,7 +1009,7 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
         const diffMs = eventDate.getTime() - Date.now();
         const diffH = Math.floor(diffMs / 3_600_000);
         const diffM = Math.floor((diffMs % 3_600_000) / 60_000);
-        const timeLabel = diffMs < 0 ? "NOW" : diffH > 0 ? `IN ${diffH}H ${diffM}M` : `IN ${diffM}M`;
+        const timeLabel = diffMs < 0 ? t('home.now') : diffH > 0 ? t('home.inTime', { h: diffH, m: diffM }) : t('home.inMins', { m: diffM });
         const catIcon = CATEGORY_ICONS[next.category] || icons.calendar;
         return (
           <div style={{ margin: "16px 20px 0", background: "linear-gradient(135deg, #0d2526 0%, #0a1a1a 100%)", borderRadius: 20, padding: 20, border: `1px solid ${C.cyan}20` }}>
@@ -1024,19 +1025,19 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
             {next.subtitle && <div style={{ color: C.textMuted, fontSize: 14, marginBottom: 14 }}>{next.subtitle}</div>}
             <div style={{ display: "flex", gap: 10 }}>
               {next.location?.address && (
-                <Btn style={{ flex: 1, borderRadius: 12 }} variant="secondary" onClick={() => openMapLink(next.location?.address, next.location?.lat, next.location?.lng)} icon={<Icon d={icons.navigation} size={16} />}>Directions</Btn>
+                <Btn style={{ flex: 1, borderRadius: 12 }} variant="secondary" onClick={() => openMapLink(next.location?.address, next.location?.lat, next.location?.lng)} icon={<Icon d={icons.navigation} size={16} />}>{t('home.directions')}</Btn>
               )}
-              <Btn style={{ flex: 1, borderRadius: 12 }} variant="secondary" onClick={() => onNav("itinerary")} icon={<Icon d={icons.calendar} size={16} />}>Itinerary</Btn>
+              <Btn style={{ flex: 1, borderRadius: 12 }} variant="secondary" onClick={() => onNav("itinerary")} icon={<Icon d={icons.calendar} size={16} />}>{t('home.itineraryBtn')}</Btn>
             </div>
           </div>
         );
       })()}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, margin: "16px 20px 0" }}>
         {[
-          { label: "EXPENSE", icon: icons.plus, action: onAddExpense },
-          { label: "PHOTO", icon: icons.camera, action: () => onNav("photos") },
-          { label: "GROUP", icon: icons.users, action: onShowGroup },
-          { label: "SOS", icon: icons.phone, variant: isPanicModeActive ? "red" : undefined, action: onSOS },
+          { label: t('home.expense'), icon: icons.plus, action: onAddExpense },
+          { label: t('home.photo'), icon: icons.camera, action: () => onNav("photos") },
+          { label: t('home.group'), icon: icons.users, action: onShowGroup },
+          { label: t('home.sos'), icon: icons.phone, variant: isPanicModeActive ? "red" : undefined, action: onSOS },
         ].map(({ label, icon, variant, action }: any) => (
           <button key={label} onClick={action} style={{ background: variant === "red" ? C.redDim : C.card2, borderRadius: 16, padding: "16px 8px", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
             <Icon d={icon} size={22} stroke={variant === "red" ? C.red : C.cyan} />
@@ -1045,7 +1046,7 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
         ))}
       </div>
       <div style={{ margin: "20px 20px 0" }}>
-        <SectionLabel>RECENT ACTIVITY</SectionLabel>
+        <SectionLabel>{t('home.recentActivity')}</SectionLabel>
         {(() => {
           const activityItems = [
             ...allExpenses.map(e => ({ kind: 'expense' as const, at: e.date, data: e })),
@@ -1056,7 +1057,7 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
 
           if (activityItems.length === 0) return (
             <Card>
-              <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "8px 0" }}>No expenses yet. Tap + to add one.</div>
+              <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "8px 0" }}>{t('home.noExpenses')}</div>
             </Card>
           );
 
@@ -1076,7 +1077,7 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
                       <div style={{ color: C.textMuted, fontSize: 12 }}>{e.location || 'Itinerary'}</div>
                     </div>
                     <div style={{ textAlign: "right", flexShrink: 0 }}>
-                      <div style={{ fontSize: 11, color: isToday ? C.cyan : C.textMuted, fontWeight: isToday ? 700 : 400 }}>{isToday ? 'Today' : dt.toLocaleDateString("en", { month: "short", day: "numeric" })}</div>
+                      <div style={{ fontSize: 11, color: isToday ? C.cyan : C.textMuted, fontWeight: isToday ? 700 : 400 }}>{isToday ? t('home.today') : dt.toLocaleDateString("en", { month: "short", day: "numeric" })}</div>
                       <div style={{ fontSize: 10, color: C.textSub }}>{dt.toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}</div>
                     </div>
                   </div>
@@ -1092,9 +1093,9 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
                       <div style={{ width: 40, height: 40, borderRadius: 12, background: C.redDim, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 18 }}>🚨</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 600, fontSize: 14, color: C.red, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
-                          {a.actor_name || a.actor_sub.slice(0, 8)} acionou o SOS!
+                          {t('home.sosTriggered', { actor: a.actor_name || a.actor_sub.slice(0, 8) })}
                         </div>
-                        <div style={{ color: C.textMuted, fontSize: 12 }}>Emergency Alert</div>
+                        <div style={{ color: C.textMuted, fontSize: 12 }}>{t('home.sosEmergency')}</div>
                       </div>
                       <div style={{ color: C.textMuted, fontSize: 11, flexShrink: 0 }}>
                         {new Date(a.created_at).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}
@@ -1109,9 +1110,9 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
                       <div style={{ width: 40, height: 40, borderRadius: 12, background: C.card3, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 18 }}>✅</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 600, fontSize: 14, color: C.cyan, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
-                          {a.actor_name || a.actor_sub.slice(0, 8)} encerrou o SOS.
+                          {t('home.sosResolved', { actor: a.actor_name || a.actor_sub.slice(0, 8) })}
                         </div>
-                        <div style={{ color: C.textMuted, fontSize: 12 }}>Emergency Resolved</div>
+                        <div style={{ color: C.textMuted, fontSize: 12 }}>{t('home.sosResolvedSubtitle')}</div>
                       </div>
                       <div style={{ color: C.textMuted, fontSize: 11, flexShrink: 0 }}>
                         {new Date(a.created_at).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}
@@ -1120,7 +1121,7 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
                   </Card>
                 );
               }
-              const actionLabel = a.action === 'event_created' ? 'added' : a.action === 'event_updated' ? 'updated' : 'removed';
+              const actionLabel = a.action === 'event_created' ? t('home.actionAdded') : a.action === 'event_updated' ? t('home.actionUpdated') : t('home.actionRemoved');
               return (
                 <Card key={`act-${a.id}`} style={{ marginBottom: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -1129,7 +1130,7 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
                       <div style={{ fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
                         {a.actor_name || a.actor_sub.slice(0, 8)} {actionLabel}: {a.subject}
                       </div>
-                      <div style={{ color: C.textMuted, fontSize: 12 }}>Itinerary event</div>
+                      <div style={{ color: C.textMuted, fontSize: 12 }}>{t('home.itineraryEvent')}</div>
                     </div>
                     <div style={{ color: C.textMuted, fontSize: 11, flexShrink: 0 }}>
                       {new Date(a.created_at).toLocaleDateString("en", { day: "numeric", month: "short" })}
@@ -1148,7 +1149,7 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
-                        {ev.type === 'invited' ? `Invited ${ev.email}` : `${ev.name || ev.email} joined`}
+                        {ev.type === 'invited' ? t('home.invitedEmail', { email: ev.email }) : t('home.joinedTrip', { name: ev.name || ev.email })}
                       </div>
                       <div style={{ color: C.textMuted, fontSize: 12 }}>{ev.tripName}</div>
                     </div>
@@ -1190,11 +1191,11 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
         })()}
         {visibleCount < allExpenses.length && (
           <div ref={sentinelRef} style={{ height: 40, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <div style={{ color: C.textSub, fontSize: 12 }}>Loading more...</div>
+            <div style={{ color: C.textSub, fontSize: 12 }}>{t('home.loadingMore')}</div>
           </div>
         )}
         {visibleCount >= allExpenses.length && allExpenses.length > 10 && (
-          <div style={{ color: C.textSub, fontSize: 11, textAlign: "center", padding: "12px 0" }}>All {allExpenses.length} transactions shown</div>
+          <div style={{ color: C.textSub, fontSize: 11, textAlign: "center", padding: "12px 0" }}>{t('home.allShown', { count: allExpenses.length })}</div>
         )}
       </div>
       {selectedActivityExp && (() => {
@@ -1219,20 +1220,20 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
                   </div>
                   <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
                     <div style={{ background: C.card3, borderRadius: 12, padding: 12, flex: 1 }}>
-                      <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>AMOUNT</div>
+                      <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>{t('home.amount')}</div>
                       <div style={{ fontWeight: 700, fontSize: 16 }}>{currSym(exp.localCurrency)}{fmtAmt(getEffectiveLocal(exp))}{exp.localCurrency !== (exp.baseCurrency || budget.baseCurrency) && <span style={{ color: C.textMuted, fontSize: 14, fontWeight: 400 }}> ({currSym(exp.baseCurrency || budget.baseCurrency)}{fmtAmt(exp.baseAmount)})</span>}</div>
                     </div>
                     <div style={{ background: C.card3, borderRadius: 12, padding: 12, flex: 1 }}>
-                      <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>SOURCE</div>
+                      <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>{t('home.source')}</div>
                       <div style={{ fontWeight: 700, fontSize: 13 }}>{sourceMap[exp.sourceId]?.name || "—"}</div>
                     </div>
                   </div>
                   {exp.editHistory && exp.editHistory.length > 0 && (
                     <div style={{ background: C.card3, borderRadius: 12, padding: 12, marginBottom: 16 }}>
-                      <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 8 }}>EDIT HISTORY</div>
+                      <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 8 }}>{t('home.editHistory')}</div>
                       {exp.editHistory.map((h, i) => (
                         <div key={i} style={{ color: C.textSub, fontSize: 11, marginBottom: 4 }}>
-                          {new Date(h.at).toLocaleString("en")} — was "{h.snapshot.description}" {currSym(h.snapshot.localCurrency)}{fmtAmt(h.snapshot.localAmount)}
+                          {new Date(h.at).toLocaleString("en")} — {t('home.was', { desc: h.snapshot.description })} {currSym(h.snapshot.localCurrency)}{fmtAmt(h.snapshot.localAmount)}
                         </div>
                       ))}
                     </div>
@@ -1240,26 +1241,26 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
                   <div style={{ display: "flex", gap: 10 }}>
                     <Btn style={{ flex: 1 }} variant="secondary" icon={<Icon d={icons.edit} size={16} />}
                       onClick={() => { setHomeEditDesc(exp.description); setHomeEditAmount(String(exp.localAmount)); setHomeEditCat(exp.category); setHomeEditDate(exp.date.slice(0, 10)); setHomeEditSourceId(exp.sourceId); setHomeEditCurrency(exp.localCurrency); setHomeEditCity(exp.city || ""); setHomeEditTaxAmount(String(exp.taxAmount || 0)); setHomeEditTaxType(exp.taxType || 'fixed'); setHomeEditDiscountAmount(String(exp.discountAmount || 0)); setHomeEditDiscountType(exp.discountType || 'fixed'); setHomeEditCambialRate(String(exp.cambialRate || exp.localToBaseRate || 1)); setHomeEditMode(true); }}>
-                      Edit
+                      {t('home.editBtn')}
                     </Btn>
                     <Btn style={{ flex: 1 }} variant="danger" icon={<Icon d={icons.trash} size={16} stroke={C.red} />}
-                      onClick={() => setHomeConfirmDelete(true)}>Delete</Btn>
+                      onClick={() => setHomeConfirmDelete(true)}>{t('home.deleteBtn')}</Btn>
                   </div>
                 </>
               ) : homeConfirmDelete ? (
                 <>
                   <div style={{ textAlign: "center", marginBottom: 20 }}>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: C.red, marginBottom: 8 }}>Delete transaction?</div>
-                    <div style={{ color: C.textMuted, fontSize: 13 }}>It will be archived and cannot be undone.</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: C.red, marginBottom: 8 }}>{t('home.confirmDelete')}?</div>
+                    <div style={{ color: C.textMuted, fontSize: 13 }}>{t('home.deleteWarning')}</div>
                   </div>
                   <div style={{ display: "flex", gap: 10 }}>
-                    <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setHomeConfirmDelete(false)}>Cancel</Btn>
-                    <Btn style={{ flex: 1 }} variant="danger" onClick={() => handleHomeDelete(exp.id)}>Delete</Btn>
+                    <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setHomeConfirmDelete(false)}>{t('home.cancel')}</Btn>
+                    <Btn style={{ flex: 1 }} variant="danger" onClick={() => handleHomeDelete(exp.id)}>{t('home.deleteBtn')}</Btn>
                   </div>
                 </>
               ) : (
                 <>
-                  <div style={{ fontWeight: 700, marginBottom: 16 }}>Edit Transaction</div>
+                  <div style={{ fontWeight: 700, marginBottom: 16 }}>{t('home.editBtn')}</div>
                   <div style={{ marginBottom: 10 }}>
                     <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>DESCRIPTION</div>
                     <Input value={homeEditDesc} onChange={setHomeEditDesc} placeholder="Description" />
@@ -1322,7 +1323,7 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
                   </div>
                   {budget.sources.length > 0 && (
                     <div style={{ marginBottom: 16 }}>
-                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>SOURCE</div>
+                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('home.source')}</div>
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                         {budget.sources.map(s => (
                           <button key={s.id} onClick={() => setHomeEditSourceId(s.id)} style={{ background: homeEditSourceId === s.id ? "#003d45" : C.card3, border: homeEditSourceId === s.id ? `2px solid ${s.color}` : "2px solid transparent", borderRadius: 10, padding: "8px 12px", cursor: "pointer", color: homeEditSourceId === s.id ? C.text : C.textMuted, fontSize: 12, fontFamily: "inherit" }}>
@@ -1333,8 +1334,8 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
                     </div>
                   )}
                   <div style={{ display: "flex", gap: 10 }}>
-                    <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setHomeEditMode(false)}>Cancel</Btn>
-                    <Btn style={{ flex: 1 }} onClick={() => handleHomeEdit(exp.id)}>Save Changes</Btn>
+                    <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setHomeEditMode(false)}>{t('home.cancel')}</Btn>
+                    <Btn style={{ flex: 1 }} onClick={() => handleHomeEdit(exp.id)}>{t('home.saveChanges')}</Btn>
                   </div>
                 </>
               )}
@@ -1342,7 +1343,7 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
           </>
         );
       })()}
-    </div>
+    </div >
   );
 };
 
@@ -2103,6 +2104,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
 };
 
 const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab = 'transactions' }: any) => {
+  const { t } = useTranslation();
   const [budget, setBudgetState] = useState<TripBudget>(DEFAULT_BUDGET);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [activeSavedBudget, setActiveSavedBudget] = useState<SavedBudget | null>(null);
@@ -2562,17 +2564,17 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
         <div style={{ background: C.card3, borderRadius: 14, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, marginTop: 16, marginBottom: 12 }}>
           <span style={{ fontSize: 18 }}>✈️</span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 11, color: C.textMuted, letterSpacing: 1 }}>ACTIVE TRIP</div>
+            <div style={{ fontSize: 11, color: C.textMuted, letterSpacing: 1 }}>{t('wallet.activeTrip')}</div>
             <div style={{ fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{activeTrip.name}</div>
           </div>
           {activeSavedBudget ? (
             <div style={{ textAlign: "right", flexShrink: 0 }}>
-              <div style={{ fontSize: 11, color: C.textMuted }}>Budget</div>
+              <div style={{ fontSize: 11, color: C.textMuted }}>{t('wallet.budgetLabel')}</div>
               <div style={{ fontSize: 13, fontWeight: 700, color: C.cyan }}>{activeSavedBudget.currency} {activeSavedBudget.amount.toLocaleString()}</div>
               {dailyBudget > 0 && <div style={{ fontSize: 10, color: C.textSub }}>{currSym(budgetCurrency)}{fmtAmt(dailyBudget, 0)}/day · {tripDays}d</div>}
             </div>
           ) : (
-            <button onClick={() => setWalletTab('budget')} style={{ background: C.cyan, color: "#000", border: "none", borderRadius: 16, padding: "6px 14px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Create Budget</button>
+            <button onClick={() => setWalletTab('budget')} style={{ background: C.cyan, color: "#000", border: "none", borderRadius: 16, padding: "6px 14px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{t('wallet.createBudgetBtn')}</button>
           )}
         </div>
       )}
@@ -2581,7 +2583,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", paddingTop: activeTrip ? 4 : 16, marginBottom: 16 }}>
         <div>
           <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: -1 }}>{currSym(budgetCurrency)}{fmtAmt(totalSpent)}</div>
-          <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, fontWeight: 600 }}>TOTAL TRIP SPEND</div>
+          <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, fontWeight: 600 }}>{t('wallet.totalSpend')}</div>
         </div>
         <div style={{ textAlign: "right" }}>
           <div style={{ fontSize: 18, fontWeight: 700, color: remaining >= 0 ? C.green : C.red }}>{remaining >= 0 ? '+' : ''}{currSym(budgetCurrency)}{fmtAmt(Math.abs(remaining))}</div>
@@ -2632,11 +2634,11 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
           })}
           {visibleTxCount < expenses.length && (
             <div ref={txSentinelRef} style={{ height: 40, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <div style={{ color: C.textSub, fontSize: 12 }}>Loading more...</div>
+              <div style={{ color: C.textSub, fontSize: 12 }}>{t('wallet.loadingMore')}</div>
             </div>
           )}
           {visibleTxCount >= expenses.length && expenses.length > 10 && (
-            <div style={{ color: C.textSub, fontSize: 11, textAlign: "center", padding: "12px 0" }}>All {expenses.length} transactions shown</div>
+            <div style={{ color: C.textSub, fontSize: 11, textAlign: "center", padding: "12px 0" }}>{t('wallet.allShown', { count: expenses.length })}</div>
           )}
         </>
       ) : walletTab === 'analytics' ? (
@@ -2668,11 +2670,11 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
               )}
             </svg>
             <div style={{ flex: 1 }}>
-              {totalBudgetInBase === 0 && <div style={{ color: C.textSub, fontSize: 12, fontStyle: "italic" }}>No active budget. Go to the <strong style={{ color: C.cyan, cursor: "pointer" }} onClick={() => setWalletTab('budget')}>Budget tab</strong> to set one.</div>}
+              {totalBudgetInBase === 0 && <div style={{ color: C.textSub, fontSize: 12, fontStyle: "italic" }}>{t('wallet.noActiveBudget_1')}<strong style={{ color: C.cyan, cursor: "pointer" }} onClick={() => setWalletTab('budget')}>{t('wallet.noActiveBudget_2')}</strong>{t('wallet.noActiveBudget_3')}</div>}
               {totalBudgetInBase > 0 && (
                 <>
                   <div style={{ marginBottom: 12 }}>
-                    <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>SPENT</div>
+                    <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>{t('wallet.spent')}</div>
                     <div style={{ fontWeight: 700, fontSize: 18, color: C.text }}>{currSym(budgetCurrency)}{fmtAmt(totalSpent)}</div>
                   </div>
                   <div>
@@ -2687,7 +2689,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
           {/* ── By Category ── */}
           {catTotals.length > 0 && (
             <Card style={{ marginBottom: 16 }}>
-              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 14 }}>By Category</div>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 14 }}>{t('wallet.byCategory')}</div>
               {catTotals.map(([cat, amt]) => {
                 const pct = amt / maxCat;
                 const color = CAT_COLORS[cat] || C.textMuted;
@@ -2711,7 +2713,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
           {/* ── By Source ── */}
           {srcTotals.length > 0 && budget.sources.length > 0 && (
             <Card style={{ marginBottom: 16 }}>
-              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 14 }}>By Payment Source</div>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 14 }}>{t('wallet.bySource')}</div>
               {srcTotals.map(([srcId, amt]) => {
                 const src = sourceMap[srcId];
                 if (!src) return null;
@@ -2736,7 +2738,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
 
           {/* ── 14-day Trend ── */}
           <Card style={{ marginBottom: 16 }}>
-            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>Daily Spend — 14 days</div>
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{t('wallet.dailySpendTitle')}</div>
             <div style={{ color: C.textMuted, fontSize: 11, marginBottom: 16 }}>{currSym(budget.baseCurrency)} per day</div>
             <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 120 }}>
               {dayData.map((d, i) => {
@@ -2766,10 +2768,10 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
           {/* ── Burndown Chart ── */}
           {burndownDays.length > 1 && totalBudgetInBase > 0 && (
             <Card style={{ marginBottom: 16 }}>
-              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 2 }}>Budget Burndown</div>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 2 }}>{t('wallet.burndownTitle')}</div>
               <div style={{ color: C.textMuted, fontSize: 11, marginBottom: 10, display: "flex", gap: 14 }}>
-                <span><span style={{ color: C.textSub }}>— </span>Ideal</span>
-                <span><span style={{ color: C.cyan }}>— </span>Actual</span>
+                <span><span style={{ color: C.textSub }}>— </span>{t('wallet.ideal')}</span>
+                <span><span style={{ color: C.cyan }}>— </span>{t('wallet.actual')}</span>
               </div>
               <svg viewBox="0 0 310 130" style={{ width: "100%", overflow: "visible" }}>
                 {/* Y grid lines */}
@@ -2807,7 +2809,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
                   {new Date(activeTrip!.endDate + 'T12:00:00').toLocaleDateString("en", { month: "short", day: "numeric" })}
                 </text>
                 {todayX >= 0 && todayX > BD_X0 + 20 && todayX < BD_X1 - 20 && (
-                  <text x={todayX} y={BD_Y1 + 14} textAnchor="middle" fill={C.yellow} fontSize={7} fontFamily="-apple-system,sans-serif">Today</text>
+                  <text x={todayX} y={BD_Y1 + 14} textAnchor="middle" fill={C.yellow} fontSize={7} fontFamily="-apple-system,sans-serif">{t('wallet.today')}</text>
                 )}
               </svg>
               {/* Over budget warning */}
@@ -2822,7 +2824,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
           {/* ── Balances ── */}
           {balanceRows.length > 0 && (
             <Card style={{ marginBottom: 16 }}>
-              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 14 }}>Balances</div>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 14 }}>{t('wallet.balancesTitle')}</div>
               {balanceRows.map((row, i) => {
                 const isReceive = row.amount > 0;
                 const sym = CURRENCY_SYMBOLS[row.currency as Currency] ?? row.currency;
@@ -2861,13 +2863,13 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
           )}
 
           {expenses.length === 0 && (
-            <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "20px 0" }}>No expenses yet — analytics will appear here.</div>
+            <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "20px 0" }}>{t('wallet.noAnalytics')}</div>
           )}
         </>
       ) : (
         <>
           {/* Wallet / Settings tab content */}
-          <SectionLabel icon="wallet">BUDGETS</SectionLabel>
+          <SectionLabel icon="wallet">{t('wallet.budgetsTitle')}</SectionLabel>
           {!showAddBudget && (
             <button onClick={() => { resetForm(); setShowAddBudget(true); }} style={{ display: "flex", alignItems: "center", gap: 6, background: C.cyan, color: "#000", border: "none", borderRadius: 12, padding: "10px 16px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 13, marginBottom: 16 }}>
               <Icon d={icons.plus} size={14} stroke="#000" strokeWidth={2.5} /> New Budget
@@ -2879,7 +2881,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
               <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 15 }}>{editingBudgetId ? "Edit Budget" : "New Budget"}</div>
               <Input placeholder="Name (e.g. Europe Trip 2026)" value={budgetName} onChange={setBudgetName} style={{ marginBottom: 12 }} />
 
-              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>TYPE</div>
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>{t('wallet.budgetType')}</div>
               <div style={{ background: C.card3, borderRadius: 12, padding: 4, display: "flex", marginBottom: 16 }}>
                 <button onClick={() => setFormBudgetType('simple')} style={{ flex: 1, padding: "10px", borderRadius: 8, border: "none", cursor: "pointer", background: formBudgetType === 'simple' ? C.cyan : "transparent", color: formBudgetType === 'simple' ? "#000" : C.textMuted, fontWeight: formBudgetType === 'simple' ? 700 : 400, fontSize: 13, fontFamily: "inherit", transition: "all 0.2s" }}>
                   Simple
@@ -2891,21 +2893,21 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
 
               <div style={{ display: "flex", gap: 10, marginBottom: formBudgetType === 'composed' ? 16 : 20 }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>BASE CURR.</div>
+                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('wallet.baseCurrency')}</div>
                   <select value={formBudgetCurrency} onChange={(e: any) => setFormBudgetCurrency(e.target.value as Currency)} style={{ width: "100%", padding: "12px", borderRadius: 10, background: C.card3, border: `none`, color: C.text, fontFamily: "inherit", fontSize: 14 }}>
                     {(["EUR", "USD", "BRL", "GBP", "COP"] as Currency[]).map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
                 {formBudgetType === 'simple' ? (
                   <div style={{ flex: 2 }}>
-                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TOTAL AMOUNT</div>
+                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('wallet.totalAmount')}</div>
                     <Card style={{ padding: "12px 10px", background: C.card3, border: "none" }}>
                       <input type="number" value={budgetAmount} onChange={e => setBudgetAmount(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", width: "100%", fontSize: 14 }} placeholder="0.00" />
                     </Card>
                   </div>
                 ) : (
                   <div style={{ flex: 2 }}>
-                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TOTAL AMOUNT</div>
+                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('wallet.totalAmount')}</div>
                     <Card style={{ padding: "12px 10px", display: "flex", alignItems: "center", background: C.card3, border: "none" }}>
                       <div style={{ color: C.text, fontSize: 14, fontWeight: 700 }}>{currSym(formBudgetCurrency)}{fmtAmt(formSources.reduce((acc, s) => acc + (s.limitInBase ?? s.limit), 0))}</div>
                     </Card>
@@ -2916,12 +2918,12 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
               {formBudgetType === 'composed' && (
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.border}` }}>
-                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1 }}>PAYMENT SOURCES</div>
+                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1 }}>{t('wallet.paymentSources')}</div>
                     <button onClick={() => setShowAddSource(p => !p)} style={{ background: "none", color: C.cyan, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit" }}>{showAddSource ? 'Cancel' : '+ Add Source'}</button>
                   </div>
 
                   {formSources.length === 0 && !showAddSource && (
-                    <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "14px 0", background: C.card3, borderRadius: 12 }}>No sources added yet.</div>
+                    <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "14px 0", background: C.card3, borderRadius: 12 }}>{t('wallet.noSources')}</div>
                   )}
 
                   {showAddSource && (
@@ -2936,7 +2938,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
                           {(["EUR", "USD", "BRL", "GBP", "COP"] as Currency[]).map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                       </div>
-                      <Input placeholder="Amount limit" value={srcAmount} onChange={setSrcAmount} style={{ marginBottom: 12, background: C.card }} />
+                      <Input placeholder={t("wallet.sourceLimitPlaceholder")} value={srcAmount} onChange={setSrcAmount} style={{ marginBottom: 12, background: C.card }} />
                       <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
                         {srcColors.map(c => (
                           <button key={c} onClick={() => setSrcColor(c)} style={{ width: 26, height: 26, borderRadius: "50%", background: c, border: srcColor === c ? "2px solid #fff" : "2px solid transparent", cursor: "pointer" }} />
@@ -2963,10 +2965,10 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
                     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <Card style={{ width: "90%", maxWidth: 320, padding: 24, textAlign: "center" }}>
                         <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 8 }}>Remove Source?</div>
-                        <div style={{ color: C.textMuted, fontSize: 13, marginBottom: 24 }}>This source will be removed from the budget composition.</div>
+                        <div style={{ color: C.textMuted, fontSize: 13, marginBottom: 24 }}>{t('wallet.removeSourceWarning')}</div>
                         <div style={{ display: "flex", gap: 12 }}>
-                          <Btn variant="ghost" style={{ flex: 1 }} onClick={() => setConfirmDeleteSourceId(null)}>Cancel</Btn>
-                          <Btn variant="danger" style={{ flex: 1 }} onClick={() => removeSource(confirmDeleteSourceId)}>Remove</Btn>
+                          <Btn variant="ghost" style={{ flex: 1 }} onClick={() => setConfirmDeleteSourceId(null)}>{t('wallet.cancel')}</Btn>
+                          <Btn variant="danger" style={{ flex: 1 }} onClick={() => removeSource(confirmDeleteSourceId)}>{t('wallet.removeBtn')}</Btn>
                         </div>
                       </Card>
                     </div>
@@ -2975,14 +2977,14 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
               )}
 
               <div style={{ display: "flex", gap: 10 }}>
-                <Btn variant="ghost" style={{ flex: 1 }} onClick={resetForm}>Cancel</Btn>
+                <Btn variant="ghost" style={{ flex: 1 }} onClick={resetForm}>{t('wallet.cancel')}</Btn>
                 <Btn style={{ flex: 1 }} onClick={handleSaveBudget}>{editingBudgetId ? "Save Changes" : "Create Budget"}</Btn>
               </div>
             </Card>
           )}
 
           {!showAddBudget && savedBudgets.length === 0 && (
-            <div style={{ textAlign: "center", color: C.textSub, fontSize: 13, padding: "40px 0", marginBottom: 16 }}>No budgets yet. Create one above.</div>
+            <div style={{ textAlign: "center", color: C.textSub, fontSize: 13, padding: "40px 0", marginBottom: 16 }}>{t('wallet.noBudgets')}</div>
           )}
 
           {!showAddBudget && savedBudgets.map(b => {
@@ -2994,7 +2996,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
                     <div style={{ fontWeight: 700, fontSize: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{b.name}</div>
                     <div style={{ color: C.textMuted, fontSize: 12 }}>{b.currency} {b.amount.toLocaleString()}</div>
                   </div>
-                  {isActive && <Badge color={C.cyan} bg="#003d45">ACTIVE</Badge>}
+                  {isActive && <Badge color={C.cyan} bg="#003d45">{t('wallet.activeBadge')}</Badge>}
                   <button onClick={() => activateBudget(isActive ? null : b.id)} style={{ background: isActive ? C.card3 : "transparent", color: isActive ? C.textMuted : C.cyan, border: isActive ? "none" : `1px solid ${C.cyan}80`, borderRadius: 10, padding: "7px 12px", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit" }}>
                     {isActive ? "Deactivate" : "Activate"}
                   </button>
@@ -3014,11 +3016,11 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
               <div style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "20px 20px 0 0", padding: "28px 20px 44px" }}>
                 <div style={{ textAlign: "center", marginBottom: 24 }}>
                   <div style={{ fontSize: 17, fontWeight: 800, color: C.text, marginBottom: 6 }}>Delete Budget?</div>
-                  <div style={{ color: C.textMuted, fontSize: 13 }}>This will permanently remove this budget layout.</div>
+                  <div style={{ color: C.textMuted, fontSize: 13 }}>{t('wallet.deleteBudgetWarning')}</div>
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
-                  <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setConfirmDeleteBudgetId(null)}>Cancel</Btn>
-                  <Btn style={{ flex: 1 }} variant="danger" onClick={() => { handleDeleteBudget(confirmDeleteBudgetId); setConfirmDeleteBudgetId(null); }}>Delete</Btn>
+                  <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setConfirmDeleteBudgetId(null)}>{t('wallet.cancel')}</Btn>
+                  <Btn style={{ flex: 1 }} variant="danger" onClick={() => { handleDeleteBudget(confirmDeleteBudgetId); setConfirmDeleteBudgetId(null); }}>{t('wallet.deleteBtn')}</Btn>
                 </div>
               </div>
             </div>
@@ -3062,17 +3064,17 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
                   </div>
                   <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
                     <div style={{ background: C.card3, borderRadius: 12, padding: 12, flex: 1 }}>
-                      <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>AMOUNT</div>
+                      <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>{t('wallet.colAmount')}</div>
                       <div style={{ fontWeight: 700, fontSize: 16 }}>{currSym(exp.localCurrency)}{fmtAmt(getEffectiveLocal(exp))} <span style={{ color: C.textMuted, fontSize: 14, fontWeight: 400 }}>({currSym(exp.baseCurrency || budgetCurrency)}{fmtAmt(exp.baseAmount)})</span></div>
                     </div>
                     <div style={{ background: C.card3, borderRadius: 12, padding: 12, flex: 1 }}>
-                      <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>SOURCE</div>
+                      <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>{t('wallet.colSource')}</div>
                       <div style={{ fontWeight: 700, fontSize: 14 }}>{sourceMap[exp.sourceId]?.name || "—"}</div>
                     </div>
                   </div>
                   {exp.editHistory && exp.editHistory.length > 0 && (
                     <div style={{ background: C.card3, borderRadius: 12, padding: 12, marginBottom: 16 }}>
-                      <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 8 }}>EDIT HISTORY</div>
+                      <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 8 }}>{t('wallet.editHistory')}</div>
                       {exp.editHistory.map((h, i) => (
                         <div key={i} style={{ color: C.textSub, fontSize: 11, marginBottom: 4 }}>
                           {new Date(h.at).toLocaleString("en")} — was "{h.snapshot.description}" {currSym(h.snapshot.localCurrency)}{fmtAmt(h.snapshot.localAmount)}
@@ -3095,34 +3097,34 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
                 <>
                   <div style={{ textAlign: "center", marginBottom: 20 }}>
                     <div style={{ fontSize: 16, fontWeight: 800, color: C.red, marginBottom: 8 }}>Delete transaction?</div>
-                    <div style={{ color: C.textMuted, fontSize: 13 }}>It will be moved to history and cannot be undone.</div>
+                    <div style={{ color: C.textMuted, fontSize: 13 }}>{t('wallet.confirmDeleteWarning')}</div>
                   </div>
                   <div style={{ display: "flex", gap: 10 }}>
-                    <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setConfirmDelete(false)}>Cancel</Btn>
-                    <Btn style={{ flex: 1 }} variant="danger" onClick={() => handleDelete(selectedExpenseId)}>Delete</Btn>
+                    <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setConfirmDelete(false)}>{t('wallet.cancel')}</Btn>
+                    <Btn style={{ flex: 1 }} variant="danger" onClick={() => handleDelete(selectedExpenseId)}>{t('wallet.deleteBtn')}</Btn>
                   </div>
                 </>
               ) : (
                 <>
-                  <div style={{ fontWeight: 700, marginBottom: 16 }}>Edit Transaction</div>
+                  <div style={{ fontWeight: 700, marginBottom: 16 }}>{t('wallet.editTransactionTitle')}</div>
                   <div style={{ marginBottom: 10 }}>
-                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>DESCRIPTION</div>
+                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('wallet.colDescription')}</div>
                     <Input value={editDesc} onChange={setEditDesc} placeholder="Description" />
                   </div>
                   <div style={{ marginBottom: 10 }}>
-                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>AMOUNT</div>
+                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('wallet.colAmount')}</div>
                     <Input value={editAmount} onChange={setEditAmount} placeholder="0.00" />
                   </div>
                   <div style={{ marginBottom: 10, display: "flex", gap: 10 }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TAX / FEES</div>
+                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('wallet.colTax')}</div>
                       <div style={{ display: "flex", background: C.card3, borderRadius: 10, padding: 4 }}>
                         <input value={editTaxAmount} onChange={e => setEditTaxAmount(e.target.value)} placeholder="0.00" style={{ background: "transparent", border: "none", color: C.text, width: "100%", outline: "none", paddingLeft: 8 }} />
                         <button onClick={() => setEditTaxType(t => t === 'fixed' ? 'percentage' : 'fixed')} style={{ background: C.bg, color: C.cyan, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontWeight: 700 }}>{editTaxType === 'percentage' ? '%' : '$'}</button>
                       </div>
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>DISCOUNT</div>
+                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('wallet.colDiscount')}</div>
                       <div style={{ display: "flex", background: C.card3, borderRadius: 10, padding: 4 }}>
                         <input value={editDiscountAmount} onChange={e => setEditDiscountAmount(e.target.value)} placeholder="0.00" style={{ background: "transparent", border: "none", color: C.text, width: "100%", outline: "none", paddingLeft: 8 }} />
                         <button onClick={() => setEditDiscountType(t => t === 'fixed' ? 'percentage' : 'fixed')} style={{ background: C.bg, color: C.cyan, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontWeight: 700 }}>{editDiscountType === 'percentage' ? '%' : '$'}</button>
@@ -3130,7 +3132,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
                     </div>
                   </div>
                   <div style={{ marginBottom: 10 }}>
-                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>EXCHANGE RATE</div>
+                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('wallet.colRate')}</div>
                     <div style={{ display: "flex", background: C.card3, borderRadius: 10, padding: 4 }}>
                       <input value={editCambialRate} onChange={e => setEditCambialRate(e.target.value)} placeholder="1.00" style={{ background: "transparent", border: "none", color: C.text, flex: 1, outline: "none", paddingLeft: 8 }} />
                       <button onClick={async () => {
@@ -3138,25 +3140,25 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
                           const r = await fetchRate(editCurrency, budgetCurrency);
                           setEditCambialRate(String(r));
                         } catch { }
-                      }} style={{ background: C.bg, color: C.cyan, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontWeight: 700, fontSize: 11 }}>Update from API</button>
+                      }} style={{ background: C.bg, color: C.cyan, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontWeight: 700, fontSize: 11 }}>{t('wallet.updateFromApi')}</button>
                     </div>
                   </div>
                   <div style={{ marginBottom: 10 }}>
-                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>DATE</div>
+                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('wallet.colDate')}</div>
                     <Card style={{ display: "flex", alignItems: "center", gap: 10, padding: 12 }}>
                       <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
                         style={{ background: "transparent", border: "none", color: C.text, flex: 1, outline: "none", fontFamily: "inherit", colorScheme: "dark" }} />
                     </Card>
                   </div>
                   <div style={{ marginBottom: 10 }}>
-                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>LOCATION</div>
+                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('wallet.colLocation')}</div>
                     <Card style={{ display: "flex", alignItems: "center", gap: 10, padding: 12 }}>
                       <input value={editCity} onChange={e => setEditCity(e.target.value)} placeholder="City"
                         style={{ background: "transparent", border: "none", color: C.text, flex: 1, outline: "none", fontFamily: "inherit", fontSize: 14 }} />
                     </Card>
                   </div>
                   <div style={{ marginBottom: 10 }}>
-                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>CATEGORY</div>
+                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('wallet.colCategory')}</div>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       {categories.map(c => (
                         <button key={c.id} onClick={() => setEditCat(c.id)} style={{ background: editCat === c.id ? "#003d45" : C.card3, border: editCat === c.id ? `2px solid ${C.cyan}` : "2px solid transparent", borderRadius: 10, padding: "8px 12px", cursor: "pointer", color: editCat === c.id ? C.cyan : C.textMuted, fontSize: 12, fontWeight: editCat === c.id ? 700 : 400, fontFamily: "inherit" }}>
@@ -3167,7 +3169,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
                   </div>
                   {budget.sources.length > 0 && (
                     <div style={{ marginBottom: 16 }}>
-                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>SOURCE</div>
+                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('wallet.colSource')}</div>
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                         {budget.sources.map(s => (
                           <button key={s.id} onClick={() => setEditSourceId(s.id)} style={{ background: editSourceId === s.id ? "#003d45" : C.card3, border: editSourceId === s.id ? `2px solid ${s.color}` : "2px solid transparent", borderRadius: 10, padding: "8px 12px", cursor: "pointer", color: editSourceId === s.id ? C.text : C.textMuted, fontSize: 12, fontFamily: "inherit" }}>
@@ -3178,8 +3180,8 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
                     </div>
                   )}
                   <div style={{ display: "flex", gap: 10 }}>
-                    <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setEditMode(false)}>Cancel</Btn>
-                    <Btn style={{ flex: 1 }} onClick={() => handleEdit(selectedExpenseId)}>Save Changes</Btn>
+                    <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setEditMode(false)}>{t('wallet.cancel')}</Btn>
+                    <Btn style={{ flex: 1 }} onClick={() => handleEdit(selectedExpenseId)}>{t('wallet.saveChanges')}</Btn>
                   </div>
                 </>
               )}
