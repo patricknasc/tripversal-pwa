@@ -6413,7 +6413,7 @@ function AppShell() {
     setUser(null); setTrips([]); setActiveTripId(null);
   };
 
-  if (!user) return <LoginScreen onLogin={setUser} />;
+  if (!user) return <LoginScreen onLogin={(u) => { setUser(u); setTab('home'); }} />;
 
   const handleNav = (t: string) => {
     setShowSettings(false); setShowManageCrew(false); setShowAddExpense(false); setShowHistory(false); setTab(t);

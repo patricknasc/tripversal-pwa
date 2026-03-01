@@ -5,9 +5,10 @@ const nextConfig = {
             {
                 source: '/(.*)',
                 headers: [
+                    // unsafe-none allows Google OAuth popup ↔ opener communication
                     {
                         key: 'Cross-Origin-Opener-Policy',
-                        value: 'same-origin-allow-popups',
+                        value: 'unsafe-none',
                     },
                 ],
             },
