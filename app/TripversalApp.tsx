@@ -6404,14 +6404,32 @@ interface TodoItem {
 const PRIORITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
 const PRIORITY_COLORS: Record<string, string> = { high: '#ff3b30', medium: '#ffd60a', low: '#30d158' };
 
+function getTodoTier(todo: TodoItem): number {
+  if (todo.status === 'completed') return 99;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+  let dueDateNorm: Date | null = null;
+  if (todo.due_date) { dueDateNorm = new Date(todo.due_date + 'T00:00:00'); dueDateNorm.setHours(0, 0, 0, 0); }
+  const isDueToday = dueDateNorm && dueDateNorm.getTime() === today.getTime();
+  const isOverdueNow = dueDateNorm && dueDateNorm.getTime() < today.getTime();
+  const isDueTomorrow = dueDateNorm && dueDateNorm.getTime() === tomorrow.getTime();
+  // Overdue + Due Today → tier 1 (after HIGH)
+  if (isOverdueNow || isDueToday) return 1;
+  // Due Tomorrow → tier 3 (after MEDIUM)
+  if (isDueTomorrow) return 3;
+  // Regular tasks by priority: HIGH=0, MEDIUM=2, LOW=5
+  if (todo.priority === 'high') return 0;
+  if (todo.priority === 'medium') return 2;
+  return 5; // low
+}
+
 function sortTodos(todos: TodoItem[]): TodoItem[] {
-  const now = new Date();
   return [...todos].sort((a, b) => {
-    // Completed items go to the bottom
-    if (a.status !== b.status) return a.status === 'completed' ? 1 : -1;
-    // Higher priority first
+    const tierA = getTodoTier(a);
+    const tierB = getTodoTier(b);
+    if (tierA !== tierB) return tierA - tierB;
+    // Within same tier, sort by priority then due date
     if (PRIORITY_ORDER[a.priority] !== PRIORITY_ORDER[b.priority]) return PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
-    // Overdue/due sooner first
     const aDue = a.due_date ? new Date(a.due_date + 'T23:59:59').getTime() : Infinity;
     const bDue = b.due_date ? new Date(b.due_date + 'T23:59:59').getTime() : Infinity;
     return aDue - bDue;
@@ -6570,28 +6588,53 @@ const TodoScreen = ({ activeTripId, onBack }: { activeTripId: string | null; onB
         </Card>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {todos.map(todo => (
-            <Card key={todo.id} style={{ padding: '14px 16px', cursor: 'pointer', transition: 'all 0.2s', opacity: todo.status === 'completed' ? 0.6 : 1 }} onClick={() => setDetailItem(todo)}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <button onClick={e => { e.stopPropagation(); toggleStatus(todo); }} style={{ width: 24, height: 24, borderRadius: 6, border: `2px solid ${todo.status === 'completed' ? C.green : C.textMuted}`, background: todo.status === 'completed' ? C.green : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0 }}>
-                  {todo.status === 'completed' && <Icon d={icons.check} size={14} stroke="#fff" />}
-                </button>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 15, color: C.text, textDecoration: todo.status === 'completed' ? 'line-through' : 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{todo.title}</div>
-                  <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: PRIORITY_COLORS[todo.priority], display: 'inline-block', alignSelf: 'center' }} />
-                    <span style={{ color: C.textMuted, fontSize: 11, fontWeight: 600 }}>{t(`todo.${todo.priority}`)}</span>
-                    {todo.due_date && (
-                      <span style={{ color: isOverdue(todo.due_date) && todo.status !== 'completed' ? C.red : C.textSub, fontSize: 11, fontWeight: 600 }}>
-                        · {isOverdue(todo.due_date) && todo.status !== 'completed' ? '⚠️ ' : ''}{new Date(todo.due_date + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                      </span>
-                    )}
+          {todos.map(todo => {
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+            let dueDateNorm: Date | null = null;
+            if (todo.due_date) { dueDateNorm = new Date(todo.due_date + 'T00:00:00'); dueDateNorm.setHours(0, 0, 0, 0); }
+            const isDueToday = dueDateNorm && dueDateNorm.getTime() === today.getTime() && todo.status !== 'completed';
+            const isOverdueNow = dueDateNorm && dueDateNorm.getTime() < today.getTime() && todo.status !== 'completed';
+            const isDueTomorrow = dueDateNorm && dueDateNorm.getTime() === tomorrow.getTime() && todo.status !== 'completed';
+
+            return (
+              <Card key={todo.id} style={{
+                padding: '14px 16px', cursor: 'pointer', transition: 'all 0.2s',
+                opacity: todo.status === 'completed' ? 0.6 : 1,
+                border: (isDueToday || isOverdueNow) ? `2px solid ${C.red}` : isDueTomorrow ? `1px solid ${C.yellow || '#f5a623'}` : undefined,
+                boxShadow: (isDueToday || isOverdueNow) ? `0 0 16px ${C.red}40` : undefined,
+              }} onClick={() => setDetailItem(todo)}>
+                {(isDueToday || isOverdueNow) && (
+                  <div style={{ background: `${C.red}20`, color: C.red, fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, padding: '4px 10px', borderRadius: 6, marginBottom: 10, textAlign: 'center' }}>
+                    {isOverdueNow ? `⚠️ ${t('todo.overdue')}` : `🔥 ${t('todo.dueToday', 'Vence hoje!')}`}
                   </div>
+                )}
+                {isDueTomorrow && (
+                  <div style={{ background: `${C.yellow || '#f5a623'}20`, color: C.yellow || '#f5a623', fontWeight: 700, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, padding: '3px 8px', borderRadius: 6, marginBottom: 8, textAlign: 'center' }}>
+                    ⏰ {t('todo.dueTomorrow', 'Vence amanhã')}
+                  </div>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <button onClick={e => { e.stopPropagation(); toggleStatus(todo); }} style={{ width: 24, height: 24, borderRadius: 6, border: `2px solid ${todo.status === 'completed' ? C.green : C.textMuted}`, background: todo.status === 'completed' ? C.green : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0 }}>
+                    {todo.status === 'completed' && <Icon d={icons.check} size={14} stroke="#fff" />}
+                  </button>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 15, color: C.text, textDecoration: todo.status === 'completed' ? 'line-through' : 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{todo.title}</div>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: PRIORITY_COLORS[todo.priority], display: 'inline-block', alignSelf: 'center' }} />
+                      <span style={{ color: C.textMuted, fontSize: 11, fontWeight: 600 }}>{t(`todo.${todo.priority}`)}</span>
+                      {todo.due_date && (
+                        <span style={{ color: isOverdue(todo.due_date) && todo.status !== 'completed' ? C.red : C.textSub, fontSize: 11, fontWeight: 600 }}>
+                          · {new Date(todo.due_date + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <Icon d={icons.chevronRight} size={16} stroke={C.textMuted} />
                 </div>
-                <Icon d={icons.chevronRight} size={16} stroke={C.textMuted} />
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
