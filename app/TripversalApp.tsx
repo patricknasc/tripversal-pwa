@@ -757,14 +757,13 @@ const BottomNav = ({ active, onNav }: any) => {
   );
 };
 
-const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTripId, activeTrip, user, isPanicModeActive, onSOS, onShowMap }: any) => {
+const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTripId, activeTrip, user, isPanicModeActive, serverActivity = [], onSOS, onShowMap }: any) => {
   const { t } = useTranslation();
   const [budget, setBudget] = useState<TripBudget>(DEFAULT_BUDGET);
   const [todaySpent, setTodaySpent] = useState(0);
   const [yesterdaySpent, setYesterdaySpent] = useState(0);
   const [allExpenses, setAllExpenses] = useState<Expense[]>([]);
   const [inviteEvents, setInviteEvents] = useState<InviteEvent[]>([]);
-  const [serverActivity, setServerActivity] = useState<TripActivityItem[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<ItineraryEventRecord[]>([]);
   const [visibleCount, setVisibleCount] = useState(10);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -846,11 +845,7 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
           setAllExpenses(forTrip);
         })
         .catch(() => { });
-      // Fetch activity feed
-      fetch(`/api/trips/${activeTripId}/activity?callerSub=${encodeURIComponent(user.sub)}&limit=10`)
-        .then(r => r.ok ? r.json() : [])
-        .then((rows: TripActivityItem[]) => setServerActivity(rows))
-        .catch(() => { });
+      // Fetch activity feed handled in parent
       // Fetch upcoming itinerary events (next 5)
       fetch(`/api/trips/${activeTripId}/itinerary?callerSub=${encodeURIComponent(user.sub)}`)
         .then(r => r.ok ? r.json() : [])
@@ -1051,7 +1046,7 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
           const activityItems = [
             ...allExpenses.map(e => ({ kind: 'expense' as const, at: e.date, data: e })),
             ...inviteEvents.map(ev => ({ kind: 'event' as const, at: ev.at, data: ev })),
-            ...serverActivity.map(a => ({ kind: 'activity' as const, at: a.created_at, data: a })),
+            ...serverActivity.map((a: any) => ({ kind: 'activity' as const, at: a.created_at, data: a })),
             ...upcomingEvents.map(e => ({ kind: 'upcoming' as const, at: e.startDt, data: e })),
           ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 
@@ -6012,10 +6007,10 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
 
   const handleCreateTrip = async () => {
     setTripError("");
-    if (!newTripName.trim()) { setTripError("Trip name is required."); return; }
-    if (!newTripStart) { setTripError("Start date is required."); return; }
-    if (!newTripEnd) { setTripError("End date is required."); return; }
-    if (newTripStart > newTripEnd) { setTripError("End date must be after start date."); return; }
+    if (!newTripName.trim()) { setTripError(t('group.tripNameReq', "Trip name is required.")); return; }
+    if (!newTripStart) { setTripError(t('group.tripStartReq', "Start date is required.")); return; }
+    if (!newTripEnd) { setTripError(t('group.tripEndReq', "End date is required.")); return; }
+    if (newTripStart > newTripEnd) { setTripError(t('group.tripDateInvalid', "End date must be after start date.")); return; }
     setCreatingTrip(true);
     try {
       const res = await fetch('/api/trips', {
@@ -6032,7 +6027,7 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
 
   const handleSaveTrip = async (tripId: string) => {
     setTripError("");
-    if (!editTripName.trim() || !editTripStart || !editTripEnd) { setTripError("Name and dates are required."); return; }
+    if (!editTripName.trim() || !editTripStart || !editTripEnd) { setTripError(t('group.editReq', "Name and dates are required.")); return; }
     setSavingTrip(true);
     try {
       const res = await fetch(`/api/trips/${tripId}`, {
@@ -6042,7 +6037,7 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
       if (!res.ok) throw new Error("Failed to save trip.");
       onTripUpdate?.(rowToTrip(await res.json()));
       setEditingTripId(null); setTripError("");
-    } catch (e: any) { setTripError(e.message || "Failed."); }
+    } catch (e: any) { setTripError(e.message || t('group.failed', "Failed.")); }
     finally { setSavingTrip(false); }
   };
 
@@ -6055,7 +6050,7 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
       });
       onTripDelete?.(tripId);
       setConfirmDeleteTripId(null);
-    } catch { setTripError("Failed to delete trip."); setConfirmDeleteTripId(null); }
+    } catch { setTripError(t('group.deleteFailed', "Failed to delete trip.")); setConfirmDeleteTripId(null); }
     finally { setDeletingTripId(null); }
   };
 
@@ -6307,7 +6302,23 @@ function AppShell() {
   const [offlineSim, setOfflineSim] = useState(false);
 
   // SOS State
-  const [isPanicModeActive, setIsPanicModeActive] = useState(false);
+  const [isPanicModeActive, setIsPanicModeActive] = useState(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('voyasync_panic') === 'true';
+    return false;
+  });
+  const [serverActivity, setServerActivity] = useState<TripActivityItem[]>([]);
+  const fetchServerActivity = () => {
+    if (activeTripId && user) {
+      fetch(`/api/trips/${activeTripId}/activity?callerSub=${encodeURIComponent(user.sub)}&limit=10`)
+        .then(r => r.ok ? r.json() : [])
+        .then((rows: TripActivityItem[]) => setServerActivity(rows))
+        .catch(() => { });
+    }
+  };
+
+  useEffect(() => {
+    fetchServerActivity();
+  }, [activeTripId, user]);
   const [showPanicModal, setShowPanicModal] = useState(false);
   const [showLiveMap, setShowLiveMap] = useState(false);
 
@@ -6368,6 +6379,9 @@ function AppShell() {
 
   const switchActiveTrip = (id: string | null) => {
     setActiveTripId(id);
+    setIsPanicModeActive(false);
+    if (typeof window !== 'undefined') localStorage.removeItem('voyasync_panic');
+
     if (id) {
       localStorage.setItem('voyasync_active_trip_id', id);
       const t = trips.find(tr => tr.id === id);
@@ -6499,7 +6513,7 @@ function AppShell() {
     );
   } else {
     switch (tab) {
-      case "home": content = <HomeScreen onNav={handleNav} onAddExpense={handleOpenExpense} onCreateBudget={handleGoToBudget} onShowGroup={() => handleNav("group")} activeTripId={activeTripId} activeTrip={activeTrip} user={user} isPanicModeActive={isPanicModeActive} onSOS={() => setShowPanicModal(true)} onShowMap={() => setShowLiveMap(true)} />; break;
+      case "home": content = <HomeScreen onNav={handleNav} onAddExpense={handleOpenExpense} onCreateBudget={handleGoToBudget} onShowGroup={() => handleNav("group")} activeTripId={activeTripId} activeTrip={activeTrip} user={user} isPanicModeActive={isPanicModeActive} serverActivity={serverActivity} onSOS={() => setShowPanicModal(true)} onShowMap={() => setShowLiveMap(true)} />; break;
       case "itinerary": content = <ItineraryScreen activeTripId={activeTripId} activeTrip={activeTrip} userSub={user?.sub} />; break;
       case "wallet": content = <WalletScreen key={walletInitTab} initialTab={walletInitTab} onAddExpense={handleOpenExpense} activeTripId={activeTripId} user={user} trips={trips} onShowGroup={() => handleNav("group")} />; break;
       case "photos": content = <SocialStreamScreen activeTripId={activeTripId} user={user} isOnline={effectiveIsOnline} />; break;
@@ -6544,6 +6558,7 @@ function AppShell() {
           setShowPanicModal(false);
           const newState = !isPanicModeActive;
           setIsPanicModeActive(newState);
+          if (typeof window !== 'undefined') localStorage.setItem('voyasync_panic', String(newState));
           // Request permissions to avoid silent failure on watchPosition
           if (newState && "geolocation" in navigator) navigator.geolocation.getCurrentPosition(() => { });
 
@@ -6552,7 +6567,7 @@ function AppShell() {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ callerSub: user.sub, callerName: user.name, action: newState ? 'SOS_ALERT' : 'SOS_RESOLVED', subject: newState ? 'Emergency' : 'Resolved' })
-            }).catch(console.error);
+            }).then(() => fetchServerActivity()).catch(console.error);
           }
         }}
       />
