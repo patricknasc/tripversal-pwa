@@ -1405,7 +1405,7 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
   );
 };
 
-const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: string | null; activeTrip?: Trip | null; userSub?: string }) => {
+const ItineraryScreen = ({ activeTripId, activeTrip, userSub, onNav, onShowGroup, onCreateBudget, activeSavedBudget }: { activeTripId: string | null; activeTrip?: Trip | null; userSub?: string; onNav: (tab: TripversalTab) => void; onShowGroup: () => void; onCreateBudget: () => void; activeSavedBudget: SavedBudget | null }) => {
   const { t } = useTranslation();
   const [now, setNow] = useState(() => new Date());
   const todayKey = localDateKey(now);
@@ -1558,8 +1558,10 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
       queries.map(async ({ loc, dates }) => {
         if (!geocodeCache[loc]) {
           try {
+            // Clean location string: take only the first part before comma for better results in Open-Meteo
+            const cleanLoc = loc.split(',')[0].trim();
             const gRes = await fetch(
-              `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(loc)}&count=1&language=en&format=json`
+              `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cleanLoc)}&count=1&language=en&format=json`
             );
             const gData = await gRes.json();
             if (gData.results && gData.results[0]) {
@@ -1571,7 +1573,10 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
         if (!coords) return null;
 
         try {
-          const apiEnd = endDate > localDateKey(new Date(Date.now() + 15 * 86400000)) ? localDateKey(new Date(Date.now() + 15 * 86400000)) : endDate;
+          // Open-Meteo forecast is max 16 days. If trip ends after that, cap at 15 days from today.
+          const maxForecast = localDateKey(new Date(Date.now() + 15 * 86400000));
+          const apiEnd = endDate > maxForecast ? maxForecast : endDate;
+
           const wRes = await fetch(
             `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&daily=temperature_2m_max,weathercode&timezone=auto&start_date=${fetchStart}&end_date=${apiEnd}`
           );
@@ -1580,7 +1585,6 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
           const entries: Record<string, { temp: number; code: number }> = {};
           d.daily.time.forEach((date: string, i: number) => {
             if (!dates.has(date)) return;
-            // Past dates already in cache are immutable — skip to avoid redundant writes
             if (date < today && cachedMap[date]) return;
             entries[date] = { temp: Math.round(d.daily.temperature_2m_max[i]), code: d.daily.weathercode[i] };
           });
@@ -1598,7 +1602,6 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
           return updated;
         });
 
-        // Sync only truly new data to cloud (not what was already cached)
         fetch(`/api/trips/${activeTripId}/weather`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1606,7 +1609,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
         }).catch(() => { });
       }
     });
-  }, [activeTripId, activeTrip?.segments?.length]);
+  }, [activeTripId, activeTrip?.segments?.length, activeTrip?.destination]);
 
   // Countdown to next event today
   useEffect(() => {
@@ -1794,6 +1797,26 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
           </div>
         )}
       </div>
+
+      {activeTrip && (
+        <div style={{ padding: "0 20px" }}>
+          <div style={{ background: C.card3, borderRadius: 14, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <span style={{ fontSize: 18 }}>✈️</span>
+            <div onClick={onShowGroup} style={{ flex: 1, minWidth: 0, cursor: "pointer" }}>
+              <div style={{ fontSize: 11, color: C.textMuted, letterSpacing: 1 }}>{t('wallet.activeTrip')}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{activeTrip.name}</div>
+            </div>
+            {activeSavedBudget ? (
+              <div style={{ textAlign: "right", flexShrink: 0 }}>
+                <div style={{ fontSize: 11, color: C.textMuted }}>{t('wallet.budgetLabel')}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.cyan }}>{activeSavedBudget.currency} {activeSavedBudget.amount.toLocaleString()}</div>
+              </div>
+            ) : (
+              <button onClick={(e) => { e.stopPropagation(); onCreateBudget(); }} style={{ background: C.cyan, color: "#000", border: "none", borderRadius: 16, padding: "6px 14px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{t('wallet.createBudgetBtn')}</button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Day selector */}
       <div ref={daySelectorRef} style={{ overflowX: "auto" }} className="no-scrollbar">
@@ -6793,6 +6816,23 @@ function AppShell() {
   const [walletInitTab, setWalletInitTab] = useState<'transactions' | 'analytics' | 'budget'>('transactions');
   const [trips, setTrips] = useState<Trip[]>([]);
   const [activeTripId, setActiveTripId] = useState<string | null>(null);
+  const [activeSavedBudget, setActiveSavedBudget] = useState<SavedBudget | null>(null);
+
+  useEffect(() => {
+    const handleSyncBudget = () => {
+      try {
+        const s = localStorage.getItem('voyasync_saved_budgets');
+        if (s) {
+          const parsed = JSON.parse(s) as SavedBudget[];
+          const active = parsed.find(sb => sb.activeTripId === activeTripId);
+          setActiveSavedBudget(active || null);
+        } else { setActiveSavedBudget(null); }
+      } catch { }
+    };
+    handleSyncBudget();
+    const interval = setInterval(handleSyncBudget, 2000);
+    return () => clearInterval(interval);
+  }, [activeTripId]);
   const [pendingInviteToken, setPendingInviteToken] = useState<string | null>(null);
   // Lifted from SettingsScreen so it actually affects the real isOnline indicator
   const [offlineSim, setOfflineSim] = useState(false);
@@ -7071,7 +7111,7 @@ function AppShell() {
   } else {
     switch (tab) {
       case "home": content = <HomeScreen onNav={handleNav} onAddExpense={handleOpenExpense} onCreateBudget={handleGoToBudget} onShowGroup={() => handleNav("group")} activeTripId={activeTripId} activeTrip={activeTrip} user={user} isPanicModeActive={isPanicModeActive} serverActivity={serverActivity} onSOS={() => setShowPanicModal(true)} onShowMap={() => setShowLiveMap(true)} onTodo={() => setShowTodo(true)} />; break;
-      case "itinerary": content = <ItineraryScreen activeTripId={activeTripId} activeTrip={activeTrip} userSub={user?.sub} />; break;
+      case "itinerary": content = <ItineraryScreen activeTripId={activeTripId} activeTrip={activeTrip} userSub={user?.sub} onNav={handleNav} onCreateBudget={handleGoToBudget} onShowGroup={() => setShowManageCrew(true)} activeSavedBudget={activeSavedBudget} />; break;
       case "wallet": content = <WalletScreen key={walletInitTab} initialTab={walletInitTab} onAddExpense={handleOpenExpense} activeTripId={activeTripId} user={user} trips={trips} onShowGroup={() => handleNav("group")} />; break;
       case "photos": content = <SocialStreamScreen activeTripId={activeTripId} user={user} isOnline={effectiveIsOnline} />; break;
       case "group": content = <GroupScreen
