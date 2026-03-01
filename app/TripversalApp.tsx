@@ -641,7 +641,7 @@ const Card = ({ children, style = {}, onClick }: any) => (
   </div>
 );
 
-const Header = ({ onSettings, isOnline = true, isSyncing = false, user }: any) => {
+const Header = ({ onSettings, onHome, isOnline = true, isSyncing = false, user }: any) => {
   const { t } = useTranslation();
   const [weather, setWeather] = useState<{ temp: number; code: number; isDay: boolean } | null>(null);
   const [cityName, setCityName] = useState("Localizando...");
@@ -695,7 +695,12 @@ const Header = ({ onSettings, isOnline = true, isSyncing = false, user }: any) =
   return (
     <div style={{ padding: "12px 20px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${C.border}20` }}>
       <div>
-        <div style={{ color: C.cyan, fontSize: 13, fontWeight: 800, letterSpacing: 2 }}>VOYASYNC</div>
+        <div
+          onClick={onHome}
+          style={{ cursor: "pointer", color: C.cyan, fontSize: 13, fontWeight: 800, letterSpacing: 2 }}
+        >
+          VOYASYNC
+        </div>
         <button
           onClick={() => {
             const url = geoCoords
@@ -6466,7 +6471,13 @@ function AppShell() {
     if (stored) {
       try { setUser(JSON.parse(stored)); } catch { }
     }
+    const storedId = localStorage.getItem('voyasync_active_trip_id');
+    if (storedId) setActiveTripId(storedId);
   }, []);
+
+  // Hydration fix for PWA
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => setIsMounted(true), []);
 
   // On user login: check invite URL param, fetch trips, restore active trip
   useEffect(() => {
@@ -6503,6 +6514,8 @@ function AppShell() {
     localStorage.removeItem('voyasync_active_trip_id');
     setUser(null); setTrips([]); setActiveTripId(null);
   };
+
+  if (!isMounted) return null;
 
   if (!user) return <LoginScreen onLogin={(u) => {
     setUser(u);
@@ -6624,7 +6637,13 @@ function AppShell() {
     <div style={{ background: "#000", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <GlobalStyles />
       <div style={{ width: "100%", maxWidth: 430, minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", position: "relative", overflowX: "hidden", display: "flex", flexDirection: "column" }}>
-        <Header onSettings={() => { setShowSettings(true); setShowManageCrew(false); setShowAddExpense(false); }} user={user} isOnline={effectiveIsOnline} isSyncing={isSyncing} />
+        <Header
+          onSettings={() => { setShowSettings(true); setShowManageCrew(false); setShowAddExpense(false); }}
+          onHome={() => { setTab('home'); setShowSettings(false); setShowManageCrew(false); setShowAddExpense(false); setShowHistory(false); setShowLiveMap(false); if (typeof window !== 'undefined') { localStorage.setItem('voyasync_last_route', 'home'); window.history.pushState({ route: 'home' }, '', '#home'); } }}
+          user={user}
+          isOnline={effectiveIsOnline}
+          isSyncing={isSyncing}
+        />
         <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
           {content}
         </div>
