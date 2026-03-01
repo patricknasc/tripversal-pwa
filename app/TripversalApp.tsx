@@ -363,6 +363,7 @@ const icons: Record<string, any> = {
   chevronDown: "M6 9l6 6 6-6",
   archive: ["M21 8v13H3V8", "M1 3h22v5H1z", "M10 12h4"],
   rotateCcw: ["M1 4v6h6", "M3.51 15a9 9 0 102.13-9.36L1 10"],
+  bell: ["M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9", "M13.73 21a2 2 0 01-3.46 0"],
   logOut: ["M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4", "M16 17l5-5-5-5", "M21 12H9"],
   helpCircle: ["M12 22a10 10 0 100-20 10 10 0 000 20z", "M9 9a3 3 0 015.83 1c0 2-3 3-3 3", "M12 17h.01"],
 };
@@ -4442,7 +4443,6 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
   }, []);
 
   const enablePush = async () => {
-    if (pushEnabled) return alert("Push já ativado!");
     setPushLoading(true);
     try {
       if (!('Notification' in window) || !('serviceWorker' in navigator)) {
@@ -4475,6 +4475,28 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
       alert(t('settings.pushSuccess'));
     } catch (e: any) {
       alert(t('settings.pushWarn') + e.message);
+    }
+    setPushLoading(false);
+  };
+
+  const disablePush = async () => {
+    setPushLoading(true);
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (reg?.pushManager) {
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) {
+          await fetch('/api/push/subscribe', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userSub: user.sub }),
+          });
+          await sub.unsubscribe();
+        }
+      }
+      setPushEnabled(false);
+    } catch (e: any) {
+      console.error('Disable push failed', e);
     }
     setPushLoading(false);
   };
@@ -4676,9 +4698,15 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
             <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2 }}>{pushEnabled ? t('settings.active') : t('settings.emergencyPush')}</div>
             <div style={{ color: C.textSub, fontSize: 12, lineHeight: 1.4 }}>{pushEnabled ? t('settings.pushDescActive') : t('settings.pushDescInactive')}</div>
           </div>
-          <Btn variant={pushEnabled ? "ghost" : "primary"} onClick={enablePush} disabled={pushLoading}>
-            {pushLoading ? "..." : pushEnabled ? t('settings.active') : t('settings.enable')}
-          </Btn>
+          {pushEnabled ? (
+            <Btn variant="ghost" style={{ color: C.red, borderColor: C.redDim }} onClick={disablePush} disabled={pushLoading}>
+              {pushLoading ? "..." : t('settings.disable', 'Desativar')}
+            </Btn>
+          ) : (
+            <Btn variant="primary" onClick={enablePush} disabled={pushLoading}>
+              {pushLoading ? "..." : t('settings.enable')}
+            </Btn>
+          )}
         </div>
       </Card>
 
@@ -6901,7 +6929,7 @@ function AppShell() {
         <div style={{ fontSize: 50, marginBottom: 12 }}>🚨</div>
         <div style={{ fontSize: 20, fontWeight: 800, color: C.red, marginBottom: 12, textTransform: "uppercase" }}>{t('sos.alertTitle')}</div>
         <div style={{ color: C.text, fontSize: 16, marginBottom: 24, lineHeight: 1.5, fontWeight: 500 }}>
-          {t('sos.alertBody', { name: (activeTrip as any)?.trip_members?.find((m: any) => m.google_sub === incomingSOSUser)?.name || t('sos.fallbackName', 'Um membro') })}
+          {t('sos.alertBody', { name: activeTrip?.crew?.find((m: any) => m.googleSub === incomingSOSUser)?.name || t('sos.fallbackName', 'Um membro') })}
         </div>
         <Btn variant="danger" style={{ width: "100%", padding: 16, fontSize: 16, fontWeight: "bold" }} onClick={() => { setIncomingSOSUser(null); setShowTodo(false); setShowLiveMap(true); }}>{t('sos.openMap')}</Btn>
         <Btn variant="primary" style={{ width: "100%", marginTop: 12, padding: 12, background: "transparent", border: `1px solid ${C.cyan}`, color: C.cyan }} onClick={toggleMuteSOS}>
