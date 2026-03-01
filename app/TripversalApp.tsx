@@ -6893,6 +6893,28 @@ function AppShell() {
 
   const activeTab = showSettings || showManageCrew || showAddExpense || showHistory || showTodo ? null : tab;
 
+  // SOS alert overlay — must render above ALL screens including full-screen ones
+  const sosAlertOverlay = incomingSOSUser ? (
+    <>
+      <div style={{ position: "fixed", inset: 0, background: "rgba(100,0,0,0.8)", zIndex: 10000 }} onClick={() => setIncomingSOSUser(null)} />
+      <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "90%", maxWidth: 400, background: C.card, borderRadius: 20, padding: 24, zIndex: 10001, textAlign: "center", border: `2px solid ${C.red}` }}>
+        <div style={{ fontSize: 50, marginBottom: 12 }}>🚨</div>
+        <div style={{ fontSize: 20, fontWeight: 800, color: C.red, marginBottom: 12, textTransform: "uppercase" }}>{t('sos.alertTitle')}</div>
+        <div style={{ color: C.text, fontSize: 16, marginBottom: 24, lineHeight: 1.5, fontWeight: 500 }}>
+          {t('sos.alertBody', { name: (activeTrip as any)?.trip_members?.find((m: any) => m.google_sub === incomingSOSUser)?.name || t('sos.fallbackName', 'Um membro') })}
+        </div>
+        <Btn variant="danger" style={{ width: "100%", padding: 16, fontSize: 16, fontWeight: "bold" }} onClick={() => { setIncomingSOSUser(null); setShowTodo(false); setShowLiveMap(true); }}>{t('sos.openMap')}</Btn>
+        <Btn variant="primary" style={{ width: "100%", marginTop: 12, padding: 12, background: "transparent", border: `1px solid ${C.cyan}`, color: C.cyan }} onClick={toggleMuteSOS}>
+          {mutedSOS ? t('sos.unmuteAlert', '🔊 Ativar Som') : t('sos.muteAlert', '🔇 Silenciar')}
+        </Btn>
+        <Btn variant="ghost" style={{ width: "100%", marginTop: 8, padding: 12, color: C.red, border: `1px solid ${C.redDim}` }} onClick={handleDeactivateSOS}>
+          {t('sos.deactivateSiren', '🚫 Desativar Sirene')}
+        </Btn>
+        <Btn variant="ghost" style={{ width: "100%", marginTop: 8, padding: 12 }} onClick={() => setIncomingSOSUser(null)}>{t('sos.closeAlert')}</Btn>
+      </div>
+    </>
+  ) : null;
+
   if (showTodo) {
     return (
       <div style={{ background: "#000", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -6900,6 +6922,7 @@ function AppShell() {
         <div style={{ width: "100%", maxWidth: 430, minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", overflowY: 'auto' }}>
           <TodoScreen activeTripId={activeTripId} onBack={() => setShowTodo(false)} />
         </div>
+        {sosAlertOverlay}
       </div>
     );
   }
@@ -6927,6 +6950,7 @@ function AppShell() {
             }}
           />
         </div>
+        {sosAlertOverlay}
       </div>
     );
   }
@@ -6969,26 +6993,7 @@ function AppShell() {
           }
         }}
       />
-      {incomingSOSUser && (
-        <>
-          <div style={{ position: "fixed", inset: 0, background: "rgba(100,0,0,0.8)", zIndex: 1000 }} onClick={() => setIncomingSOSUser(null)} />
-          <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "90%", maxWidth: 400, background: C.card, borderRadius: 20, padding: 24, zIndex: 1001, textAlign: "center", border: `2px solid ${C.red}` }}>
-            <div style={{ fontSize: 50, marginBottom: 12 }}>🚨</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: C.red, marginBottom: 12, textTransform: "uppercase" }}>{t('sos.alertTitle')}</div>
-            <div style={{ color: C.text, fontSize: 16, marginBottom: 24, lineHeight: 1.5, fontWeight: 500 }}>
-              {t('sos.alertBody', { name: (activeTrip as any)?.trip_members?.find((m: any) => m.google_sub === incomingSOSUser)?.name || t('sos.fallbackName', 'Um membro') })}
-            </div>
-            <Btn variant="danger" style={{ width: "100%", padding: 16, fontSize: 16, fontWeight: "bold" }} onClick={() => { setIncomingSOSUser(null); setShowLiveMap(true); }}>{t('sos.openMap')}</Btn>
-            <Btn variant="primary" style={{ width: "100%", marginTop: 12, padding: 12, background: "transparent", border: `1px solid ${C.cyan}`, color: C.cyan }} onClick={toggleMuteSOS}>
-              {mutedSOS ? t('sos.unmuteAlert', '🔊 Ativar Som') : t('sos.muteAlert', '🔇 Silenciar')}
-            </Btn>
-            <Btn variant="ghost" style={{ width: "100%", marginTop: 8, padding: 12, color: C.red, border: `1px solid ${C.redDim}` }} onClick={handleDeactivateSOS}>
-              {t('sos.deactivateSiren', '🚫 Desativar Sirene')}
-            </Btn>
-            <Btn variant="ghost" style={{ width: "100%", marginTop: 8, padding: 12 }} onClick={() => setIncomingSOSUser(null)}>{t('sos.closeAlert')}</Btn>
-          </div>
-        </>
-      )}
+      {sosAlertOverlay}
     </div>
   );
 }
