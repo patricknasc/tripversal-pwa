@@ -8,7 +8,7 @@ function getResend(): Resend {
 export { getResend as resend };
 
 export function buildInviteEmail(inviterName: string, tripName: string, token: string): string {
-  const link = `https://tripversal-pwa.vercel.app/?invite=${token}`;
+  const link = `https://voyasync.com/?invite=${token}`;
   return `<!DOCTYPE html>
 <html>
 <head>

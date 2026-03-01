@@ -695,12 +695,12 @@ const Header = ({ onSettings, onHome, isOnline = true, isSyncing = false, user }
   return (
     <div style={{ padding: "12px 20px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${C.border}20` }}>
       <div>
-        <div
+        <button
           onClick={onHome}
-          style={{ cursor: "pointer", color: C.cyan, fontSize: 13, fontWeight: 800, letterSpacing: 2 }}
+          style={{ background: "none", border: "none", padding: 0, outline: "none", cursor: "pointer", color: C.cyan, fontSize: 13, fontWeight: 800, letterSpacing: 2 }}
         >
           VOYASYNC
-        </div>
+        </button>
         <button
           onClick={() => {
             const url = geoCoords

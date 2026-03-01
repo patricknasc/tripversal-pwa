@@ -29,9 +29,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (tokenErr) return NextResponse.json({ error: tokenErr.message }, { status: 500 });
 
   const { error: emailErr } = await resend().emails.send({
-    from: process.env.RESEND_FROM ?? 'Tripversal <onboarding@resend.dev>',
+    from: process.env.RESEND_FROM ?? 'Voyasync <invites@voyasync.com>',
     to: email,
-    subject: `${inviterName} invited you to join ${trip.name} on Tripversal`,
+    subject: `${inviterName} invited you to join ${trip.name} on Voyasync`,
     html: buildInviteEmail(inviterName, trip.name, tokenRow.token),
   });
 
