@@ -1262,31 +1262,31 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
                 <>
                   <div style={{ fontWeight: 700, marginBottom: 16 }}>{t('home.editBtn')}</div>
                   <div style={{ marginBottom: 10 }}>
-                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>DESCRIPTION</div>
-                    <Input value={homeEditDesc} onChange={setHomeEditDesc} placeholder="Description" />
+                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('wallet.colDescription')}</div>
+                    <Input value={homeEditDesc} onChange={setHomeEditDesc} placeholder={t('wallet.colDescription')} />
                   </div>
                   <div style={{ marginBottom: 10 }}>
-                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>AMOUNT</div>
+                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('wallet.colAmount')}</div>
                     <Input value={homeEditAmount} onChange={setHomeEditAmount} placeholder="0.00" />
                   </div>
                   <div style={{ marginBottom: 10, display: "flex", gap: 10 }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TAX / FEES</div>
+                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('wallet.colTax')}</div>
                       <div style={{ display: "flex", background: C.card3, borderRadius: 10, padding: 4 }}>
                         <input value={homeEditTaxAmount} onChange={e => setHomeEditTaxAmount(e.target.value)} placeholder="0.00" style={{ background: "transparent", border: "none", color: C.text, width: "100%", outline: "none", paddingLeft: 8 }} />
-                        <button onClick={() => setHomeEditTaxType(t => t === 'fixed' ? 'percentage' : 'fixed')} style={{ background: C.bg, color: C.cyan, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontWeight: 700 }}>{homeEditTaxType === 'percentage' ? '%' : '$'}</button>
+                        <button onClick={() => setHomeEditTaxType(prev => prev === 'fixed' ? 'percentage' : 'fixed')} style={{ background: C.bg, color: C.cyan, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontWeight: 700 }}>{homeEditTaxType === 'percentage' ? '%' : '$'}</button>
                       </div>
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>DISCOUNT</div>
+                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('wallet.colDiscount')}</div>
                       <div style={{ display: "flex", background: C.card3, borderRadius: 10, padding: 4 }}>
                         <input value={homeEditDiscountAmount} onChange={e => setHomeEditDiscountAmount(e.target.value)} placeholder="0.00" style={{ background: "transparent", border: "none", color: C.text, width: "100%", outline: "none", paddingLeft: 8 }} />
-                        <button onClick={() => setHomeEditDiscountType(t => t === 'fixed' ? 'percentage' : 'fixed')} style={{ background: C.bg, color: C.cyan, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontWeight: 700 }}>{homeEditDiscountType === 'percentage' ? '%' : '$'}</button>
+                        <button onClick={() => setHomeEditDiscountType(prev => prev === 'fixed' ? 'percentage' : 'fixed')} style={{ background: C.bg, color: C.cyan, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontWeight: 700 }}>{homeEditDiscountType === 'percentage' ? '%' : '$'}</button>
                       </div>
                     </div>
                   </div>
                   <div style={{ marginBottom: 10 }}>
-                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>EXCHANGE RATE</div>
+                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('wallet.colRate')}</div>
                     <div style={{ display: "flex", background: C.card3, borderRadius: 10, padding: 4 }}>
                       <input value={homeEditCambialRate} onChange={e => setHomeEditCambialRate(e.target.value)} placeholder="1.00" style={{ background: "transparent", border: "none", color: C.text, flex: 1, outline: "none", paddingLeft: 8 }} />
                       <button onClick={async () => {
@@ -1294,29 +1294,29 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
                           const r = await fetchRate(homeEditCurrency, budget.baseCurrency);
                           setHomeEditCambialRate(String(r));
                         } catch { }
-                      }} style={{ background: C.bg, color: C.cyan, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontWeight: 700, fontSize: 11 }}>Update from API</button>
+                      }} style={{ background: C.bg, color: C.cyan, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontWeight: 700, fontSize: 11 }}>{t('wallet.updateFromApi')}</button>
                     </div>
                   </div>
                   <div style={{ marginBottom: 10 }}>
-                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>DATE</div>
+                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('wallet.colDate')}</div>
                     <Card style={{ display: "flex", alignItems: "center", gap: 10, padding: 12 }}>
                       <input type="date" value={homeEditDate} onChange={e => setHomeEditDate(e.target.value)}
                         style={{ background: "transparent", border: "none", color: C.text, flex: 1, outline: "none", fontFamily: "inherit", colorScheme: "dark" }} />
                     </Card>
                   </div>
                   <div style={{ marginBottom: 10 }}>
-                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>LOCATION</div>
+                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('wallet.colLocation')}</div>
                     <Card style={{ display: "flex", alignItems: "center", gap: 10, padding: 12 }}>
-                      <input value={homeEditCity} onChange={e => setHomeEditCity(e.target.value)} placeholder="City"
+                      <input value={homeEditCity} onChange={e => setHomeEditCity(e.target.value)} placeholder={t('wallet.colLocation')}
                         style={{ background: "transparent", border: "none", color: C.text, flex: 1, outline: "none", fontFamily: "inherit", fontSize: 14 }} />
                     </Card>
                   </div>
                   <div style={{ marginBottom: 10 }}>
-                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>CATEGORY</div>
+                    <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('wallet.colCategory')}</div>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       {categories.map(c => (
                         <button key={c.id} onClick={() => setHomeEditCat(c.id)} style={{ background: homeEditCat === c.id ? "#003d45" : C.card3, border: homeEditCat === c.id ? `2px solid ${C.cyan}` : "2px solid transparent", borderRadius: 10, padding: "8px 12px", cursor: "pointer", color: homeEditCat === c.id ? C.cyan : C.textMuted, fontSize: 12, fontWeight: homeEditCat === c.id ? 700 : 400, fontFamily: "inherit" }}>
-                          {c.label}
+                          {t(c.key)}
                         </button>
                       ))}
                     </div>
@@ -1705,7 +1705,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
       {/* Header */}
       <div style={{ padding: "16px 20px 0", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>Itinerary</div>
+          <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>{t('nav.itinerary')}</div>
           <div style={{ color: C.textMuted, fontSize: 13, marginBottom: 16 }}>
             {formatDisplayDate(selectedDay)}{activeTrip?.destination ? ` · ${activeTrip.destination}` : ""}
           </div>
@@ -1794,7 +1794,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
         <div style={{ margin: "0 20px 12px", background: `${C.yellow}18`, border: `1px solid ${C.yellow}50`, borderRadius: 12, padding: "10px 14px", display: "flex", gap: 10, alignItems: "flex-start" }}>
           <span style={{ fontSize: 16, flexShrink: 0 }}>⚠️</span>
           <div>
-            <div style={{ color: C.yellow, fontSize: 13, fontWeight: 700, marginBottom: 2 }}>Scheduling conflict</div>
+            <div style={{ color: C.yellow, fontSize: 13, fontWeight: 700, marginBottom: 2 }}>{t('itinerary.schedulingConflict')}</div>
             <div style={{ color: C.textMuted, fontSize: 12 }}>
               You are assigned to overlapping segments in{" "}
               {conflictingTripNames.map((n, i) => (
@@ -1970,13 +1970,13 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
             {/* End Date + Time */}
             <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
               <div style={{ flex: 2 }}>
-                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>END DATE</div>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('itinerary.endDateLabel')}</div>
                 <Card style={{ padding: "10px 14px" }}>
                   <input type="date" value={evtEndDate} onChange={e => setEvtEndDate(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} />
                 </Card>
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>END TIME</div>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('itinerary.endTimeLabel')}</div>
                 <Card style={{ padding: "10px 14px" }}>
                   <input type="time" value={evtEndTime} onChange={e => setEvtEndTime(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} />
                 </Card>
@@ -1985,8 +1985,8 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
 
             {/* Location */}
             <div style={{ marginBottom: 12 }}>
-              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>LOCATION</div>
-              <input value={evtLocation} onChange={e => setEvtLocation(e.target.value)} placeholder="Airport, hotel, restaurant…"
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('itinerary.locationLabel')}</div>
+              <input value={evtLocation} onChange={e => setEvtLocation(e.target.value)} placeholder={t('itinerary.locationPlaceholder')}
                 style={{ width: "100%", boxSizing: "border-box" as const, background: C.card2, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", color: C.text, fontSize: 14, outline: "none", fontFamily: "inherit" }} />
               {evtLocation.trim() && (
                 <a href={`https://maps.google.com/maps?q=${encodeURIComponent(evtLocation)}`} target="_blank" rel="noreferrer"
@@ -1998,15 +1998,15 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
 
             {/* Booking ref */}
             <div style={{ marginBottom: 12 }}>
-              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>BOOKING REF</div>
-              <input value={evtConfirmation} onChange={e => setEvtConfirmation(e.target.value)} placeholder="Confirmation number"
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('itinerary.bookingRef')}</div>
+              <input value={evtConfirmation} onChange={e => setEvtConfirmation(e.target.value)} placeholder={t('itinerary.confirmationLabel')}
                 style={{ width: "100%", boxSizing: "border-box" as const, background: C.card2, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", color: C.text, fontSize: 14, outline: "none", fontFamily: "inherit" }} />
             </div>
 
             {/* Type-specific extras */}
             {extrasForType.length > 0 && (
               <div style={{ marginBottom: 12 }}>
-                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>DETAILS</div>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('itinerary.detailsLabel')}</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                   {extrasForType.map(field => (
                     <input key={field} value={evtExtras[field] || ''} onChange={e => setEvtExtras(prev => ({ ...prev, [field]: e.target.value }))}
@@ -2020,7 +2020,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
             {/* Visibility */}
             {activeTrip && activeTrip.crew.filter(m => m.status === 'accepted' && m.googleSub && m.googleSub !== userSub).length > 0 && (
               <div style={{ marginBottom: 12 }}>
-                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>VISIBILITY</div>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>{t('itinerary.visibilityLabel')}</div>
                 <div style={{ display: "flex", gap: 8, marginBottom: evtVisibility === 'restricted' ? 10 : 0 }}>
                   {(['all', 'restricted'] as const).map(v => (
                     <button key={v} onClick={() => { setEvtVisibility(v); if (v === 'all') setEvtVisibleTo([]); }}
@@ -2030,7 +2030,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
                         borderRadius: 10, padding: "10px 0", color: evtVisibility === v ? (v === 'restricted' ? C.red : C.cyan) : C.textMuted,
                         cursor: "pointer", fontSize: 13, fontFamily: "inherit", fontWeight: 600
                       }}>
-                      {v === 'all' ? '🌐 Everyone' : '🔒 Restricted'}
+                      {v === 'all' ? `🌐 ${t('crew.everyone')}` : `🔒 ${t('itinerary.privacyMe')}`}
                     </button>
                   ))}
                 </div>
@@ -2058,14 +2058,14 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
 
             {/* Notes */}
             <div style={{ marginBottom: 16 }}>
-              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>NOTES</div>
-              <textarea value={evtNotes} onChange={e => setEvtNotes(e.target.value)} placeholder="Additional notes…" rows={3}
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('itinerary.notesLabel')}</div>
+              <textarea value={evtNotes} onChange={e => setEvtNotes(e.target.value)} placeholder={t('itinerary.notesPlaceholder')} rows={3}
                 style={{ width: "100%", boxSizing: "border-box" as const, background: C.card2, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", color: C.text, fontSize: 14, outline: "none", fontFamily: "inherit", resize: "none" as const }} />
             </div>
 
             {/* Attachments */}
             <div style={{ marginBottom: 16 }}>
-              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>ATTACHMENTS</div>
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>{t('itinerary.attachmentsLabel')}</div>
               {evtAttachments.map(att => (
                 <div key={att.id} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, background: C.card3, borderRadius: 10, padding: "8px 12px" }}>
                   <div style={{ flex: 1, fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{att.name}</div>
@@ -2076,7 +2076,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub }: { activeTripId: 
               ))}
               <label style={{ display: "flex", alignItems: "center", gap: 8, background: C.card3, border: `1.5px dashed ${C.border}`, borderRadius: 10, padding: "10px 14px", cursor: "pointer" }}>
                 <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth={2} strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
-                <span style={{ fontSize: 13, color: C.cyan, fontWeight: 600 }}>Add photo or file</span>
+                <span style={{ fontSize: 13, color: C.cyan, fontWeight: 600 }}>{t('itinerary.addPhotoOrFile')}</span>
                 <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} onChange={e => {
                   const file = e.target.files?.[0];
                   if (!file) return;
@@ -2594,9 +2594,9 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
 
       {/* ── Tab switcher ── */}
       <div style={{ background: C.card3, borderRadius: 14, padding: 4, display: "flex", marginBottom: 20 }}>
-        {(['transactions', 'analytics', 'budget'] as const).map(t => (
-          <button key={t} onClick={() => setWalletTab(t)} style={{ flex: 1, padding: "11px", borderRadius: 10, border: "none", cursor: "pointer", background: walletTab === t ? C.cyan : "transparent", color: walletTab === t ? "#000" : C.textMuted, fontWeight: walletTab === t ? 700 : 400, fontSize: 12, fontFamily: "inherit", letterSpacing: 1 }}>
-            {t === 'transactions' ? 'TRANSACTIONS' : t === 'analytics' ? 'ANALYTICS' : 'BUDGET'}
+        {(['transactions', 'analytics', 'budget'] as const).map(tab => (
+          <button key={tab} onClick={() => setWalletTab(tab)} style={{ flex: 1, padding: "11px", borderRadius: 10, border: "none", cursor: "pointer", background: walletTab === tab ? C.cyan : "transparent", color: walletTab === tab ? "#000" : C.textMuted, fontWeight: walletTab === tab ? 700 : 400, fontSize: 12, fontFamily: "inherit", letterSpacing: 1 }}>
+            {tab === 'transactions' ? t('wallet.tabTransactions') : tab === 'analytics' ? t('wallet.tabAnalytics') : t('wallet.tabBudget')}
           </button>
         ))}
       </div>
@@ -2694,7 +2694,8 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
               {catTotals.map(([cat, amt]) => {
                 const pct = amt / maxCat;
                 const color = CAT_COLORS[cat] || C.textMuted;
-                const catLabel = categories.find(c => c.id === cat)?.label || cat.toUpperCase();
+                const catEntry = categories.find(c => c.id === cat);
+                const catLabel = catEntry ? t(catEntry.key) : cat.toUpperCase();
                 return (
                   <div key={cat} style={{ marginBottom: 12 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
@@ -2844,7 +2845,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
                       <div style={{ fontWeight: 700, fontSize: 15, color: isReceive ? C.green : C.yellow }}>
                         {isReceive ? '+' : '-'}{sym}{fmtAmt(Math.abs(row.amount))}
                       </div>
-                      <div style={{ fontSize: 10, color: C.textSub }}>{isReceive ? 'RECEIVE' : 'PAY'}</div>
+                      <div style={{ fontSize: 10, color: C.textSub }}>{isReceive ? t('wallet.receive') : t('wallet.pay')}</div>
                     </div>
                   </div>
                 );
@@ -2855,8 +2856,8 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
                 if (totalOwed === 0 && totalOwing === 0) return null;
                 return (
                   <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10, marginTop: 4, display: "flex", justifyContent: "space-between" }}>
-                    {totalOwed > 0 && <div style={{ color: C.green, fontSize: 12 }}>To receive: {fmtAmt(totalOwed)}</div>}
-                    {totalOwing < 0 && <div style={{ color: C.yellow, fontSize: 12 }}>To pay: {fmtAmt(Math.abs(totalOwing))}</div>}
+                    {totalOwed > 0 && <div style={{ color: C.green, fontSize: 12 }}>{t('wallet.toReceive', { amount: fmtAmt(totalOwed) })}</div>}
+                    {totalOwing < 0 && <div style={{ color: C.yellow, fontSize: 12 }}>{t('wallet.toPay', { amount: fmtAmt(Math.abs(totalOwing)) })}</div>}
                   </div>
                 );
               })()}
@@ -2873,22 +2874,22 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
           <SectionLabel icon="wallet">{t('wallet.budgetsTitle')}</SectionLabel>
           {!showAddBudget && (
             <button onClick={() => { resetForm(); setShowAddBudget(true); }} style={{ display: "flex", alignItems: "center", gap: 6, background: C.cyan, color: "#000", border: "none", borderRadius: 12, padding: "10px 16px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 13, marginBottom: 16 }}>
-              <Icon d={icons.plus} size={14} stroke="#000" strokeWidth={2.5} /> New Budget
+              <Icon d={icons.plus} size={14} stroke="#000" strokeWidth={2.5} /> {t('wallet.newBudgetBtn')}
             </button>
           )}
 
           {showAddBudget && (
             <Card style={{ marginBottom: 16, border: `1px solid ${C.cyan}30` }}>
-              <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 15 }}>{editingBudgetId ? "Edit Budget" : "New Budget"}</div>
-              <Input placeholder="Name (e.g. Europe Trip 2026)" value={budgetName} onChange={setBudgetName} style={{ marginBottom: 12 }} />
+              <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 15 }}>{editingBudgetId ? t('wallet.editBudgetTitle') : t('wallet.newBudgetTitle')}</div>
+              <Input placeholder={t('wallet.budgetNamePlaceholder')} value={budgetName} onChange={setBudgetName} style={{ marginBottom: 12 }} />
 
               <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>{t('wallet.budgetType')}</div>
               <div style={{ background: C.card3, borderRadius: 12, padding: 4, display: "flex", marginBottom: 16 }}>
                 <button onClick={() => setFormBudgetType('simple')} style={{ flex: 1, padding: "10px", borderRadius: 8, border: "none", cursor: "pointer", background: formBudgetType === 'simple' ? C.cyan : "transparent", color: formBudgetType === 'simple' ? "#000" : C.textMuted, fontWeight: formBudgetType === 'simple' ? 700 : 400, fontSize: 13, fontFamily: "inherit", transition: "all 0.2s" }}>
-                  Simple
+                  {t('wallet.typeSimple')}
                 </button>
                 <button onClick={() => setFormBudgetType('composed')} style={{ flex: 1, padding: "10px", borderRadius: 8, border: "none", cursor: "pointer", background: formBudgetType === 'composed' ? C.cyan : "transparent", color: formBudgetType === 'composed' ? "#000" : C.textMuted, fontWeight: formBudgetType === 'composed' ? 700 : 400, fontSize: 13, fontFamily: "inherit", transition: "all 0.2s" }}>
-                  Composed
+                  {t('wallet.typeComposed')}
                 </button>
               </div>
 
@@ -2920,7 +2921,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.border}` }}>
                     <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1 }}>{t('wallet.paymentSources')}</div>
-                    <button onClick={() => setShowAddSource(p => !p)} style={{ background: "none", color: C.cyan, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit" }}>{showAddSource ? 'Cancel' : '+ Add Source'}</button>
+                    <button onClick={() => setShowAddSource(p => !p)} style={{ background: "none", color: C.cyan, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit" }}>{showAddSource ? t('wallet.cancelAddSourceBtn') : t('wallet.addSourceBtn')}</button>
                   </div>
 
                   {formSources.length === 0 && !showAddSource && (
@@ -2929,11 +2930,11 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
 
                   {showAddSource && (
                     <div style={{ marginBottom: 16, padding: 16, background: C.card3, borderRadius: 12, border: `1px dashed ${C.cyan}40` }}>
-                      <Input placeholder="Name (e.g. Nubank)" value={srcName} onChange={setSrcName} style={{ marginBottom: 10, background: C.card }} />
+                      <Input placeholder={t('wallet.sourceNamePlaceholder')} value={srcName} onChange={setSrcName} style={{ marginBottom: 10, background: C.card }} />
                       <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
                         <select value={srcType} onChange={(e: any) => setSrcType(e.target.value as SourceType)} style={{ flex: 1, padding: "12px", borderRadius: 10, background: C.card, border: "none", color: C.text, fontFamily: "inherit", fontSize: 13 }}>
-                          <option value="balance">Saldo</option>
-                          <option value="credit">Crédito</option>
+                          <option value="balance">{t('wallet.srcBalance')}</option>
+                          <option value="credit">{t('wallet.srcCredit')}</option>
                         </select>
                         <select value={srcCurrency} onChange={(e: any) => setSrcCurrency(e.target.value as Currency)} style={{ flex: 1, padding: "12px", borderRadius: 10, background: C.card, border: "none", color: C.text, fontFamily: "inherit", fontSize: 13 }}>
                           {(["EUR", "USD", "BRL", "GBP", "COP"] as Currency[]).map(c => <option key={c} value={c}>{c}</option>)}
@@ -2946,7 +2947,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
                         ))}
                       </div>
                       <div style={{ display: "flex", gap: 8 }}>
-                        <button style={{ flex: 1, padding: "10px", background: C.cyan, color: "#000", borderRadius: 8, border: "none", fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }} onClick={addSource}>{srcSaving ? "Adding..." : "Add to Budget"}</button>
+                        <button style={{ flex: 1, padding: "10px", background: C.cyan, color: "#000", borderRadius: 8, border: "none", fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }} onClick={addSource}>{srcSaving ? t('wallet.addingBtn') : t('wallet.addToBudgetBtn')}</button>
                       </div>
                     </div>
                   )}
@@ -2965,7 +2966,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
                   {confirmDeleteSourceId && (
                     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <Card style={{ width: "90%", maxWidth: 320, padding: 24, textAlign: "center" }}>
-                        <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 8 }}>Remove Source?</div>
+                        <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 8 }}>{t('wallet.removeSourceTitle')}</div>
                         <div style={{ color: C.textMuted, fontSize: 13, marginBottom: 24 }}>{t('wallet.removeSourceWarning')}</div>
                         <div style={{ display: "flex", gap: 12 }}>
                           <Btn variant="ghost" style={{ flex: 1 }} onClick={() => setConfirmDeleteSourceId(null)}>{t('wallet.cancel')}</Btn>
@@ -2979,7 +2980,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
 
               <div style={{ display: "flex", gap: 10 }}>
                 <Btn variant="ghost" style={{ flex: 1 }} onClick={resetForm}>{t('wallet.cancel')}</Btn>
-                <Btn style={{ flex: 1 }} onClick={handleSaveBudget}>{editingBudgetId ? "Save Changes" : "Create Budget"}</Btn>
+                <Btn style={{ flex: 1 }} onClick={handleSaveBudget}>{editingBudgetId ? t('wallet.saveChanges') : t('wallet.createBudgetBtn')}</Btn>
               </div>
             </Card>
           )}
@@ -2999,7 +3000,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
                   </div>
                   {isActive && <Badge color={C.cyan} bg="#003d45">{t('wallet.activeBadge')}</Badge>}
                   <button onClick={() => activateBudget(isActive ? null : b.id)} style={{ background: isActive ? C.card3 : "transparent", color: isActive ? C.textMuted : C.cyan, border: isActive ? "none" : `1px solid ${C.cyan}80`, borderRadius: 10, padding: "7px 12px", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit" }}>
-                    {isActive ? "Deactivate" : "Activate"}
+                    {isActive ? t('wallet.deactivateBtn') : t('wallet.activateBtn')}
                   </button>
                   <button onClick={() => openEditBudget(b)} style={{ background: C.card3, border: "none", borderRadius: 10, padding: "7px 10px", cursor: "pointer" }}>
                     <Icon d={icons.edit} size={13} stroke={C.textMuted} />
@@ -3016,7 +3017,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
             <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 300, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
               <div style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "20px 20px 0 0", padding: "28px 20px 44px" }}>
                 <div style={{ textAlign: "center", marginBottom: 24 }}>
-                  <div style={{ fontSize: 17, fontWeight: 800, color: C.text, marginBottom: 6 }}>Delete Budget?</div>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: C.text, marginBottom: 6 }}>{t('wallet.deleteBudgetTitle')}</div>
                   <div style={{ color: C.textMuted, fontSize: 13 }}>{t('wallet.deleteBudgetWarning')}</div>
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
@@ -3033,7 +3034,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
         <div style={{ position: "fixed", bottom: 90, right: "calc(50% - 200px)", width: 56, height: 56, borderRadius: "50%", background: C.cyan, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: `0 4px 20px ${C.cyan}50` }}
           onClick={() => {
             if (totalBudgetInBase <= 0) {
-              alert("You need to create and activate a budget before adding a transaction.");
+              alert(t('wallet.needBudgetAlert'));
               setWalletTab('budget');
             } else {
               onAddExpense();
@@ -3086,18 +3087,18 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
                   <div style={{ display: "flex", gap: 10 }}>
                     <Btn style={{ flex: 1 }} variant="secondary" icon={<Icon d={icons.edit} size={16} />}
                       onClick={() => { setEditDesc(exp.description); setEditAmount(String(exp.localAmount)); setEditCat(exp.category); setEditDate(exp.date.slice(0, 10)); setEditSourceId(exp.sourceId); setEditCurrency(exp.localCurrency); setEditCity(exp.city || ""); setEditTaxAmount(String(exp.taxAmount || 0)); setEditTaxType(exp.taxType || 'fixed'); setEditDiscountAmount(String(exp.discountAmount || 0)); setEditDiscountType(exp.discountType || 'fixed'); setEditCambialRate(String(exp.cambialRate || exp.localToBaseRate || 1)); setEditMode(true); }}>
-                      Edit
+                      {t('wallet.editBtn')}
                     </Btn>
                     <Btn style={{ flex: 1 }} variant="danger" icon={<Icon d={icons.trash} size={16} stroke={C.red} />}
                       onClick={() => setConfirmDelete(true)}>
-                      Delete
+                      {t('wallet.deleteBtn')}
                     </Btn>
                   </div>
                 </>
               ) : confirmDelete ? (
                 <>
                   <div style={{ textAlign: "center", marginBottom: 20 }}>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: C.red, marginBottom: 8 }}>Delete transaction?</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: C.red, marginBottom: 8 }}>{t('wallet.confirmDeleteTitle')}</div>
                     <div style={{ color: C.textMuted, fontSize: 13 }}>{t('wallet.confirmDeleteWarning')}</div>
                   </div>
                   <div style={{ display: "flex", gap: 10 }}>
@@ -3110,7 +3111,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
                   <div style={{ fontWeight: 700, marginBottom: 16 }}>{t('wallet.editTransactionTitle')}</div>
                   <div style={{ marginBottom: 10 }}>
                     <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('wallet.colDescription')}</div>
-                    <Input value={editDesc} onChange={setEditDesc} placeholder="Description" />
+                    <Input value={editDesc} onChange={setEditDesc} placeholder={t('wallet.colDescription')} />
                   </div>
                   <div style={{ marginBottom: 10 }}>
                     <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('wallet.colAmount')}</div>
@@ -3121,14 +3122,14 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
                       <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('wallet.colTax')}</div>
                       <div style={{ display: "flex", background: C.card3, borderRadius: 10, padding: 4 }}>
                         <input value={editTaxAmount} onChange={e => setEditTaxAmount(e.target.value)} placeholder="0.00" style={{ background: "transparent", border: "none", color: C.text, width: "100%", outline: "none", paddingLeft: 8 }} />
-                        <button onClick={() => setEditTaxType(t => t === 'fixed' ? 'percentage' : 'fixed')} style={{ background: C.bg, color: C.cyan, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontWeight: 700 }}>{editTaxType === 'percentage' ? '%' : '$'}</button>
+                        <button onClick={() => setEditTaxType(prev => prev === 'fixed' ? 'percentage' : 'fixed')} style={{ background: C.bg, color: C.cyan, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontWeight: 700 }}>{editTaxType === 'percentage' ? '%' : '$'}</button>
                       </div>
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('wallet.colDiscount')}</div>
                       <div style={{ display: "flex", background: C.card3, borderRadius: 10, padding: 4 }}>
                         <input value={editDiscountAmount} onChange={e => setEditDiscountAmount(e.target.value)} placeholder="0.00" style={{ background: "transparent", border: "none", color: C.text, width: "100%", outline: "none", paddingLeft: 8 }} />
-                        <button onClick={() => setEditDiscountType(t => t === 'fixed' ? 'percentage' : 'fixed')} style={{ background: C.bg, color: C.cyan, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontWeight: 700 }}>{editDiscountType === 'percentage' ? '%' : '$'}</button>
+                        <button onClick={() => setEditDiscountType(prev => prev === 'fixed' ? 'percentage' : 'fixed')} style={{ background: C.bg, color: C.cyan, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontWeight: 700 }}>{editDiscountType === 'percentage' ? '%' : '$'}</button>
                       </div>
                     </div>
                   </div>
@@ -3154,7 +3155,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
                   <div style={{ marginBottom: 10 }}>
                     <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('wallet.colLocation')}</div>
                     <Card style={{ display: "flex", alignItems: "center", gap: 10, padding: 12 }}>
-                      <input value={editCity} onChange={e => setEditCity(e.target.value)} placeholder="City"
+                      <input value={editCity} onChange={e => setEditCity(e.target.value)} placeholder={t('wallet.colLocation')}
                         style={{ background: "transparent", border: "none", color: C.text, flex: 1, outline: "none", fontFamily: "inherit", fontSize: 14 }} />
                     </Card>
                   </div>
@@ -3163,7 +3164,7 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       {categories.map(c => (
                         <button key={c.id} onClick={() => setEditCat(c.id)} style={{ background: editCat === c.id ? "#003d45" : C.card3, border: editCat === c.id ? `2px solid ${C.cyan}` : "2px solid transparent", borderRadius: 10, padding: "8px 12px", cursor: "pointer", color: editCat === c.id ? C.cyan : C.textMuted, fontSize: 12, fontWeight: editCat === c.id ? 700 : 400, fontFamily: "inherit" }}>
-                          {c.label}
+                          {t(c.key)}
                         </button>
                       ))}
                     </div>
@@ -3195,12 +3196,12 @@ const WalletScreen = ({ onAddExpense, activeTripId, user, trips = [], initialTab
 };
 
 const categories = [
-  { id: "food", label: "FOOD", icon: icons.food },
-  { id: "transport", label: "TRANSPORT", icon: icons.car },
-  { id: "lodging", label: "LODGING", icon: icons.building },
-  { id: "activity", label: "ACTIVITY", icon: icons.tag },
-  { id: "shopping", label: "SHOPPING", icon: icons.shoppingBag },
-  { id: "general", label: "GENERAL", icon: icons.moreH },
+  { id: "food", label: "FOOD", key: "addExpense.catFood", icon: icons.food },
+  { id: "transport", label: "TRANSPORT", key: "addExpense.catTransport", icon: icons.car },
+  { id: "lodging", label: "LODGING", key: "addExpense.catLodging", icon: icons.building },
+  { id: "activity", label: "ACTIVITY", key: "addExpense.catActivity", icon: icons.tag },
+  { id: "shopping", label: "SHOPPING", key: "addExpense.catShopping", icon: icons.shoppingBag },
+  { id: "general", label: "GENERAL", key: "addExpense.catGeneral", icon: icons.moreH },
 ];
 
 
@@ -3347,12 +3348,12 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
         <div style={{ textAlign: "center" }}>
           <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>{t('addExpense.noBudgetTitle')}</div>
           <div style={{ color: C.textSub, fontSize: 13, lineHeight: 1.5, maxWidth: 280, margin: "0 auto" }}>
-            You need to create and activate a budget before you can add expenses to this trip.
+            {t('addExpense.noBudgetDesc')}
           </div>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
-          <Btn variant="ghost" style={{ marginTop: 8 }} onClick={() => { onBack(); }}>Go Back</Btn>
-          <Btn style={{ marginTop: 8 }} onClick={() => { onBack(); onGoToBudget?.(); }}>Set Up Budget</Btn>
+          <Btn variant="ghost" style={{ marginTop: 8 }} onClick={() => { onBack(); }}>{t('addExpense.goBackBtn')}</Btn>
+          <Btn style={{ marginTop: 8 }} onClick={() => { onBack(); onGoToBudget?.(); }}>{t('addExpense.setUpBudgetBtn')}</Btn>
         </div>
       </div>
     );
@@ -3412,7 +3413,7 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
             return (
               <button key={c.id} onClick={() => setCat(c.id)} style={{ background: active ? "#003d45" : C.card3, border: active ? `2px solid ${C.cyan}` : "2px solid transparent", borderRadius: 14, padding: "16px 8px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
                 <Icon d={c.icon} size={22} stroke={active ? C.cyan : C.textMuted} />
-                <span style={{ color: active ? C.cyan : C.textMuted, fontSize: 10, fontWeight: 700, letterSpacing: 1 }}>{c.label}</span>
+                <span style={{ color: active ? C.cyan : C.textMuted, fontSize: 10, fontWeight: 700, letterSpacing: 1 }}>{t(c.key)}</span>
               </button>
             );
           })}
@@ -3488,7 +3489,7 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
         <SectionLabel>{t('addExpense.locationLabel')}</SectionLabel>
         <Card style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Icon d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z M12 10a2 2 0 100-4 2 2 0 000 4z" size={16} stroke={C.textMuted} />
-          <input value={city} onChange={e => setCity(e.target.value)} placeholder="City (auto-detected)"
+          <input value={city} onChange={e => setCity(e.target.value)} placeholder={t('addExpense.locationPlaceholder')}
             style={{ background: "transparent", border: "none", color: C.text, fontSize: 15, flex: 1, outline: "none", fontFamily: "inherit" }} />
         </Card>
       </div>
@@ -3548,7 +3549,7 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
                     </div>
                   </div>
                   <div style={{ flex: 1, background: C.card3, borderRadius: 10, padding: 12 }}>
-                    <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 8 }}>FIXED {currSym(localCurrency)}</div>
+                    <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 8 }}>{t('addExpense.fixedLabel')} {currSym(localCurrency)}</div>
                     <input placeholder="0.00" style={{ background: "transparent", border: "none", outline: "none", color: C.text, fontSize: 15, fontFamily: "inherit", width: "100%" }} />
                   </div>
                 </div>
@@ -3559,10 +3560,10 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
       )}
       <div style={{ marginTop: 20 }}>
         <SectionLabel>{t('addExpense.descriptionLabel')}</SectionLabel>
-        <Input placeholder="e.g. Dinner" value={desc} onChange={setDesc} />
+        <Input placeholder={t('addExpense.descPlaceholder')} value={desc} onChange={setDesc} />
       </div>
       <div style={{ marginTop: 20 }}>
-        <SectionLabel>WHO PAID?</SectionLabel>
+        <SectionLabel>{t('addExpense.whoPaidLabel')}</SectionLabel>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" as const }}>
           {members.map(m => (
             <button key={m} onClick={() => setWhoPaid(m)} style={{ background: whoPaid === m ? "#fff" : C.card3, color: whoPaid === m ? "#000" : C.text, border: "none", borderRadius: 20, padding: "10px 18px", fontWeight: whoPaid === m ? 700 : 400, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>{m}</button>
@@ -4235,18 +4236,18 @@ const SOSScreen = ({ user }: { user?: any }) => {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <Icon d={icons.heart} size={18} stroke={C.red} fill={`${C.red}30`} />
-            <span style={{ fontWeight: 700, fontSize: 16 }}>My Medical ID</span>
+            <span style={{ fontWeight: 700, fontSize: 16 }}>{t('settings.medicalId')}</span>
           </div>
           {!editMedical ? (
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <Toggle value={medical.sharing} onChange={(v: boolean) => saveMedical({ ...medical, sharing: v })} />
-              <span style={{ color: C.cyan, fontSize: 11, fontWeight: 700 }}>SHARING</span>
+              <span style={{ color: C.cyan, fontSize: 11, fontWeight: 700 }}>{t('settings.sharing')}</span>
               <button onClick={() => { setMedDraft(medical); setEditMedical(true); }} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}><Icon d={icons.edit} size={15} stroke={C.textMuted} /></button>
             </div>
           ) : (
             <div style={{ display: "flex", gap: 8 }}>
-              <Btn variant="ghost" style={{ padding: "6px 14px", fontSize: 13 }} onClick={() => setEditMedical(false)}>Cancel</Btn>
-              <Btn style={{ padding: "6px 14px", fontSize: 13 }} onClick={() => { saveMedical(medDraft); setEditMedical(false); }}>Save</Btn>
+              <Btn variant="ghost" style={{ padding: "6px 14px", fontSize: 13 }} onClick={() => setEditMedical(false)}>{t('settings.cancel')}</Btn>
+              <Btn style={{ padding: "6px 14px", fontSize: 13 }} onClick={() => { saveMedical(medDraft); setEditMedical(false); }}>{t('settings.save')}</Btn>
             </div>
           )}
         </div>
@@ -4259,93 +4260,93 @@ const SOSScreen = ({ user }: { user?: any }) => {
               </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>CONTACT NAME</div><Input placeholder="e.g. Mom" value={medDraft.contactName} onChange={(v: string) => setMedDraft(d => ({ ...d, contactName: v }))} /></div>
-              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>CONTACT PHONE</div><Input placeholder="+55 11 9…" value={medDraft.contactPhone} onChange={(v: string) => setMedDraft(d => ({ ...d, contactPhone: v }))} /></div>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('settings.contactName')}</div><Input placeholder={t('settings.contactNamePh')} value={medDraft.contactName} onChange={(v: string) => setMedDraft(d => ({ ...d, contactName: v }))} /></div>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('settings.contactPhone')}</div><Input placeholder={t('settings.contactPhonePh')} value={medDraft.contactPhone} onChange={(v: string) => setMedDraft(d => ({ ...d, contactPhone: v }))} /></div>
             </div>
-            <div style={{ marginBottom: 10 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>ALLERGIES</div><textarea rows={2} value={medDraft.allergies} onChange={e => setMedDraft(d => ({ ...d, allergies: e.target.value }))} placeholder="e.g. Penicillin, Peanuts" style={textareaStyle} /></div>
-            <div style={{ marginBottom: 10 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>MEDICATIONS</div><textarea rows={2} value={medDraft.medications} onChange={e => setMedDraft(d => ({ ...d, medications: e.target.value }))} placeholder="e.g. Metformin 500mg" style={textareaStyle} /></div>
-            <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>MEDICAL NOTES</div><textarea rows={2} value={medDraft.notes} onChange={e => setMedDraft(d => ({ ...d, notes: e.target.value }))} placeholder="Other info for emergency responders" style={textareaStyle} /></div>
+            <div style={{ marginBottom: 10 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('settings.allergies')}</div><textarea rows={2} value={medDraft.allergies} onChange={e => setMedDraft(d => ({ ...d, allergies: e.target.value }))} placeholder={t('settings.allergiesPh')} style={textareaStyle} /></div>
+            <div style={{ marginBottom: 10 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('settings.medications')}</div><textarea rows={2} value={medDraft.medications} onChange={e => setMedDraft(d => ({ ...d, medications: e.target.value }))} placeholder={t('settings.medicationsPh')} style={textareaStyle} /></div>
+            <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('settings.medicalNotes')}</div><textarea rows={2} value={medDraft.notes} onChange={e => setMedDraft(d => ({ ...d, notes: e.target.value }))} placeholder={t('settings.medicalNotesPh')} style={textareaStyle} /></div>
           </>
         ) : (
           <>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
               <div style={{ background: C.card3, borderRadius: 12, padding: 12 }}>
-                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>BLOOD TYPE</div>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('settings.bloodType')}</div>
                 <div style={{ fontWeight: 800, fontSize: 22, color: medical.bloodType ? C.red : C.textSub }}>{medical.bloodType || '—'}</div>
               </div>
               <div style={{ background: C.card3, borderRadius: 12, padding: 12 }}>
-                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>EMERGENCY CONTACT</div>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>{t('settings.emergencyContact')}</div>
                 <div style={{ fontWeight: 700, fontSize: 14 }}>{medical.contactName || '—'}</div>
                 {medical.contactPhone && <a href={`tel:${medical.contactPhone}`} style={{ color: C.cyan, fontSize: 12, textDecoration: "none" }}>{medical.contactPhone}</a>}
               </div>
             </div>
-            {medical.allergies && <div style={{ background: C.card3, borderRadius: 12, padding: 12, marginBottom: 8 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>ALLERGIES</div><div style={{ fontSize: 13 }}>{medical.allergies}</div></div>}
-            {medical.medications && <div style={{ background: C.card3, borderRadius: 12, padding: 12, marginBottom: 8 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>MEDICATIONS</div><div style={{ fontSize: 13 }}>{medical.medications}</div></div>}
-            {medical.notes && <div style={{ background: C.card3, borderRadius: 12, padding: 12 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>MEDICAL NOTES</div><div style={{ fontSize: 13 }}>{medical.notes}</div></div>}
-            {!medical.bloodType && !medical.contactName && <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "8px 0" }}>Tap edit to fill in your Medical ID</div>}
+            {medical.allergies && <div style={{ background: C.card3, borderRadius: 12, padding: 12, marginBottom: 8 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>{t('settings.allergies')}</div><div style={{ fontSize: 13 }}>{medical.allergies}</div></div>}
+            {medical.medications && <div style={{ background: C.card3, borderRadius: 12, padding: 12, marginBottom: 8 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>{t('settings.medications')}</div><div style={{ fontSize: 13 }}>{medical.medications}</div></div>}
+            {medical.notes && <div style={{ background: C.card3, borderRadius: 12, padding: 12 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>{t('settings.medicalNotes')}</div><div style={{ fontSize: 13 }}>{medical.notes}</div></div>}
+            {!medical.bloodType && !medical.contactName && <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "8px 0" }}>{t('settings.medIdEmpty')}</div>}
           </>
         )}
       </Card>
 
       {/* ── Travel Insurance ── */}
-      <SectionLabel>TRAVEL INSURANCE</SectionLabel>
+      <SectionLabel>{t('settings.travelInsurance')}</SectionLabel>
       <Card style={{ marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: editInsurance ? 14 : 0 }}>
-          <span style={{ fontWeight: 700, fontSize: 15 }}>Insurance</span>
+          <span style={{ fontWeight: 700, fontSize: 15 }}>{t('settings.insurance')}</span>
           {!editInsurance ? (
             <button onClick={() => { setInsDraft(insurance); setEditInsurance(true); }} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}><Icon d={icons.edit} size={15} stroke={C.textMuted} /></button>
           ) : (
             <div style={{ display: "flex", gap: 8 }}>
-              <Btn variant="ghost" style={{ padding: "6px 14px", fontSize: 13 }} onClick={() => setEditInsurance(false)}>Cancel</Btn>
-              <Btn style={{ padding: "6px 14px", fontSize: 13 }} onClick={() => { saveInsurance(insDraft); setEditInsurance(false); }}>Save</Btn>
+              <Btn variant="ghost" style={{ padding: "6px 14px", fontSize: 13 }} onClick={() => setEditInsurance(false)}>{t('settings.cancel')}</Btn>
+              <Btn style={{ padding: "6px 14px", fontSize: 13 }} onClick={() => { saveInsurance(insDraft); setEditInsurance(false); }}>{t('settings.save')}</Btn>
             </div>
           )}
         </div>
         {editInsurance ? (
           <>
-            <Input placeholder="Provider (e.g. Allianz)" value={insDraft.provider} onChange={(v: string) => setInsDraft(d => ({ ...d, provider: v }))} style={{ marginBottom: 10 }} />
+            <Input placeholder={t('settings.providerPh')} value={insDraft.provider} onChange={(v: string) => setInsDraft(d => ({ ...d, provider: v }))} style={{ marginBottom: 10 }} />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>POLICY NUMBER</div><Input placeholder="e.g. AZ-9920" value={insDraft.policyNumber} onChange={(v: string) => setInsDraft(d => ({ ...d, policyNumber: v }))} /></div>
-              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>EMERGENCY PHONE</div><Input placeholder="+1 800…" value={insDraft.emergencyPhone} onChange={(v: string) => setInsDraft(d => ({ ...d, emergencyPhone: v }))} /></div>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('settings.policyNumber')}</div><Input placeholder={t('settings.policyPh')} value={insDraft.policyNumber} onChange={(v: string) => setInsDraft(d => ({ ...d, policyNumber: v }))} /></div>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('settings.emergencyPhone')}</div><Input placeholder={t('settings.emergencyPhonePh')} value={insDraft.emergencyPhone} onChange={(v: string) => setInsDraft(d => ({ ...d, emergencyPhone: v }))} /></div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>COVERAGE START</div><Card style={{ padding: 10 }}><input type="date" value={insDraft.coverageStart} onChange={e => setInsDraft(d => ({ ...d, coverageStart: e.target.value }))} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%" }} /></Card></div>
-              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>COVERAGE END</div><Card style={{ padding: 10 }}><input type="date" value={insDraft.coverageEnd} onChange={e => setInsDraft(d => ({ ...d, coverageEnd: e.target.value }))} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%" }} /></Card></div>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('settings.coverageStart')}</div><Card style={{ padding: 10 }}><input type="date" value={insDraft.coverageStart} onChange={e => setInsDraft(d => ({ ...d, coverageStart: e.target.value }))} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%" }} /></Card></div>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('settings.coverageEnd')}</div><Card style={{ padding: 10 }}><input type="date" value={insDraft.coverageEnd} onChange={e => setInsDraft(d => ({ ...d, coverageEnd: e.target.value }))} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%" }} /></Card></div>
             </div>
-            <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>NOTES</div><textarea rows={2} value={insDraft.notes} onChange={e => setInsDraft(d => ({ ...d, notes: e.target.value }))} placeholder="Coverage limits, exclusions…" style={textareaStyle} /></div>
+            <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('settings.notes')}</div><textarea rows={2} value={insDraft.notes} onChange={e => setInsDraft(d => ({ ...d, notes: e.target.value }))} placeholder={t('settings.notesPh')} style={textareaStyle} /></div>
           </>
         ) : insurance.provider ? (
           <>
-            <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4, marginTop: 12 }}>PROVIDER</div>
+            <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4, marginTop: 12 }}>{t('settings.provider')}</div>
             <div style={{ fontWeight: 800, fontSize: 22, marginBottom: 14 }}>{insurance.provider}</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", marginBottom: 12 }}>
-              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>POLICY NUMBER</div><Badge color={C.textMuted} bg={C.card3}>{insurance.policyNumber || '—'}</Badge></div>
-              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>EMERGENCY PHONE</div>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>{t('settings.policyNumber')}</div><Badge color={C.textMuted} bg={C.card3}>{insurance.policyNumber || '—'}</Badge></div>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>{t('settings.emergencyPhone')}</div>
                 {insurance.emergencyPhone ? <a href={`tel:${insurance.emergencyPhone}`} style={{ color: C.cyan, fontWeight: 700, textDecoration: "none" }}>{insurance.emergencyPhone}</a> : <span style={{ color: C.textSub }}>—</span>}
               </div>
             </div>
-            {(insurance.coverageStart || insurance.coverageEnd) && <div style={{ background: C.card3, borderRadius: 12, padding: "10px 12px", marginBottom: 12, fontSize: 12, color: C.textMuted }}>Coverage: {insurance.coverageStart || '?'} → {insurance.coverageEnd || '?'}</div>}
+            {(insurance.coverageStart || insurance.coverageEnd) && <div style={{ background: C.card3, borderRadius: 12, padding: "10px 12px", marginBottom: 12, fontSize: 12, color: C.textMuted }}>{t('settings.coveragePrefix')} {insurance.coverageStart || '?'} → {insurance.coverageEnd || '?'}</div>}
             {insurance.notes && <div style={{ background: C.card3, borderRadius: 12, padding: "10px 12px", marginBottom: 12, fontSize: 13, color: C.textSub }}>{insurance.notes}</div>}
-            {insurance.emergencyPhone && <Btn style={{ width: "100%", background: C.cyan, color: "#000" }} onClick={() => window.open(`tel:${insurance.emergencyPhone}`)} icon={<Icon d={icons.phone} size={16} stroke="#000" />}>CALL EMERGENCY ASSIST</Btn>}
+            {insurance.emergencyPhone && <Btn style={{ width: "100%", background: C.cyan, color: "#000" }} onClick={() => window.open(`tel:${insurance.emergencyPhone}`)} icon={<Icon d={icons.phone} size={16} stroke="#000" />}>{t('settings.callAssist')}</Btn>}
           </>
         ) : (
-          <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "16px 0" }}>Tap edit to add your travel insurance</div>
+          <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "16px 0" }}>{t('settings.insuranceEmpty')}</div>
         )}
       </Card>
 
       {/* ── Critical Documents ── */}
       <SectionLabel icon="fileText" action={
         <button onClick={() => { setShowAddDoc(true); setDocName(''); setDocType('Passport'); setDocDataUrl(null); }} style={{ width: 32, height: 32, borderRadius: 10, background: C.card3, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon d={icons.plus} size={16} /></button>
-      }>CRITICAL DOCUMENTS</SectionLabel>
+      }>{t('settings.criticalDocs')}</SectionLabel>
 
       {showAddDoc && (
         <Card style={{ marginBottom: 12, border: `1px solid ${C.cyan}30` }}>
-          <div style={{ fontWeight: 700, marginBottom: 12 }}>Add Document</div>
-          <Input placeholder="Document name (e.g. Passport)" value={docName} onChange={setDocName} style={{ marginBottom: 10 }} />
+          <div style={{ fontWeight: 700, marginBottom: 12 }}>{t('settings.addDocument')}</div>
+          <Input placeholder={t('settings.docNamePh')} value={docName} onChange={setDocName} style={{ marginBottom: 10 }} />
           <div style={{ marginBottom: 10 }}>
-            <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TYPE</div>
+            <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('settings.docType')}</div>
             <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 6 }}>
-              {DOC_TYPES.map(t => <button key={t} onClick={() => setDocType(t)} style={{ background: docType === t ? C.cyan : C.card3, color: docType === t ? "#000" : C.textMuted, border: "none", borderRadius: 8, padding: "5px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{t}</button>)}
+              {DOC_TYPES.map(dt => <button key={dt} onClick={() => setDocType(dt)} style={{ background: docType === dt ? C.cyan : C.card3, color: docType === dt ? "#000" : C.textMuted, border: "none", borderRadius: 8, padding: "5px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{dt}</button>)}
             </div>
           </div>
           <input type="file" accept="image/*" id="docInput" style={{ display: "none" }} onChange={async e => { const f = e.target.files?.[0]; if (f) { const c = await compressImage(f); setDocDataUrl(c); } }} />
@@ -4356,12 +4357,12 @@ const SOSScreen = ({ user }: { user?: any }) => {
             </div>
           ) : (
             <label htmlFor="docInput" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, border: `2px dashed ${C.border}`, borderRadius: 12, padding: 16, cursor: "pointer", marginBottom: 12, color: C.textMuted, fontSize: 13 }}>
-              <Icon d={icons.camera} size={18} stroke={C.textMuted} /> Capture or upload
+              <Icon d={icons.camera} size={18} stroke={C.textMuted} /> {t('settings.captureOrUpload')}
             </label>
           )}
           <div style={{ display: "flex", gap: 10 }}>
-            <Btn variant="ghost" style={{ flex: 1 }} onClick={() => setShowAddDoc(false)}>Cancel</Btn>
-            <Btn style={{ flex: 1 }} onClick={() => { if (!docName.trim() || !docDataUrl) return; const doc: TravelDocument = { id: crypto.randomUUID(), name: docName.trim(), docType, dataUrl: docDataUrl, createdAt: new Date().toISOString() }; addDoc(doc); setShowAddDoc(false); }}>Add</Btn>
+            <Btn variant="ghost" style={{ flex: 1 }} onClick={() => setShowAddDoc(false)}>{t('settings.cancel')}</Btn>
+            <Btn style={{ flex: 1 }} onClick={() => { if (!docName.trim() || !docDataUrl) return; const doc: TravelDocument = { id: crypto.randomUUID(), name: docName.trim(), docType, dataUrl: docDataUrl, createdAt: new Date().toISOString() }; addDoc(doc); setShowAddDoc(false); }}>{t('settings.addDoc')}</Btn>
           </div>
         </Card>
       )}
@@ -4680,7 +4681,7 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
         icon={<Icon d={icons.receipt} size={16} stroke={C.textMuted} />}
         onClick={onHistory}
       >
-        History
+        {t('settings.history')}
       </Btn>
 
       <Btn style={{ width: "100%", marginBottom: 30 }} variant="outline"
@@ -4701,11 +4702,11 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
         {t('settings.exportCsv')}
       </Btn>
 
-      <SectionLabel icon="bug">DEV CONTROLS</SectionLabel>
+      <SectionLabel icon="bug">{t('settings.devControls')}</SectionLabel>
       <Card>
         {[
-          { label: "Offline Simulation", sub: offlineSim ? "SIMULATING OFFLINE" : isSyncing ? "SYNCING…" : "NETWORK ONLINE", icon: icons.wifi, val: offlineSim, set: setOfflineSim, iconBg: offlineSim ? "#2a1400" : "#003d10", iconColor: offlineSim ? C.yellow : C.green },
-          { label: "Force Pending State", sub: "Simulate data waiting to sync.", icon: icons.refreshCw, val: forcePending, set: setForcePending, iconBg: "#1a1a00", iconColor: C.yellow },
+          { label: t('settings.offlineSim'), sub: offlineSim ? t('settings.simulatingOffline') : isSyncing ? "SYNCING…" : t('settings.networkOnline'), icon: icons.wifi, val: offlineSim, set: setOfflineSim, iconBg: offlineSim ? "#2a1400" : "#003d10", iconColor: offlineSim ? C.yellow : C.green },
+          { label: t('settings.forcePending'), sub: t('settings.forcePendingDesc'), icon: icons.refreshCw, val: forcePending, set: setForcePending, iconBg: "#1a1a00", iconColor: C.yellow },
         ].map(item => (
           <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
             <div style={{ width: 44, height: 44, borderRadius: 12, background: item.iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -4720,114 +4721,114 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
         ))}
       </Card>
       {/* ── Medical ID ── */}
-      <SectionLabel>SAFETY</SectionLabel>
+      <SectionLabel>{t('settings.safety')}</SectionLabel>
       <Card style={{ marginBottom: 16, border: `1px solid ${C.red}20` }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <Icon d={icons.heart} size={18} stroke={C.red} fill={`${C.red}30`} />
-            <span style={{ fontWeight: 700, fontSize: 16 }}>My Medical ID</span>
+            <span style={{ fontWeight: 700, fontSize: 16 }}>{t('settings.medicalId')}</span>
           </div>
           {!editMedical ? (
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <Toggle value={medical.sharing} onChange={(v: boolean) => saveMedical({ ...medical, sharing: v })} />
-              <span style={{ color: C.cyan, fontSize: 11, fontWeight: 700 }}>SHARING</span>
+              <span style={{ color: C.cyan, fontSize: 11, fontWeight: 700 }}>{t('settings.sharing')}</span>
               <button onClick={() => { setMedDraft(medical); setEditMedical(true); }} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}><Icon d={icons.edit} size={15} stroke={C.textMuted} /></button>
             </div>
           ) : (
             <div style={{ display: "flex", gap: 8 }}>
-              <Btn variant="ghost" style={{ padding: "6px 14px", fontSize: 13 }} onClick={() => setEditMedical(false)}>Cancel</Btn>
-              <Btn style={{ padding: "6px 14px", fontSize: 13 }} onClick={() => { saveMedical(medDraft); setEditMedical(false); }}>Save</Btn>
+              <Btn variant="ghost" style={{ padding: "6px 14px", fontSize: 13 }} onClick={() => setEditMedical(false)}>{t('settings.cancel')}</Btn>
+              <Btn style={{ padding: "6px 14px", fontSize: 13 }} onClick={() => { saveMedical(medDraft); setEditMedical(false); }}>{t('settings.save')}</Btn>
             </div>
           )}
         </div>
         {editMedical ? (
           <>
             <div style={{ marginBottom: 12 }}>
-              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>BLOOD TYPE</div>
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>{t('settings.bloodType')}</div>
               <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 6 }}>
                 {BLOOD_TYPES.map(bt => <button key={bt} onClick={() => setMedDraft(d => ({ ...d, bloodType: bt }))} style={{ background: medDraft.bloodType === bt ? C.red : C.card3, color: medDraft.bloodType === bt ? "#fff" : C.textMuted, border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{bt}</button>)}
               </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>CONTACT NAME</div><Input placeholder="e.g. Mom" value={medDraft.contactName} onChange={(v: string) => setMedDraft(d => ({ ...d, contactName: v }))} /></div>
-              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>CONTACT PHONE</div><Input placeholder="+55 11 9…" value={medDraft.contactPhone} onChange={(v: string) => setMedDraft(d => ({ ...d, contactPhone: v }))} /></div>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('settings.contactName')}</div><Input placeholder={t('settings.contactNamePh')} value={medDraft.contactName} onChange={(v: string) => setMedDraft(d => ({ ...d, contactName: v }))} /></div>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('settings.contactPhone')}</div><Input placeholder={t('settings.contactPhonePh')} value={medDraft.contactPhone} onChange={(v: string) => setMedDraft(d => ({ ...d, contactPhone: v }))} /></div>
             </div>
-            <div style={{ marginBottom: 10 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>ALLERGIES</div><textarea rows={2} value={medDraft.allergies} onChange={e => setMedDraft(d => ({ ...d, allergies: e.target.value }))} placeholder="e.g. Penicillin, Peanuts" style={settingsTextareaStyle} /></div>
-            <div style={{ marginBottom: 10 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>MEDICATIONS</div><textarea rows={2} value={medDraft.medications} onChange={e => setMedDraft(d => ({ ...d, medications: e.target.value }))} placeholder="e.g. Metformin 500mg" style={settingsTextareaStyle} /></div>
-            <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>MEDICAL NOTES</div><textarea rows={2} value={medDraft.notes} onChange={e => setMedDraft(d => ({ ...d, notes: e.target.value }))} placeholder="Other info for emergency responders" style={settingsTextareaStyle} /></div>
+            <div style={{ marginBottom: 10 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('settings.allergies')}</div><textarea rows={2} value={medDraft.allergies} onChange={e => setMedDraft(d => ({ ...d, allergies: e.target.value }))} placeholder={t('settings.allergiesPh')} style={settingsTextareaStyle} /></div>
+            <div style={{ marginBottom: 10 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('settings.medications')}</div><textarea rows={2} value={medDraft.medications} onChange={e => setMedDraft(d => ({ ...d, medications: e.target.value }))} placeholder={t('settings.medicationsPh')} style={settingsTextareaStyle} /></div>
+            <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('settings.medicalNotes')}</div><textarea rows={2} value={medDraft.notes} onChange={e => setMedDraft(d => ({ ...d, notes: e.target.value }))} placeholder={t('settings.medicalNotesPh')} style={settingsTextareaStyle} /></div>
           </>
         ) : (
           <>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
               <div style={{ background: C.card3, borderRadius: 12, padding: 12 }}>
-                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>BLOOD TYPE</div>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('settings.bloodType')}</div>
                 <div style={{ fontWeight: 800, fontSize: 22, color: medical.bloodType ? C.red : C.textSub }}>{medical.bloodType || '—'}</div>
               </div>
               <div style={{ background: C.card3, borderRadius: 12, padding: 12 }}>
-                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>EMERGENCY CONTACT</div>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>{t('settings.emergencyContact')}</div>
                 <div style={{ fontWeight: 700, fontSize: 14 }}>{medical.contactName || '—'}</div>
                 {medical.contactPhone && <a href={`tel:${medical.contactPhone}`} style={{ color: C.cyan, fontSize: 12, textDecoration: "none" }}>{medical.contactPhone}</a>}
               </div>
             </div>
-            {medical.allergies && <div style={{ background: C.card3, borderRadius: 12, padding: 12, marginBottom: 8 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>ALLERGIES</div><div style={{ fontSize: 13 }}>{medical.allergies}</div></div>}
-            {medical.medications && <div style={{ background: C.card3, borderRadius: 12, padding: 12, marginBottom: 8 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>MEDICATIONS</div><div style={{ fontSize: 13 }}>{medical.medications}</div></div>}
-            {medical.notes && <div style={{ background: C.card3, borderRadius: 12, padding: 12 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>MEDICAL NOTES</div><div style={{ fontSize: 13 }}>{medical.notes}</div></div>}
-            {!medical.bloodType && !medical.contactName && <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "8px 0" }}>Tap edit to fill in your Medical ID</div>}
+            {medical.allergies && <div style={{ background: C.card3, borderRadius: 12, padding: 12, marginBottom: 8 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>{t('settings.allergies')}</div><div style={{ fontSize: 13 }}>{medical.allergies}</div></div>}
+            {medical.medications && <div style={{ background: C.card3, borderRadius: 12, padding: 12, marginBottom: 8 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>{t('settings.medications')}</div><div style={{ fontSize: 13 }}>{medical.medications}</div></div>}
+            {medical.notes && <div style={{ background: C.card3, borderRadius: 12, padding: 12 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>{t('settings.medicalNotes')}</div><div style={{ fontSize: 13 }}>{medical.notes}</div></div>}
+            {!medical.bloodType && !medical.contactName && <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "8px 0" }}>{t('settings.medIdEmpty')}</div>}
           </>
         )}
       </Card>
 
       {/* ── Travel Insurance ── */}
-      <SectionLabel>TRAVEL INSURANCE</SectionLabel>
+      <SectionLabel>{t('settings.travelInsurance')}</SectionLabel>
       <Card style={{ marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: editInsurance ? 14 : 0 }}>
-          <span style={{ fontWeight: 700, fontSize: 15 }}>Insurance</span>
+          <span style={{ fontWeight: 700, fontSize: 15 }}>{t('settings.insurance')}</span>
           {!editInsurance ? (
             <button onClick={() => { setInsDraft(insurance); setEditInsurance(true); }} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}><Icon d={icons.edit} size={15} stroke={C.textMuted} /></button>
           ) : (
             <div style={{ display: "flex", gap: 8 }}>
-              <Btn variant="ghost" style={{ padding: "6px 14px", fontSize: 13 }} onClick={() => setEditInsurance(false)}>Cancel</Btn>
-              <Btn style={{ padding: "6px 14px", fontSize: 13 }} onClick={() => { saveInsurance(insDraft); setEditInsurance(false); }}>Save</Btn>
+              <Btn variant="ghost" style={{ padding: "6px 14px", fontSize: 13 }} onClick={() => setEditInsurance(false)}>{t('settings.cancel')}</Btn>
+              <Btn style={{ padding: "6px 14px", fontSize: 13 }} onClick={() => { saveInsurance(insDraft); setEditInsurance(false); }}>{t('settings.save')}</Btn>
             </div>
           )}
         </div>
         {editInsurance ? (
           <>
-            <Input placeholder="Provider (e.g. Allianz)" value={insDraft.provider} onChange={(v: string) => setInsDraft(d => ({ ...d, provider: v }))} style={{ marginBottom: 10 }} />
+            <Input placeholder={t('settings.providerPh')} value={insDraft.provider} onChange={(v: string) => setInsDraft(d => ({ ...d, provider: v }))} style={{ marginBottom: 10 }} />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>POLICY NUMBER</div><Input placeholder="e.g. AZ-9920" value={insDraft.policyNumber} onChange={(v: string) => setInsDraft(d => ({ ...d, policyNumber: v }))} /></div>
-              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>EMERGENCY PHONE</div><Input placeholder="+1 800…" value={insDraft.emergencyPhone} onChange={(v: string) => setInsDraft(d => ({ ...d, emergencyPhone: v }))} /></div>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('settings.policyNumber')}</div><Input placeholder={t('settings.policyPh')} value={insDraft.policyNumber} onChange={(v: string) => setInsDraft(d => ({ ...d, policyNumber: v }))} /></div>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('settings.emergencyPhone')}</div><Input placeholder={t('settings.emergencyPhonePh')} value={insDraft.emergencyPhone} onChange={(v: string) => setInsDraft(d => ({ ...d, emergencyPhone: v }))} /></div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>COVERAGE START</div><Card style={{ padding: 10 }}><input type="date" value={insDraft.coverageStart} onChange={e => setInsDraft(d => ({ ...d, coverageStart: e.target.value }))} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} /></Card></div>
-              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>COVERAGE END</div><Card style={{ padding: 10 }}><input type="date" value={insDraft.coverageEnd} onChange={e => setInsDraft(d => ({ ...d, coverageEnd: e.target.value }))} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} /></Card></div>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('settings.coverageStart')}</div><Card style={{ padding: 10 }}><input type="date" value={insDraft.coverageStart} onChange={e => setInsDraft(d => ({ ...d, coverageStart: e.target.value }))} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} /></Card></div>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('settings.coverageEnd')}</div><Card style={{ padding: 10 }}><input type="date" value={insDraft.coverageEnd} onChange={e => setInsDraft(d => ({ ...d, coverageEnd: e.target.value }))} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} /></Card></div>
             </div>
-            <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>NOTES</div><textarea rows={2} value={insDraft.notes} onChange={e => setInsDraft(d => ({ ...d, notes: e.target.value }))} placeholder="Coverage limits, exclusions…" style={settingsTextareaStyle} /></div>
+            <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('settings.notes')}</div><textarea rows={2} value={insDraft.notes} onChange={e => setInsDraft(d => ({ ...d, notes: e.target.value }))} placeholder={t('settings.notesPh')} style={settingsTextareaStyle} /></div>
           </>
         ) : insurance.provider ? (
           <>
-            <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4, marginTop: 12 }}>PROVIDER</div>
+            <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4, marginTop: 12 }}>{t('settings.provider')}</div>
             <div style={{ fontWeight: 800, fontSize: 22, marginBottom: 14 }}>{insurance.provider}</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", marginBottom: 12 }}>
-              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>POLICY NUMBER</div><Badge color={C.textMuted} bg={C.card3}>{insurance.policyNumber || '—'}</Badge></div>
-              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>EMERGENCY PHONE</div>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>{t('settings.policyNumber')}</div><Badge color={C.textMuted} bg={C.card3}>{insurance.policyNumber || '—'}</Badge></div>
+              <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>{t('settings.emergencyPhone')}</div>
                 {insurance.emergencyPhone ? <a href={`tel:${insurance.emergencyPhone}`} style={{ color: C.cyan, fontWeight: 700, textDecoration: "none" }}>{insurance.emergencyPhone}</a> : <span style={{ color: C.textSub }}>—</span>}
               </div>
             </div>
-            {(insurance.coverageStart || insurance.coverageEnd) && <div style={{ background: C.card3, borderRadius: 12, padding: "10px 12px", marginBottom: 12, fontSize: 12, color: C.textMuted }}>Coverage: {insurance.coverageStart || '?'} → {insurance.coverageEnd || '?'}</div>}
+            {(insurance.coverageStart || insurance.coverageEnd) && <div style={{ background: C.card3, borderRadius: 12, padding: "10px 12px", marginBottom: 12, fontSize: 12, color: C.textMuted }}>{t('settings.coveragePrefix')} {insurance.coverageStart || '?'} → {insurance.coverageEnd || '?'}</div>}
             {insurance.notes && <div style={{ background: C.card3, borderRadius: 12, padding: "10px 12px", marginBottom: 12, fontSize: 13, color: C.textSub }}>{insurance.notes}</div>}
-            {insurance.emergencyPhone && <Btn style={{ width: "100%", background: C.cyan, color: "#000" }} onClick={() => window.open(`tel:${insurance.emergencyPhone}`)} icon={<Icon d={icons.phone} size={16} stroke="#000" />}>CALL EMERGENCY ASSIST</Btn>}
-            <Btn variant="ghost" style={{ width: "100%", marginTop: 8, fontSize: 13 }} onClick={archiveInsurance} icon={<Icon d={icons.archive} size={14} stroke={C.textMuted} />}>Archive (save to history)</Btn>
+            {insurance.emergencyPhone && <Btn style={{ width: "100%", background: C.cyan, color: "#000" }} onClick={() => window.open(`tel:${insurance.emergencyPhone}`)} icon={<Icon d={icons.phone} size={16} stroke="#000" />}>{t('settings.callAssist')}</Btn>}
+            <Btn variant="ghost" style={{ width: "100%", marginTop: 8, fontSize: 13 }} onClick={archiveInsurance} icon={<Icon d={icons.archive} size={14} stroke={C.textMuted} />}>{t('settings.archive')}</Btn>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>Share with travel crew</div>
-                <div style={{ fontSize: 11, color: C.textMuted }}>Visible to accepted group members</div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{t('settings.shareWithCrew')}</div>
+                <div style={{ fontSize: 11, color: C.textMuted }}>{t('settings.visibleToMembers')}</div>
               </div>
               <Toggle value={insurance.sharing} onChange={(v: boolean) => saveInsurance({ ...insurance, sharing: v })} />
             </div>
           </>
         ) : (
-          <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "16px 0" }}>Tap edit to add your travel insurance</div>
+          <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "16px 0" }}>{t('settings.insuranceEmpty')}</div>
         )}
       </Card>
 
@@ -4835,7 +4836,7 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
         archivedInsurances.length > 0 && (
           <button onClick={() => setShowArchivedIns(v => !v)} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 12, cursor: "pointer", marginBottom: 12, padding: 0, display: "flex", alignItems: "center", gap: 6 }}>
             <Icon d={showArchivedIns ? icons.chevronDown : icons.chevronRight} size={14} stroke={C.textMuted} />
-            {archivedInsurances.length} archived insurance{archivedInsurances.length > 1 ? 's' : ''}
+            {t('settings.archivedCount', { count: archivedInsurances.length })}
           </button>
         )
       }
@@ -4846,8 +4847,8 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
               <div>
                 <div style={{ fontWeight: 700, fontSize: 14 }}>{ins.provider}</div>
                 {ins.policyNumber && <div style={{ color: C.textMuted, fontSize: 12 }}>{ins.policyNumber}</div>}
-                {ins.coverageStart && <div style={{ color: C.textSub, fontSize: 11 }}>Coverage: {ins.coverageStart} → {ins.coverageEnd || '?'}</div>}
-                <div style={{ color: C.textSub, fontSize: 11, marginTop: 4 }}>Archived {new Date(ins.archivedAt).toLocaleDateString()}</div>
+                {ins.coverageStart && <div style={{ color: C.textSub, fontSize: 11 }}>{t('settings.coveragePrefix')} {ins.coverageStart} → {ins.coverageEnd || '?'}</div>}
+                <div style={{ color: C.textSub, fontSize: 11, marginTop: 4 }}>{t('settings.archivedLabel')} {new Date(ins.archivedAt).toLocaleDateString()}</div>
               </div>
               <button onClick={() => { const next = archivedInsurances.filter((_, j) => j !== i); setArchivedInsurances(next); localStorage.setItem('voyasync_insurance_archive', JSON.stringify(next)); }} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "5px 7px", cursor: "pointer" }}>
                 <Icon d={icons.trash} size={13} stroke={C.red} />
@@ -4860,17 +4861,17 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
       {/* ── Critical Documents ── */}
       <SectionLabel icon="fileText" action={
         <button onClick={() => { setShowAddDoc(true); setDocName(''); setDocType('Passport'); setDocDataUrl(null); }} style={{ width: 32, height: 32, borderRadius: 10, background: C.card3, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon d={icons.plus} size={16} /></button>
-      }>CRITICAL DOCUMENTS</SectionLabel>
+      }>{t('settings.criticalDocs')}</SectionLabel>
 
       {
         showAddDoc && (
           <Card style={{ marginBottom: 12, border: `1px solid ${C.cyan}30` }}>
-            <div style={{ fontWeight: 700, marginBottom: 12 }}>Add Document</div>
-            <Input placeholder="Document name (e.g. Passport)" value={docName} onChange={setDocName} style={{ marginBottom: 10 }} />
+            <div style={{ fontWeight: 700, marginBottom: 12 }}>{t('settings.addDocument')}</div>
+            <Input placeholder={t('settings.docNamePh')} value={docName} onChange={setDocName} style={{ marginBottom: 10 }} />
             <div style={{ marginBottom: 10 }}>
-              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TYPE</div>
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('settings.docType')}</div>
               <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 6 }}>
-                {DOC_TYPES.map(t => <button key={t} onClick={() => setDocType(t)} style={{ background: docType === t ? C.cyan : C.card3, color: docType === t ? "#000" : C.textMuted, border: "none", borderRadius: 8, padding: "5px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{t}</button>)}
+                {DOC_TYPES.map(dt => <button key={dt} onClick={() => setDocType(dt)} style={{ background: docType === dt ? C.cyan : C.card3, color: docType === dt ? "#000" : C.textMuted, border: "none", borderRadius: 8, padding: "5px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{dt}</button>)}
               </div>
             </div>
             <input type="file" accept="image/*" id="settingsDocInput" style={{ display: "none" }} onChange={async e => { const f = e.target.files?.[0]; if (f) { const c = await compressImage(f); setDocDataUrl(c); } }} />
@@ -4881,7 +4882,7 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
               </div>
             ) : (
               <label htmlFor="settingsDocInput" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, border: `2px dashed ${C.border}`, borderRadius: 12, padding: 16, cursor: "pointer", marginBottom: 12, color: C.textMuted, fontSize: 13 }}>
-                <Icon d={icons.camera} size={18} stroke={C.textMuted} /> Capture or upload
+                <Icon d={icons.camera} size={18} stroke={C.textMuted} /> {t('settings.captureOrUpload')}
               </label>
             )}
             <div style={{ display: "flex", gap: 10 }}>
@@ -4912,7 +4913,7 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10, paddingTop: 8, borderTop: `1px solid ${C.border}` }}>
-              <span style={{ fontSize: 12, color: C.textMuted }}>Share with travel crew</span>
+              <span style={{ fontSize: 12, color: C.textMuted }}>{t('settings.shareWithCrew')}</span>
               <Toggle value={doc.sharing ?? false} onChange={(v: boolean) => updateDocSharing(doc.id, v)} />
             </div>
           </Card>
@@ -4966,13 +4967,14 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
           style={{ width: "100%", color: C.red, border: `1px solid ${C.red}40` }}
           icon={<Icon d={icons.logOut} size={16} stroke={C.red} />}
           onClick={onLogout}
-        >Sign Out</Btn>
+        >{t('settings.signOut')}</Btn>
       </div>
     </div >
   );
 };
 
 const TransactionHistoryScreen = ({ onBack }: any) => {
+  const { t } = useTranslation();
   const [histTab, setHistTab] = useState<"edits" | "deleted">("edits");
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [deletedExpenses, setDeletedExpenses] = useState<any[]>([]);
@@ -4992,27 +4994,27 @@ const TransactionHistoryScreen = ({ onBack }: any) => {
     <div style={{ padding: "16px 20px 100px", overflowY: "auto" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
         <button onClick={onBack} style={{ background: C.card3, border: "none", borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: C.text, fontSize: 18 }}>←</button>
-        <span style={{ fontSize: 18, fontWeight: 700 }}>Transaction History</span>
+        <span style={{ fontSize: 18, fontWeight: 700 }}>{t('settings.historyTitle')}</span>
       </div>
       <div style={{ background: C.card3, borderRadius: 14, padding: 4, display: "flex", marginBottom: 20 }}>
-        {(["edits", "deleted"] as const).map(t => (
-          <button key={t} onClick={() => setHistTab(t)} style={{ flex: 1, padding: "12px", borderRadius: 10, border: "none", cursor: "pointer", background: histTab === t ? C.cyan : "transparent", color: histTab === t ? "#000" : C.textMuted, fontWeight: histTab === t ? 700 : 400, fontSize: 13, fontFamily: "inherit", transition: "all 0.2s", letterSpacing: 1 }}>
-            {t === "edits" ? "EDITS" : "DELETED"}
+        {(["edits", "deleted"] as const).map(htab => (
+          <button key={htab} onClick={() => setHistTab(htab)} style={{ flex: 1, padding: "12px", borderRadius: 10, border: "none", cursor: "pointer", background: histTab === htab ? C.cyan : "transparent", color: histTab === htab ? "#000" : C.textMuted, fontWeight: histTab === htab ? 700 : 400, fontSize: 13, fontFamily: "inherit", transition: "all 0.2s", letterSpacing: 1 }}>
+            {htab === "edits" ? t('settings.histEdits') : t('settings.histDeleted')}
           </button>
         ))}
       </div>
       {histTab === "edits" ? (
         editedExpenses.length === 0 ? (
-          <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "40px 0" }}>No edited transactions yet.</div>
+          <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "40px 0" }}>{t('settings.histNoEdits')}</div>
         ) : (
           editedExpenses.map(exp => (
             <Card key={exp.id} style={{ marginBottom: 12 }}>
               <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{exp.description}</div>
-              <div style={{ color: C.textMuted, fontSize: 12, marginBottom: 10 }}>{currSym(exp.localCurrency)}{fmtAmt(exp.localAmount)} • Current</div>
+              <div style={{ color: C.textMuted, fontSize: 12, marginBottom: 10 }}>{currSym(exp.localCurrency)}{fmtAmt(exp.localAmount)} • {t('settings.histCurrent')}</div>
               {exp.editHistory!.map((h, i) => (
                 <div key={i} style={{ background: C.card3, borderRadius: 10, padding: 10, marginBottom: 6 }}>
                   <div style={{ color: C.textSub, fontSize: 11, marginBottom: 2 }}>{new Date(h.at).toLocaleString("en")}</div>
-                  <div style={{ color: C.textMuted, fontSize: 12 }}>Was: "{h.snapshot.description}" {currSym(h.snapshot.localCurrency)}{fmtAmt(h.snapshot.localAmount)}</div>
+                  <div style={{ color: C.textMuted, fontSize: 12 }}>{t('settings.histWas', { desc: h.snapshot.description, sym: currSym(h.snapshot.localCurrency), amt: fmtAmt(h.snapshot.localAmount) })}</div>
                 </div>
               ))}
             </Card>
@@ -5020,7 +5022,7 @@ const TransactionHistoryScreen = ({ onBack }: any) => {
         )
       ) : (
         deletedExpenses.length === 0 ? (
-          <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "40px 0" }}>No deleted transactions.</div>
+          <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "40px 0" }}>{t('settings.histNoDel')}</div>
         ) : (
           deletedExpenses.map((exp, i) => (
             <Card key={i} style={{ marginBottom: 8 }}>
@@ -5030,7 +5032,7 @@ const TransactionHistoryScreen = ({ onBack }: any) => {
                   <div style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{currSym(exp.localCurrency)}{fmtAmt(exp.localAmount)}</div>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <Badge color={C.red} bg={C.redDim}>DELETED</Badge>
+                  <Badge color={C.red} bg={C.redDim}>{t('settings.histDeleted')}</Badge>
                   <div style={{ color: C.textSub, fontSize: 10, marginTop: 4 }}>{new Date(exp.deletedAt).toLocaleDateString("en", { day: "numeric", month: "short", year: "numeric" })}</div>
                 </div>
               </div>
@@ -5043,6 +5045,7 @@ const TransactionHistoryScreen = ({ onBack }: any) => {
 };
 
 const InviteAcceptScreen = ({ token, user, onDone, onDecline }: any) => {
+  const { t } = useTranslation();
   const [state, setState] = useState<'loading' | 'valid' | 'invalid' | 'accepting'>('loading');
   const [inviteInfo, setInviteInfo] = useState<any>(null);
 
@@ -5072,7 +5075,7 @@ const InviteAcceptScreen = ({ token, user, onDone, onDecline }: any) => {
   if (state === 'loading' || state === 'accepting') return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", gap: 16 }}>
       <div style={{ width: 48, height: 48, border: `3px solid ${C.card3}`, borderTopColor: C.cyan, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-      <div style={{ color: C.textMuted, fontSize: 14 }}>{state === 'accepting' ? 'Joining crew…' : 'Loading invite…'}</div>
+      <div style={{ color: C.textMuted, fontSize: 14 }}>{state === 'accepting' ? t('invite.joiningCrew') : t('invite.loadingInvite')}</div>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
@@ -5080,9 +5083,9 @@ const InviteAcceptScreen = ({ token, user, onDone, onDecline }: any) => {
   if (state === 'invalid') return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", gap: 20, padding: "0 40px" }}>
       <div style={{ fontSize: 48 }}>🔗</div>
-      <div style={{ fontWeight: 800, fontSize: 20, color: C.text, textAlign: "center" }}>Invite no longer valid</div>
-      <div style={{ color: C.textMuted, fontSize: 14, textAlign: "center" }}>This link has expired, already been used, or doesn't exist.</div>
-      <Btn onClick={onDecline} variant="secondary" style={{ width: "100%", maxWidth: 280 }}>Go to App</Btn>
+      <div style={{ fontWeight: 800, fontSize: 20, color: C.text, textAlign: "center" }}>{t('invite.invalidTitle')}</div>
+      <div style={{ color: C.textMuted, fontSize: 14, textAlign: "center" }}>{t('invite.invalidDesc')}</div>
+      <Btn onClick={onDecline} variant="secondary" style={{ width: "100%", maxWidth: 280 }}>{t('invite.goToApp')}</Btn>
     </div>
   );
 
@@ -5097,11 +5100,11 @@ const InviteAcceptScreen = ({ token, user, onDone, onDecline }: any) => {
         )}
       </div>
       <div style={{ color: C.textMuted, fontSize: 14, textAlign: "center" }}>
-        You've been invited to join this trip's Travel Crew.
+        {t('invite.inviteDesc')}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
-        <Btn onClick={handleAccept} style={{ width: "100%" }}>Join Travel Crew</Btn>
-        <Btn onClick={onDecline} variant="ghost" style={{ width: "100%" }}>Decline</Btn>
+        <Btn onClick={handleAccept} style={{ width: "100%" }}>{t('invite.joinBtn')}</Btn>
+        <Btn onClick={onDecline} variant="ghost" style={{ width: "100%" }}>{t('invite.declineBtn')}</Btn>
       </div>
     </div>
   );
@@ -5138,7 +5141,7 @@ const MemberProfileModal = ({ googleSub, fallbackName, fallbackAvatar, onClose }
         <button onClick={onClose} style={{ background: C.card3, border: "none", borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
           <Icon d={icons.arrowLeft} size={18} stroke={C.text} />
         </button>
-        <span style={{ fontWeight: 700, fontSize: 16 }}>Member Profile</span>
+        <span style={{ fontWeight: 700, fontSize: 16 }}>{t('invite.memberProfile')}</span>
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "20px 20px 60px" }}>
@@ -5152,31 +5155,31 @@ const MemberProfileModal = ({ googleSub, fallbackName, fallbackAvatar, onClose }
         </div>
 
         {loading ? (
-          <div style={{ color: C.textMuted, fontSize: 13, textAlign: "center", paddingTop: 40 }}>Loading…</div>
+          <div style={{ color: C.textMuted, fontSize: 13, textAlign: "center", paddingTop: 40 }}>{t('invite.loadingProfile')}</div>
         ) : !data ? (
-          <div style={{ color: C.textMuted, fontSize: 13, textAlign: "center", paddingTop: 40 }}>Could not load profile.</div>
+          <div style={{ color: C.textMuted, fontSize: 13, textAlign: "center", paddingTop: 40 }}>{t('invite.failedProfile')}</div>
         ) : (
           <>
             {/* Medical ID */}
             {data.medical && (
               <>
-                <SectionLabel>MEDICAL ID</SectionLabel>
+                <SectionLabel>{t('invite.medicalId')}</SectionLabel>
                 <Card style={{ marginBottom: 16, border: `1px solid ${C.red}20` }}>
                   {data.medical.bloodType && (
                     <div style={{ marginBottom: 12 }}>
-                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>BLOOD TYPE</div>
+                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>{t('settings.bloodType')}</div>
                       <Badge color={C.red} bg={`${C.red}20`}>{data.medical.bloodType}</Badge>
                     </div>
                   )}
                   {data.medical.contactName && (
                     <div style={{ marginBottom: 10 }}>
-                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>EMERGENCY CONTACT</div>
+                      <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>{t('invite.emergencyContact')}</div>
                       <div style={{ fontWeight: 600 }}>{data.medical.contactName}</div>
                       {data.medical.contactPhone && <a href={`tel:${data.medical.contactPhone}`} style={{ color: C.cyan, fontSize: 13, textDecoration: "none" }}>{data.medical.contactPhone}</a>}
                     </div>
                   )}
-                  {data.medical.allergies && <div style={{ background: C.card3, borderRadius: 10, padding: "8px 12px", marginBottom: 8, fontSize: 13 }}><span style={{ color: C.textMuted, fontSize: 11 }}>ALLERGIES  </span>{data.medical.allergies}</div>}
-                  {data.medical.medications && <div style={{ background: C.card3, borderRadius: 10, padding: "8px 12px", marginBottom: 8, fontSize: 13 }}><span style={{ color: C.textMuted, fontSize: 11 }}>MEDICATIONS  </span>{data.medical.medications}</div>}
+                  {data.medical.allergies && <div style={{ background: C.card3, borderRadius: 10, padding: "8px 12px", marginBottom: 8, fontSize: 13 }}><span style={{ color: C.textMuted, fontSize: 11 }}>{t('invite.allergiesLabel')}  </span>{data.medical.allergies}</div>}
+                  {data.medical.medications && <div style={{ background: C.card3, borderRadius: 10, padding: "8px 12px", marginBottom: 8, fontSize: 13 }}><span style={{ color: C.textMuted, fontSize: 11 }}>{t('invite.medicationsLabel')}  </span>{data.medical.medications}</div>}
                   {data.medical.notes && <div style={{ background: C.card3, borderRadius: 10, padding: "8px 12px", fontSize: 13, color: C.textSub }}>{data.medical.notes}</div>}
                 </Card>
               </>
@@ -5185,20 +5188,20 @@ const MemberProfileModal = ({ googleSub, fallbackName, fallbackAvatar, onClose }
             {/* Insurance */}
             {data.insurance && (
               <>
-                <SectionLabel>TRAVEL INSURANCE</SectionLabel>
+                <SectionLabel>{t('settings.travelInsurance')}</SectionLabel>
                 <Card style={{ marginBottom: 16 }}>
                   <div style={{ fontWeight: 800, fontSize: 20, marginBottom: 12 }}>{data.insurance.provider}</div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", marginBottom: 10 }}>
-                    <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>POLICY</div><Badge color={C.textMuted} bg={C.card3}>{data.insurance.policyNumber || '—'}</Badge></div>
-                    <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>EMERGENCY PHONE</div>
+                    <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>{t('settings.policyNumber')}</div><Badge color={C.textMuted} bg={C.card3}>{data.insurance.policyNumber || '—'}</Badge></div>
+                    <div><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>{t('settings.emergencyPhone')}</div>
                       {data.insurance.emergencyPhone
                         ? <a href={`tel:${data.insurance.emergencyPhone}`} style={{ color: C.cyan, fontWeight: 700, textDecoration: "none", fontSize: 13 }}>{data.insurance.emergencyPhone}</a>
                         : <span style={{ color: C.textSub }}>—</span>}
                     </div>
                   </div>
-                  {(data.insurance.coverageStart || data.insurance.coverageEnd) && <div style={{ background: C.card3, borderRadius: 10, padding: "8px 12px", fontSize: 12, color: C.textMuted, marginBottom: 8 }}>Coverage: {data.insurance.coverageStart || '?'} → {data.insurance.coverageEnd || '?'}</div>}
+                  {(data.insurance.coverageStart || data.insurance.coverageEnd) && <div style={{ background: C.card3, borderRadius: 10, padding: "8px 12px", fontSize: 12, color: C.textMuted, marginBottom: 8 }}>{t('settings.coveragePrefix')} {data.insurance.coverageStart || '?'} → {data.insurance.coverageEnd || '?'}</div>}
                   {data.insurance.notes && <div style={{ background: C.card3, borderRadius: 10, padding: "8px 12px", fontSize: 13, color: C.textSub, marginBottom: 8 }}>{data.insurance.notes}</div>}
-                  {data.insurance.emergencyPhone && <Btn style={{ width: "100%", background: C.cyan, color: "#000" }} onClick={() => window.open(`tel:${data.insurance!.emergencyPhone}`)} icon={<Icon d={icons.phone} size={16} stroke="#000" />}>CALL EMERGENCY ASSIST</Btn>}
+                  {data.insurance.emergencyPhone && <Btn style={{ width: "100%", background: C.cyan, color: "#000" }} onClick={() => window.open(`tel:${data.insurance!.emergencyPhone}`)} icon={<Icon d={icons.phone} size={16} stroke="#000" />}>{t('settings.callAssist')}</Btn>}
                 </Card>
               </>
             )}
@@ -5474,16 +5477,16 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
         <button onClick={onBack} style={{ background: C.card3, border: "none", borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: C.text, fontSize: 18 }}>←</button>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 18, fontWeight: 700 }}>Manage</div>
+          <div style={{ fontSize: 18, fontWeight: 700 }}>{t('crew.manageTitle')}</div>
           <div style={{ color: C.textMuted, fontSize: 12 }}>{trip.name}</div>
         </div>
       </div>
 
       {/* Tab switcher */}
       <div style={{ background: C.card3, borderRadius: 14, padding: 4, display: "flex", marginBottom: 20 }}>
-        {(['crew', 'segments'] as const).map(t => (
-          <button key={t} onClick={() => setCrewTab(t as any)} style={{ flex: 1, padding: "10px 4px", borderRadius: 10, border: "none", cursor: "pointer", background: crewTab === t ? C.cyan : "transparent", color: crewTab === t ? "#000" : C.textMuted, fontWeight: crewTab === t ? 700 : 400, fontSize: 12, fontFamily: "inherit", transition: "all 0.2s", letterSpacing: 0.5 }}>
-            {t.toUpperCase()}
+        {(['crew', 'segments'] as const).map(tab => (
+          <button key={tab} onClick={() => setCrewTab(tab as any)} style={{ flex: 1, padding: "10px 4px", borderRadius: 10, border: "none", cursor: "pointer", background: crewTab === tab ? C.cyan : "transparent", color: crewTab === tab ? "#000" : C.textMuted, fontWeight: crewTab === tab ? 700 : 400, fontSize: 12, fontFamily: "inherit", transition: "all 0.2s", letterSpacing: 0.5 }}>
+            {tab === 'crew' ? t('crew.crewTab') : t('crew.segmentsTab')}
           </button>
         ))}
       </div>
@@ -5493,7 +5496,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
           {/* Accepted members */}
           {accepted.length > 0 && (
             <>
-              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>ACCEPTED ({accepted.length})</div>
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>{t('crew.accepted', { count: accepted.length })}</div>
               {accepted.map((m: TripMember) => (
                 <Card key={m.id} style={{ marginBottom: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -5518,10 +5521,10 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
                             <div onClick={() => setMenuMemberId(null)} style={{ position: "fixed", inset: 0, zIndex: 10 }} />
                             <div style={{ position: "absolute", right: 0, top: 36, background: C.card2, border: `1px solid ${C.border}`, borderRadius: 12, padding: 8, zIndex: 20, minWidth: 160 }}>
                               <button onClick={() => handleRoleChange(m.id, m.role === 'admin' ? 'member' : 'admin')} style={{ display: "block", width: "100%", background: "none", border: "none", cursor: "pointer", color: C.text, textAlign: "left", padding: "10px 12px", borderRadius: 8, fontSize: 14, fontFamily: "inherit" }}>
-                                {m.role === 'admin' ? 'Demote to Member' : 'Promote to Admin'}
+                                {m.role === 'admin' ? t('crew.demoteToMember') : t('crew.promoteToAdmin')}
                               </button>
                               <button onClick={() => { setMenuMemberId(null); setConfirmRemoveId(m.id); }} style={{ display: "block", width: "100%", background: "none", border: "none", cursor: "pointer", color: C.red, textAlign: "left", padding: "10px 12px", borderRadius: 8, fontSize: 14, fontFamily: "inherit" }}>
-                                Remove from Crew
+                                {t('crew.removeFromCrew')}
                               </button>
                             </div>
                           </>
@@ -5537,17 +5540,17 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
           {/* Pending members */}
           {pending.length > 0 && (
             <>
-              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8, marginTop: 16 }}>PENDING ({pending.length})</div>
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8, marginTop: 16 }}>{t('crew.pending', { count: pending.length })}</div>
               {pending.map((m: TripMember) => (
                 <Card key={m.id} style={{ marginBottom: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div style={{ width: 42, height: 42, borderRadius: "50%", background: C.card3, border: `2px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>✉️</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{m.email}</div>
-                      <div style={{ color: C.yellow, fontSize: 11 }}>Pending invite</div>
+                      <div style={{ color: C.yellow, fontSize: 11 }}>{t('crew.pendingInvite')}</div>
                     </div>
                     {isAdmin && (
-                      <button onClick={() => setConfirmRemoveId(m.id)} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "6px 10px", cursor: "pointer", color: C.red, fontSize: 12, fontFamily: "inherit" }}>Revoke</button>
+                      <button onClick={() => setConfirmRemoveId(m.id)} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "6px 10px", cursor: "pointer", color: C.red, fontSize: 12, fontFamily: "inherit" }}>{t('crew.revoke')}</button>
                     )}
                   </div>
                 </Card>
@@ -5558,18 +5561,18 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
           {/* Invite form */}
           {isAdmin && (
             <div style={{ marginTop: 20 }}>
-              <SectionLabel icon="users">INVITE VIA EMAIL</SectionLabel>
+              <SectionLabel icon="users">{t('crew.inviteViaEmail')}</SectionLabel>
               <Card>
                 <div style={{ display: "flex", gap: 10 }}>
                   <input
-                    placeholder="email@example.com"
+                    placeholder={t('crew.emailPlaceholder')}
                     value={inviteEmail}
                     onChange={(e: any) => setInviteEmail(e.target.value)}
                     onKeyDown={(e: any) => e.key === 'Enter' && handleInvite()}
                     style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: C.text, fontSize: 15, fontFamily: "inherit" }}
                   />
                   <button onClick={handleInvite} disabled={inviting} style={{ background: C.cyan, color: "#000", border: "none", borderRadius: 10, padding: "8px 16px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 13 }}>
-                    {inviting ? "…" : "Invite"}
+                    {inviting ? "…" : t('crew.inviteBtn')}
                   </button>
                 </div>
               </Card>
@@ -5577,8 +5580,8 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={{ fontSize: 20 }}>📱</span>
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: 14, color: C.textMuted }}>WhatsApp</div>
-                    <div style={{ color: C.textSub, fontSize: 12 }}>Coming soon</div>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: C.textMuted }}>{t('crew.whatsapp')}</div>
+                    <div style={{ color: C.textSub, fontSize: 12 }}>{t('crew.comingSoon')}</div>
                   </div>
                 </div>
               </Card>
@@ -5589,12 +5592,12 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
             <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
               <div style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "20px 20px 0 0", padding: "24px 20px 40px" }}>
                 <div style={{ textAlign: "center", marginBottom: 20 }}>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: C.red, marginBottom: 8 }}>Remove from Crew?</div>
-                  <div style={{ color: C.textMuted, fontSize: 13 }}>This will revoke their access to the trip.</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: C.red, marginBottom: 8 }}>{t('crew.removeTitle')}</div>
+                  <div style={{ color: C.textMuted, fontSize: 13 }}>{t('crew.removeDesc')}</div>
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
-                  <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setConfirmRemoveId(null)}>Cancel</Btn>
-                  <Btn style={{ flex: 1 }} variant="danger" onClick={() => handleRemoveMember(confirmRemoveId)}>Remove</Btn>
+                  <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setConfirmRemoveId(null)}>{t('crew.cancel')}</Btn>
+                  <Btn style={{ flex: 1 }} variant="danger" onClick={() => handleRemoveMember(confirmRemoveId)}>{t('crew.removeBtn')}</Btn>
                 </div>
               </div>
             </div>
@@ -5603,7 +5606,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
           {/* Leave Group */}
           <div style={{ marginTop: 32, paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
             <button onClick={() => setConfirmLeave(true)} style={{ width: "100%", background: "transparent", border: `1px solid ${C.red}40`, borderRadius: 12, padding: "12px", cursor: "pointer", color: C.red, fontSize: 14, fontWeight: 600, fontFamily: "inherit" }}>
-              Leave Group
+              {t('crew.leaveGroup')}
             </button>
           </div>
 
@@ -5611,12 +5614,12 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
             <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
               <div style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "20px 20px 0 0", padding: "24px 20px 40px" }}>
                 <div style={{ textAlign: "center", marginBottom: 20 }}>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: C.red, marginBottom: 8 }}>Leave Group?</div>
-                  <div style={{ color: C.textMuted, fontSize: 13 }}>You will lose access to this trip. If you are the only admin, another member will be promoted automatically.</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: C.red, marginBottom: 8 }}>{t('crew.leaveTitle')}</div>
+                  <div style={{ color: C.textMuted, fontSize: 13 }}>{t('crew.leaveDesc')}</div>
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
-                  <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setConfirmLeave(false)}>Cancel</Btn>
-                  <Btn style={{ flex: 1 }} variant="danger" onClick={handleLeaveGroup}>Leave</Btn>
+                  <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setConfirmLeave(false)}>{t('crew.cancel')}</Btn>
+                  <Btn style={{ flex: 1 }} variant="danger" onClick={handleLeaveGroup}>{t('crew.leaveBtn')}</Btn>
                 </div>
               </div>
             </div>
@@ -5788,7 +5791,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
             <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "40px 0" }}>{t('segments.noSegmentsYet')}</div>
           )}
           {segments.filter(seg => seg.visibility === 'public' || isAdmin || seg.assignedMemberIds.includes(myMemberId) || seg.invitedMemberIds?.includes(myMemberId) || seg.assignedMemberIds.length === 0).map((seg: TripSegment) => {
-            const assignedNames = seg.assignedMemberIds.length === 0 ? 'Everyone'
+            const assignedNames = seg.assignedMemberIds.length === 0 ? t('crew.everyone')
               : seg.assignedMemberIds.map((id: string) => accepted.find((m: TripMember) => m.id === id)?.name || '?').join(', ');
             const invitedNames = seg.invitedMemberIds?.map((id: string) => accepted.find((m: TripMember) => m.id === id)?.name || '?').join(', ');
             const segAtts = segAttachments.filter(a => a.segmentId === seg.id);
@@ -5814,7 +5817,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
                     )}
                     <div style={{ color: C.textSub, fontSize: 12, marginTop: 2 }}>
                       <span style={{ color: C.text }}>{assignedNames}</span>
-                      {invitedNames && <span style={{ color: C.textMuted }}> (Invited: {invitedNames})</span>}
+                      {invitedNames && <span style={{ color: C.textMuted }}> ({t('crew.invitedPrefix')} {invitedNames})</span>}
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 6 }}>
@@ -5836,10 +5839,10 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
 
                 {isInvited && (
                   <div style={{ marginTop: 12, background: C.card2, borderRadius: 10, padding: "10px 12px", border: `1px solid ${C.yellow}50` }}>
-                    <div style={{ color: C.yellow, fontSize: 12, fontWeight: 700, marginBottom: 8 }}>You're invited to this segment</div>
+                    <div style={{ color: C.yellow, fontSize: 12, fontWeight: 700, marginBottom: 8 }}>{t('crew.invitedToSegment')}</div>
                     <div style={{ display: "flex", gap: 8 }}>
-                      <Btn onClick={() => handleSegmentMembership(seg.id, 'accept_invite')} style={{ flex: 1, padding: "6px" }} variant="primary">Accept</Btn>
-                      <Btn onClick={() => handleSegmentMembership(seg.id, 'decline_invite')} style={{ flex: 1, padding: "6px" }} variant="ghost">Decline</Btn>
+                      <Btn onClick={() => handleSegmentMembership(seg.id, 'accept_invite')} style={{ flex: 1, padding: "6px" }} variant="primary">{t('crew.accept')}</Btn>
+                      <Btn onClick={() => handleSegmentMembership(seg.id, 'decline_invite')} style={{ flex: 1, padding: "6px" }} variant="ghost">{t('crew.decline')}</Btn>
                     </div>
                   </div>
                 )}
