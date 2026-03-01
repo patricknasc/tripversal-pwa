@@ -4691,12 +4691,30 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
       <Btn style={{ width: "100%", marginBottom: 30 }} variant="outline"
         icon={<Icon d={icons.download} size={16} stroke={C.text} />}
         onClick={() => {
-          let csv = "date,description,amount,currency,who_paid\n";
+          let csv = "===== WALLET / EXPENSES =====\n";
+          csv += "date,description,amount,currency,who_paid\n";
           const allExps = trips.flatMap((t: any) => Object.values(t.expenses || {}));
           allExps.forEach((e: any) => {
-            csv += `${e.date},"${e.description}",${e.localAmount},${e.localCurrency},"${e.whoPaid}"\n`;
+            const desc = (e.description || '').replace(/"/g, '""');
+            const who = (e.whoPaid || '').replace(/"/g, '""');
+            csv += `${e.date},"${desc}",${e.localAmount},${e.localCurrency},"${who}"\n`;
           });
-          const blob = new Blob([csv], { type: "text/csv" });
+
+          csv += "\n\n===== ITINERARY / EVENTS =====\n";
+          csv += "date,time,type,title,location,notes\n";
+          const allEvents = trips.flatMap((t: any) => Object.values(t.itinerary || {}));
+          allEvents.sort((a: any, b: any) => (a.startDt || "").localeCompare(b.startDt || ""));
+          allEvents.forEach((ev: any) => {
+            const dt = new Date(ev.startDt);
+            const dateStr = ev.startDt && !isNaN(dt.getTime()) ? dt.toISOString().split('T')[0] : "";
+            const timeStr = ev.startDt && !isNaN(dt.getTime()) ? dt.toTimeString().split(' ')[0].substring(0, 5) : "";
+            const title = (ev.title || '').replace(/"/g, '""');
+            const loc = (ev.location || '').replace(/"/g, '""');
+            const notes = (ev.notes || '').replace(/"/g, '""');
+            csv += `${dateStr},${timeStr},${ev.type},"${title}","${loc}","${notes}"\n`;
+          });
+
+          const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url; a.download = "voyasync_export.csv";
