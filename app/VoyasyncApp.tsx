@@ -831,7 +831,7 @@ const ActiveTripCard = ({ trip, onSwitch, activeSavedBudget, onCreateBudget, isP
   );
 };
 
-const Header = ({ onSettings, onHome, isOnline = true, isSyncing = false, user, isPrivate, onTogglePrivate, todaySpent, yesterdaySpent, activeSavedBudget, budgetCurrency, activeTrip }: any) => {
+const Header = ({ onSettings, onHome, isOnline = true, isSyncing = false, user }: any) => {
   const { t } = useTranslation();
   const [weather, setWeather] = useState<{ temp: number; code: number; isDay: boolean } | null>(null);
   const [cityName, setCityName] = useState("Localizando...");
@@ -884,69 +884,45 @@ const Header = ({ onSettings, onHome, isOnline = true, isSyncing = false, user, 
     return icons.sun;
   };
 
-  const tripDays = activeTrip
-    ? Math.max(1, Math.round((new Date(activeTrip.endDate + 'T12:00:00').getTime() - new Date(activeTrip.startDate + 'T12:00:00').getTime()) / (1000 * 60 * 60 * 24)) + 1)
-    : 0;
-  const dailyMax = tripDays > 0 && todaySpent >= 0 ? (activeSavedBudget?.amount || 0) / tripDays : 0;
-
-  // Trend logic
-  let trendLabel = "—";
-  let trendColor = C.textMuted;
-  let trendIcon = "";
-  if (yesterdaySpent > 0) {
-    const diff = ((todaySpent - yesterdaySpent) / yesterdaySpent) * 100;
-    trendLabel = `${Math.abs(diff).toFixed(0)}%`;
-    if (todaySpent <= yesterdaySpent) { trendColor = C.green; trendIcon = "↘"; }
-    else { trendColor = C.yellow; trendIcon = "↗"; }
-  }
-
   return (
-    <div style={{ padding: "12px 20px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${C.border}20` }}>
+    <div style={{ padding: "12px 20px 10px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", borderBottom: `1px solid ${C.border}20` }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
           <button
             onClick={onHome}
-            style={{ background: "none", border: "none", padding: 0, outline: "none", cursor: "pointer", display: "flex", alignItems: "center" }}
+            style={{ background: "none", border: "none", padding: "4px 0 0", outline: "none", cursor: "pointer", display: "flex", alignItems: "center" }}
           >
-            <img src="/voyasync-logo-transp.png" alt="Voyasync" style={{ height: 14, objectFit: "contain" }} />
+            <img src="/voyasync-logo-transp.png" alt="Voyasync" style={{ height: 16, objectFit: "contain" }} />
           </button>
-          <div style={{ width: 1, height: 12, background: C.border, margin: "0 2px" }} />
-          <div style={{ fontSize: 13, fontWeight: 500, color: C.textSub, display: "flex", alignItems: "center", gap: 4 }}>
-            <span>{cityName}</span>
-            <span style={{ opacity: 0.3 }}>•</span>
-            <span>{localTime}</span>
-          </div>
         </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-            <span style={{ fontSize: 18, fontWeight: 800 }}>{currSym(budgetCurrency)}{isPrivate ? '***' : fmtAmt(todaySpent)}</span>
-            {dailyMax > 0 && <span style={{ fontSize: 11, color: C.textMuted }}>/ {isPrivate ? '***' : fmtAmt(dailyMax, 0)}</span>}
-          </div>
-          {trendLabel !== "—" && (
-            <div style={{ background: `${trendColor}15`, color: trendColor, fontSize: 10, fontWeight: 800, padding: "2px 6px", borderRadius: 6, display: "flex", alignItems: "center", gap: 2 }}>
-              <span>{trendIcon}</span>
-              <span>{trendLabel}</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <button
-          onClick={onTogglePrivate}
-          style={{ background: C.card3, borderRadius: "50%", width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", color: isPrivate ? C.cyan : C.textMuted }}
+          onClick={() => {
+            const url = geoCoords
+              ? `https://maps.google.com?q=${geoCoords.lat},${geoCoords.lon}`
+              : `https://maps.google.com?q=${encodeURIComponent(cityName)}`;
+            window.open(url, '_blank');
+          }}
+          style={{ display: "flex", alignItems: "center", gap: 4, color: C.textMuted, fontSize: 13, background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
         >
-          <Icon d={isPrivate ? icons.eyeOff : icons.eye} size={15} />
+          <Icon d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z M12 10a2 2 0 100-4 2 2 0 000 4z" size={13} />
+          {cityName}
         </button>
-
-        <div onClick={onSettings} style={{ width: 34, height: 34, borderRadius: "50%", background: C.card3, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: C.textMuted, padding: 0, overflow: "hidden" }}>
+      </div>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+        <div style={{ background: "#1c1c1e", borderRadius: 20, padding: "6px 12px", display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{ width: 7, height: 7, borderRadius: "50%", background: isSyncing ? C.yellow : isOnline ? C.green : C.red, animation: isSyncing ? 'net-pulse 1s ease-in-out infinite' : 'none' }} />
+          {isSyncing && <span style={{ color: C.yellow, fontSize: 9, fontWeight: 700, letterSpacing: 0.5 }}>{t('header.syncing').toUpperCase()}</span>}
+          {localTime && <span style={{ color: C.textMuted, fontSize: 12 }}>{localTime}</span>}
+          <Icon d={getWeatherIcon()} size={14} stroke={C.textMuted} />
+          <span style={{ color: C.text, fontSize: 13, fontWeight: 500 }}>{weather ? `${weather.temp}°C` : "—"}</span>
+        </div>
+        <button onClick={onSettings} style={{ width: 38, height: 38, borderRadius: "50%", background: "#1c1c1e", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: C.textMuted, padding: 0, overflow: "hidden" }}>
           {user?.picture ? (
-            <img src={user.picture} alt={user.name} referrerPolicy="no-referrer" style={{ width: 34, height: 34, objectFit: "cover" }} />
+            <img src={user.picture} alt={user.name} referrerPolicy="no-referrer" style={{ width: 38, height: 38, objectFit: "cover" }} />
           ) : (
             <Icon d={icons.user} size={18} />
           )}
-        </div>
+        </button>
       </div>
     </div>
   );
@@ -1157,7 +1133,7 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
 
   const trendUp = todaySpent > yesterdaySpent;
   const trendPerc = yesterdaySpent > 0 ? ((todaySpent - yesterdaySpent) / yesterdaySpent) * 100 : 0;
-  const remaining = totalBudgetInBase - todaySpent;
+  const remaining = dailyMax - todaySpent;
 
   return (
     <div style={{ padding: "0 0 100px" }}>
@@ -1172,7 +1148,7 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
               </span>
             </div>
             <div style={{ fontSize: 12, color: C.textSub }}>
-              {t('home.yesterday')}: {currSym(budgetCurrency)}{isPrivate ? '***' : fmtAmt(yesterdaySpent)}
+              {t('home.yesterday')}: {currSym(budgetCurrency)}{isPrivate ? '***' : fmtAmt(yesterdaySpent)} • {t('home.ongoing')}: {currSym(budgetCurrency)}{isPrivate ? '***' : fmtAmt(totalBudgetInBase - (allExpenses?.reduce((acc: number, ex: Expense) => acc + (ex.baseAmount || 0), 0) || 0))}
             </div>
           </div>
           <div style={{ textAlign: "right", position: "relative", zIndex: 1 }}>
@@ -7269,9 +7245,10 @@ function AppShell() {
   const [tab, setTab] = useState(getBaseTab(initialRoute));
   const [isPrivate, setIsPrivate] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('voyasync_private') === 'true';
+      const saved = localStorage.getItem('voyasync_private');
+      if (saved !== null) return saved === 'true';
     }
-    return false;
+    return true;
   });
 
   const togglePrivate = () => {
