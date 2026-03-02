@@ -5437,7 +5437,7 @@ const MemberProfileModal = ({ googleSub, fallbackName, fallbackAvatar, onClose }
   );
 };
 
-const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
+const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: any) => {
   const { t } = useTranslation();
   const [crewTab, setCrewTab] = useState<'crew' | 'segments' | 'budget'>('crew');
 
@@ -5852,12 +5852,22 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate }: any) => {
             <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
               <div style={{ width: "100%", maxWidth: 380, background: C.card, borderRadius: 24, padding: "28px 20px" }}>
                 <div style={{ textAlign: "center", marginBottom: 24 }}>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: C.red, marginBottom: 8 }}>{t('crew.leaveTitle')}</div>
-                  <div style={{ color: C.textMuted, fontSize: 13 }}>{t('crew.leaveDesc')}</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: C.red, marginBottom: 8 }}>
+                    {accepted.length === 1 ? t('crew.leaveLastMemberTitle') : t('crew.leaveTitle')}
+                  </div>
+                  <div style={{ color: C.textMuted, fontSize: 13 }}>
+                    {accepted.length === 1 ? t('crew.leaveLastMemberDesc') : t('crew.leaveDesc')}
+                  </div>
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
                   <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setConfirmLeave(false)}>{t('crew.cancel')}</Btn>
-                  <Btn style={{ flex: 1 }} variant="danger" onClick={handleLeaveGroup}>{t('crew.leaveBtn')}</Btn>
+                  {accepted.length === 1 ? (
+                    <Btn style={{ flex: 1 }} variant="danger" onClick={() => { setConfirmLeave(false); onTripDelete(trip.id); }}>
+                      {t('crew.deleteGroupBtn')}
+                    </Btn>
+                  ) : (
+                    <Btn style={{ flex: 1 }} variant="danger" onClick={handleLeaveGroup}>{t('crew.leaveBtn')}</Btn>
+                  )}
                 </div>
               </div>
             </div>
@@ -7040,6 +7050,15 @@ function AppShell() {
     setUser(null); setTrips([]); setActiveTripId(null);
   };
 
+  const handleDeleteTrip = (id: string) => {
+    setTrips(p => p.filter(t => t.id !== id));
+    if (activeTripId === id) {
+      const remaining = trips.filter(t => t.id !== id);
+      if (remaining.length > 0) switchActiveTrip(remaining[0].id);
+      else { setActiveTripId(null); localStorage.removeItem('voyasync_active_trip_id'); }
+    }
+  };
+
   if (!isMounted) return null;
 
   if (!user) return <LoginScreen onLogin={(u) => {
@@ -7086,6 +7105,10 @@ function AppShell() {
         user={user}
         onBack={() => setShowManageCrew(false)}
         onTripUpdate={(updated: Trip) => setTrips(p => p.map(t => t.id === updated.id ? updated : t))}
+        onTripDelete={(id: string) => {
+          setShowManageCrew(false);
+          handleDeleteTrip(id);
+        }}
       />
     );
   } else if (showSettings) {
@@ -7100,14 +7123,7 @@ function AppShell() {
         onSwitchTrip={(id: string) => { switchActiveTrip(id); setShowSettings(false); setTab('home'); }}
         onTripCreate={(trip: Trip) => { setTrips(p => [...p, trip]); switchActiveTrip(trip.id); }}
         onTripUpdate={(updated: Trip) => setTrips(p => p.map(t => t.id === updated.id ? updated : t))}
-        onTripDelete={(id: string) => {
-          setTrips(p => p.filter(t => t.id !== id));
-          if (activeTripId === id) {
-            const remaining = trips.filter(t => t.id !== id);
-            if (remaining.length > 0) switchActiveTrip(remaining[0].id);
-            else { setActiveTripId(null); localStorage.removeItem('voyasync_active_trip_id'); }
-          }
-        }}
+        onTripDelete={handleDeleteTrip}
         offlineSim={offlineSim}
         setOfflineSim={setOfflineSim}
         isSyncing={isSyncing}
@@ -7116,7 +7132,7 @@ function AppShell() {
   } else {
     switch (tab) {
       case "home": content = <HomeScreen onNav={handleNav} onAddExpense={handleOpenExpense} onCreateBudget={handleGoToBudget} onShowGroup={() => handleNav("group")} activeTripId={activeTripId} activeTrip={activeTrip} user={user} isPanicModeActive={isPanicModeActive} serverActivity={serverActivity} onSOS={() => setShowPanicModal(true)} onShowMap={() => setShowLiveMap(true)} onTodo={() => setShowTodo(true)} />; break;
-      case "itinerary": content = <ItineraryScreen activeTripId={activeTripId} activeTrip={activeTrip} userSub={user?.sub} onNav={handleNav} onCreateBudget={handleGoToBudget} onShowGroup={() => setShowManageCrew(true)} activeSavedBudget={activeSavedBudget} />; break;
+      case "itinerary": content = <ItineraryScreen activeTripId={activeTripId} activeTrip={activeTrip} userSub={user?.sub} onNav={handleNav} onCreateBudget={handleGoToBudget} onShowGroup={() => handleNav("group")} activeSavedBudget={activeSavedBudget} />; break;
       case "wallet": content = <WalletScreen key={walletInitTab} initialTab={walletInitTab} onAddExpense={handleOpenExpense} activeTripId={activeTripId} user={user} trips={trips} onShowGroup={() => handleNav("group")} />; break;
       case "photos": content = <SocialStreamScreen activeTripId={activeTripId} user={user} isOnline={effectiveIsOnline} />; break;
       case "group": content = <GroupScreen
@@ -7126,14 +7142,7 @@ function AppShell() {
         onSwitchTrip={(id: string | null) => { switchActiveTrip(id); }}
         onTripUpdate={(updated: Trip) => setTrips(p => p.map(t => t.id === updated.id ? updated : t))}
         onTripCreate={(trip: Trip) => { setTrips(p => [...p, trip]); switchActiveTrip(trip.id); }}
-        onTripDelete={(id: string) => {
-          setTrips(p => p.filter(t => t.id !== id));
-          if (activeTripId === id) {
-            const remaining = trips.filter(t => t.id !== id);
-            if (remaining.length > 0) switchActiveTrip(remaining[0].id);
-            else { setActiveTripId(null); localStorage.removeItem('voyasync_active_trip_id'); }
-          }
-        }}
+        onTripDelete={handleDeleteTrip}
       />; break;
       default: content = null;
     }
