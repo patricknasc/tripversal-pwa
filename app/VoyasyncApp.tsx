@@ -831,7 +831,7 @@ const ActiveTripCard = ({ trip, onSwitch, activeSavedBudget, onCreateBudget, isP
   );
 };
 
-const Header = ({ onSettings, onHome, isOnline = true, isSyncing = false, user }: any) => {
+const Header = ({ onSettings, onHome, isOnline = true, isSyncing = false, user, isPrivate, onTogglePrivate }: any) => {
   const { t } = useTranslation();
   const [weather, setWeather] = useState<{ temp: number; code: number; isDay: boolean } | null>(null);
   const [cityName, setCityName] = useState("Localizando...");
@@ -909,6 +909,12 @@ const Header = ({ onSettings, onHome, isOnline = true, isSyncing = false, user }
         </button>
       </div>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+        <button
+          onClick={onTogglePrivate}
+          style={{ width: 38, height: 38, borderRadius: "50%", background: "#1c1c1e", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: isPrivate ? C.cyan : C.textMuted }}
+        >
+          <Icon d={isPrivate ? icons.eyeOff : icons.eye} size={16} />
+        </button>
         <div style={{ background: "#1c1c1e", borderRadius: 20, padding: "6px 12px", display: "flex", alignItems: "center", gap: 6 }}>
           <div style={{ width: 7, height: 7, borderRadius: "50%", background: isSyncing ? C.yellow : isOnline ? C.green : C.red, animation: isSyncing ? 'net-pulse 1s ease-in-out infinite' : 'none' }} />
           {isSyncing && <span style={{ color: C.yellow, fontSize: 9, fontWeight: 700, letterSpacing: 0.5 }}>{t('header.syncing').toUpperCase()}</span>}
@@ -1147,7 +1153,7 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
                 {trendUp ? '↑' : '↓'} {isPrivate ? '***' : Math.abs(trendPerc).toFixed(0)}%
               </span>
             </div>
-            <div style={{ fontSize: 12, color: C.textSub }}>
+            <div style={{ fontSize: 11, color: C.textSub, marginTop: 2 }}>
               {t('home.yesterday')}: {currSym(budgetCurrency)}{isPrivate ? '***' : fmtAmt(yesterdaySpent)} • {t('home.ongoing')}: {currSym(budgetCurrency)}{isPrivate ? '***' : fmtAmt(totalBudgetInBase - (allExpenses?.reduce((acc: number, ex: Expense) => acc + (ex.baseAmount || 0), 0) || 0))}
             </div>
           </div>
@@ -1172,15 +1178,6 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
               onTogglePrivate={() => { }}
               detailed={true}
             />
-          </div>
-        )}
-        {!activeSavedBudget && (
-          <div style={{ marginTop: 16, background: C.card3, border: `1px dashed ${C.border}`, borderRadius: 14, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.red }} />
-              <span style={{ color: C.textMuted, fontSize: 13, fontWeight: 600 }}>{t('home.noBudget')}</span>
-            </div>
-            <button onClick={() => onCreateBudget ? onCreateBudget() : onNav('wallet')} style={{ background: C.cyan, color: "#000", border: "none", borderRadius: 16, padding: "6px 14px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{t('home.createOne')}</button>
           </div>
         )}
       </div>
@@ -3055,7 +3052,7 @@ const WalletScreen = ({ onAddExpense, onShowGroup, activeTripId, user, trips = [
               {/* Over budget warning */}
               {cumulativeSpent > totalBudgetInBase && (
                 <div style={{ color: C.red, fontSize: 11, marginTop: 6, fontWeight: 600 }}>
-                  ⚠ Over budget by {currSym(budgetCurrency)}{fmtAmt(cumulativeSpent - totalBudgetInBase)}
+                  ⚠ Over budget by {currSym(budgetCurrency)}{isPrivate ? '***' : fmtAmt(cumulativeSpent - totalBudgetInBase)}
                 </div>
               )}
             </Card>
@@ -3094,8 +3091,8 @@ const WalletScreen = ({ onAddExpense, onShowGroup, activeTripId, user, trips = [
                 if (totalOwed === 0 && totalOwing === 0) return null;
                 return (
                   <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10, marginTop: 4, display: "flex", justifyContent: "space-between" }}>
-                    {totalOwed > 0 && <div style={{ color: C.green, fontSize: 12 }}>{t('wallet.toReceive', { amount: fmtAmt(totalOwed) })}</div>}
-                    {totalOwing < 0 && <div style={{ color: C.yellow, fontSize: 12 }}>{t('wallet.toPay', { amount: fmtAmt(Math.abs(totalOwing)) })}</div>}
+                    {totalOwed > 0 && <div style={{ color: C.green, fontSize: 12 }}>{t('wallet.toReceive', { amount: isPrivate ? '***' : fmtAmt(totalOwed) })}</div>}
+                    {totalOwing < 0 && <div style={{ color: C.yellow, fontSize: 12 }}>{t('wallet.toPay', { amount: isPrivate ? '***' : fmtAmt(Math.abs(totalOwing)) })}</div>}
                   </div>
                 );
               })()}
@@ -3149,7 +3146,7 @@ const WalletScreen = ({ onAddExpense, onShowGroup, activeTripId, user, trips = [
                   <div style={{ flex: 2 }}>
                     <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('wallet.totalAmount')}</div>
                     <Card style={{ padding: "12px 10px", display: "flex", alignItems: "center", background: C.card3, border: "none" }}>
-                      <div style={{ color: C.text, fontSize: 14, fontWeight: 700 }}>{currSym(formBudgetCurrency)}{fmtAmt(formSources.reduce((acc, s) => acc + (s.limitInBase ?? s.limit), 0))}</div>
+                      <div style={{ color: C.text, fontSize: 14, fontWeight: 700 }}>{currSym(formBudgetCurrency)}{isPrivate ? '***' : fmtAmt(formSources.reduce((acc, s) => acc + (s.limitInBase ?? s.limit), 0))}</div>
                     </Card>
                   </div>
                 )}
@@ -3195,7 +3192,7 @@ const WalletScreen = ({ onAddExpense, onShowGroup, activeTripId, user, trips = [
                       <div style={{ width: 12, height: 12, borderRadius: "50%", background: src.color, flexShrink: 0 }} />
                       <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8 }}>
                         <span style={{ fontWeight: 600, fontSize: 14 }}>{src.name}</span>
-                        <span style={{ color: C.textMuted, fontSize: 12 }}>{currSym(src.currency as Currency)}{fmtAmt(src.limit)}</span>
+                        <span style={{ color: C.textMuted, fontSize: 12 }}>{currSym(src.currency as Currency)}{isPrivate ? '***' : fmtAmt(src.limit)}</span>
                       </div>
                       <button onClick={(e) => { e.preventDefault(); setConfirmDeleteSourceId(src.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.red, padding: 4 }}><Icon d={icons.trash} size={15} stroke={C.red} /></button>
                     </div>
@@ -3234,7 +3231,7 @@ const WalletScreen = ({ onAddExpense, onShowGroup, activeTripId, user, trips = [
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{b.name}</div>
-                    <div style={{ color: C.textMuted, fontSize: 12 }}>{b.currency} {b.amount.toLocaleString()}</div>
+                    <div style={{ color: C.textMuted, fontSize: 12 }}>{b.currency} {isPrivate ? '***' : b.amount.toLocaleString()}</div>
                   </div>
                   {isActive && <Badge color={C.cyan} bg="#003d45">{t('wallet.activeBadge')}</Badge>}
                   <button onClick={() => activateBudget(isActive ? null : b.id)} style={{ background: isActive ? C.card3 : "transparent", color: isActive ? C.textMuted : C.cyan, border: isActive ? "none" : `1px solid ${C.cyan}80`, borderRadius: 10, padding: "7px 12px", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit" }}>
@@ -3305,7 +3302,7 @@ const WalletScreen = ({ onAddExpense, onShowGroup, activeTripId, user, trips = [
                   <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
                     <div style={{ background: C.card3, borderRadius: 12, padding: 12, flex: 1 }}>
                       <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>{t('wallet.colAmount')}</div>
-                      <div style={{ fontWeight: 700, fontSize: 16 }}>{currSym(exp.localCurrency)}{fmtAmt(getEffectiveLocal(exp))} <span style={{ color: C.textMuted, fontSize: 14, fontWeight: 400 }}>({currSym(exp.baseCurrency || budgetCurrency)}{fmtAmt(exp.baseAmount)})</span></div>
+                      <div style={{ fontWeight: 700, fontSize: 16 }}>{currSym(exp.localCurrency)}{isPrivate ? '***' : fmtAmt(getEffectiveLocal(exp))} <span style={{ color: C.textMuted, fontSize: 14, fontWeight: 400 }}>({currSym(exp.baseCurrency || budgetCurrency)}{isPrivate ? '***' : fmtAmt(exp.baseAmount)})</span></div>
                     </div>
                     <div style={{ background: C.card3, borderRadius: 12, padding: 12, flex: 1 }}>
                       <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>{t('wallet.colSource')}</div>
@@ -3317,7 +3314,7 @@ const WalletScreen = ({ onAddExpense, onShowGroup, activeTripId, user, trips = [
                       <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 8 }}>{t('wallet.editHistory')}</div>
                       {exp.editHistory.map((h, i) => (
                         <div key={i} style={{ color: C.textSub, fontSize: 11, marginBottom: 4 }}>
-                          {new Date(h.at).toLocaleString("en")} — was "{h.snapshot.description}" {currSym(h.snapshot.localCurrency)}{fmtAmt(h.snapshot.localAmount)}
+                          {new Date(h.at).toLocaleString("en")} — was "{h.snapshot.description}" {currSym(h.snapshot.localCurrency)}{isPrivate ? '***' : fmtAmt(h.snapshot.localAmount)}
                         </div>
                       ))}
                     </div>
