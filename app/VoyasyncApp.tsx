@@ -4605,8 +4605,7 @@ const SettingsScreen = ({ onManageCrew, user, onLogout, onHistory, trips = [], a
     localStorage.setItem('voyasync_profile', JSON.stringify({ username, email, phone, avatarUrl, shareEmail, sharePhone }));
     const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     setSavedAt(time);
-    setProfileSaved(true);
-    setTimeout(() => setProfileSaved(false), 2000);
+    showToast(t('settings.profileSaved') || "Perfil salvo!", 'success');
     // Sync sharing prefs to server
     if (user?.sub) {
       fetch(`/api/users/${user.sub}/profile`, {
@@ -5470,10 +5469,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
   }, [trip?.id]);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviting, setInviting] = useState(false);
-  const [inviteToast, setInviteToast] = useState<string | null>(null);
   const [menuMemberId, setMenuMemberId] = useState<string | null>(null);
-  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
-  const [confirmLeave, setConfirmLeave] = useState(false);
   const [viewMemberSub, setViewMemberSub] = useState<{ sub: string; name: string; avatar?: string } | null>(null);
   // Budget tab moved to WalletScreen
   // Segment form
@@ -5549,7 +5545,6 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
   const myMemberId = myMember?.id || '';
   const isAdmin = myMember?.role === 'admin';
 
-  const showToast = (msg: string) => { setInviteToast(msg); setTimeout(() => setInviteToast(null), 3000); };
 
   const handleSegmentMembership = async (segId: string, action: 'accept_invite' | 'decline_invite' | 'leave_segment') => {
     try {
@@ -5562,7 +5557,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
       const base = segments.find((s: TripSegment) => s.id === segId)!;
       const updatedSeg: TripSegment = { ...base, visibility: updated.visibility, assignedMemberIds: updated.assigned_member_ids || [], invitedMemberIds: updated.invited_member_ids || [] };
       onTripUpdate({ ...trip, segments: segments.map((s: TripSegment) => s.id === segId ? updatedSeg : s) });
-    } catch { showToast("Failed to update status"); }
+    } catch { showToast("Failed to update status", 'error'); }
   };
 
   const handleInvite = async () => {
@@ -5579,8 +5574,8 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
       pushInviteEvent({ id: crypto.randomUUID(), type: 'invited', email: inviteEmail.trim(), tripName: trip.name, at: new Date().toISOString() });
       onTripUpdate({ ...trip, crew: [...crew.filter((m: TripMember) => m.email !== member.email), { id: member.id, email: member.email, role: 'member', status: 'pending', invitedAt: member.invited_at }] });
       setInviteEmail("");
-      showToast("Invite sent!");
-    } catch { showToast("Failed to send invite."); }
+      showToast("Invite sent!", 'success');
+    } catch { showToast("Failed to send invite.", 'error'); }
     setInviting(false);
   };
 
@@ -5594,11 +5589,10 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
       });
       if (!res.ok) { showToast(t('crew.permissionDenied') || 'Permission denied'); return; }
       onTripUpdate({ ...trip, crew: crew.map((m: TripMember) => m.id === memberId ? { ...m, role } : m) });
-    } catch { showToast("Failed to update role."); }
+    } catch { showToast("Failed to update role.", 'error'); }
   };
 
   const handleRemoveMember = async (memberId: string) => {
-    setConfirmRemoveId(null);
     try {
       const res = await fetch(`/api/trips/${trip.id}/members/${memberId}`, {
         method: 'DELETE',
@@ -5607,20 +5601,19 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
       });
       if (!res.ok) { showToast(t('crew.permissionDenied') || 'Permission denied'); return; }
       onTripUpdate({ ...trip, crew: crew.filter((m: TripMember) => m.id !== memberId) });
-    } catch { showToast("Failed to remove member."); }
+    } catch { showToast("Failed to remove member.", 'error'); }
   };
 
   const handleLeaveGroup = async () => {
-    setConfirmLeave(false);
     try {
       const res = await fetch(`/api/trips/${trip.id}/members/leave`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ callerSub: user.sub }),
       });
-      if (!res.ok) { const d = await res.json(); showToast(d.error || "Failed to leave group."); return; }
+      if (!res.ok) { const d = await res.json(); showToast(d.error || "Failed to leave group.", 'error'); return; }
       onBack();
-    } catch { showToast("Failed to leave group."); }
+    } catch { showToast("Failed to leave group.", 'error'); }
   };
 
 
@@ -5640,7 +5633,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
       const newSeg: TripSegment = { id: seg.id, name: seg.name, startDate: seg.start_date, endDate: seg.end_date, origin: seg.origin, destination: seg.destination, color: seg.color, visibility: seg.visibility, assignedMemberIds: seg.assigned_member_ids || [], invitedMemberIds: seg.invited_member_ids || [] };
       onTripUpdate({ ...trip, segments: [...segments, newSeg] });
       setSegName(""); setSegOrigin(""); setSegDest(""); setSegStart(""); setSegEnd(""); setSegColor("#00e5ff"); setSegAssigned([]); setSegIconTab('colors'); setShowAddSeg(false);
-    } catch { showToast("Failed to add segment."); }
+    } catch { showToast("Failed to add segment.", 'error'); }
     setSegSaving(false);
   };
 
@@ -5658,7 +5651,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
   };
 
   const handleEditSegment = async () => {
-    if (!editSegName.trim()) { showToast("Segment name is required."); return; }
+    if (!editSegName.trim()) { showToast("Segment name is required.", 'error'); return; }
     setEditSegSaving(true);
     try {
       const res = await fetch(`/api/trips/${trip.id}/segments/${editSegId}`, {
@@ -5670,7 +5663,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
       const updatedSeg: TripSegment = { id: updated.id, name: updated.name, startDate: updated.start_date, endDate: updated.end_date, origin: updated.origin, destination: updated.destination, color: updated.color, visibility: updated.visibility, assignedMemberIds: updated.assigned_member_ids || [], invitedMemberIds: updated.invited_member_ids || [] };
       onTripUpdate({ ...trip, segments: segments.map((s: TripSegment) => s.id === editSegId ? updatedSeg : s) });
       setEditSegId(null);
-    } catch { showToast("Failed to update segment."); }
+    } catch { showToast("Failed to update segment.", 'error'); }
     setEditSegSaving(false);
   };
 
@@ -5682,16 +5675,11 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
         body: JSON.stringify({ callerSub: user.sub }),
       });
       onTripUpdate({ ...trip, segments: segments.filter((s: TripSegment) => s.id !== segId) });
-    } catch { showToast("Failed to delete segment."); }
+    } catch { showToast("Failed to delete segment.", 'error'); }
   };
 
   return (
     <div style={{ padding: "16px 20px 100px", overflowY: "auto" }}>
-      {inviteToast && (
-        <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", background: C.card3, color: C.text, borderRadius: 12, padding: "12px 20px", fontSize: 14, fontWeight: 600, zIndex: 300, border: `1px solid ${C.border}` }}>
-          {inviteToast}
-        </div>
-      )}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
         <button onClick={onBack} style={{ background: C.card3, border: "none", borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: C.text, fontSize: 18 }}>←</button>
         <div style={{ flex: 1 }}>
@@ -5741,7 +5729,16 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
                               <button onClick={() => handleRoleChange(m.id, m.role === 'admin' ? 'member' : 'admin')} style={{ display: "block", width: "100%", background: "none", border: "none", cursor: "pointer", color: C.text, textAlign: "left", padding: "10px 12px", borderRadius: 8, fontSize: 14, fontFamily: "inherit" }}>
                                 {m.role === 'admin' ? t('crew.demoteToMember') : t('crew.promoteToAdmin')}
                               </button>
-                              <button onClick={() => { setMenuMemberId(null); setConfirmRemoveId(m.id); }} style={{ display: "block", width: "100%", background: "none", border: "none", cursor: "pointer", color: C.red, textAlign: "left", padding: "10px 12px", borderRadius: 8, fontSize: 14, fontFamily: "inherit" }}>
+                              <button onClick={() => {
+                                setMenuMemberId(null);
+                                showConfirmModal({
+                                  title: t('crew.removeTitle'),
+                                  message: t('crew.removeDesc'),
+                                  confirmLabel: t('crew.removeBtn'),
+                                  variant: 'danger',
+                                  onConfirm: () => handleRemoveMember(m.id)
+                                });
+                              }} style={{ display: "block", width: "100%", background: "none", border: "none", cursor: "pointer", color: C.red, textAlign: "left", padding: "10px 12px", borderRadius: 8, fontSize: 14, fontFamily: "inherit" }}>
                                 {t('crew.removeFromCrew')}
                               </button>
                             </div>
@@ -5768,7 +5765,15 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
                       <div style={{ color: C.yellow, fontSize: 11 }}>{t('crew.pendingInvite')}</div>
                     </div>
                     {isAdmin && (
-                      <button onClick={() => setConfirmRemoveId(m.id)} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "6px 10px", cursor: "pointer", color: C.red, fontSize: 12, fontFamily: "inherit" }}>{t('crew.revoke')}</button>
+                      <button onClick={() => {
+                        showConfirmModal({
+                          title: t('crew.removeTitle'),
+                          message: t('crew.removeDesc'),
+                          confirmLabel: t('crew.removeBtn'),
+                          variant: 'danger',
+                          onConfirm: () => handleRemoveMember(m.id)
+                        });
+                      }} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "6px 10px", cursor: "pointer", color: C.red, fontSize: 12, fontFamily: "inherit" }}>{t('crew.revoke')}</button>
                     )}
                   </div>
                 </Card>
@@ -5788,7 +5793,15 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
                       <div style={{ color: C.red, fontSize: 11 }}>{t('crew.declinedInvite', 'Recusou o convite')}</div>
                     </div>
                     {isAdmin && (
-                      <button onClick={() => setConfirmRemoveId(m.id)} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "6px 10px", cursor: "pointer", color: C.red, fontSize: 12, fontFamily: "inherit" }}>{t('crew.remove', 'Remover')}</button>
+                      <button onClick={() => {
+                        showConfirmModal({
+                          title: t('crew.removeTitle'),
+                          message: t('crew.removeDesc'),
+                          confirmLabel: t('crew.removeBtn'),
+                          variant: 'danger',
+                          onConfirm: () => handleRemoveMember(m.id)
+                        });
+                      }} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "6px 10px", cursor: "pointer", color: C.red, fontSize: 12, fontFamily: "inherit" }}>{t('crew.remove', 'Remover')}</button>
                     )}
                   </div>
                 </Card>
@@ -5826,52 +5839,26 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
             </div>
           )}
 
-          {confirmRemoveId && (
-            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-              <div style={{ width: "100%", maxWidth: 380, background: C.card, borderRadius: 24, padding: "28px 20px" }}>
-                <div style={{ textAlign: "center", marginBottom: 24 }}>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: C.red, marginBottom: 8 }}>{t('crew.removeTitle')}</div>
-                  <div style={{ color: C.textMuted, fontSize: 13 }}>{t('crew.removeDesc')}</div>
-                </div>
-                <div style={{ display: "flex", gap: 10 }}>
-                  <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setConfirmRemoveId(null)}>{t('crew.cancel')}</Btn>
-                  <Btn style={{ flex: 1 }} variant="danger" onClick={() => handleRemoveMember(confirmRemoveId)}>{t('crew.removeBtn')}</Btn>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Leave Group */}
           <div style={{ marginTop: 32, paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
-            <button onClick={() => setConfirmLeave(true)} style={{ width: "100%", background: "transparent", border: `1px solid ${C.red}40`, borderRadius: 12, padding: "12px", cursor: "pointer", color: C.red, fontSize: 14, fontWeight: 600, fontFamily: "inherit" }}>
+            <button onClick={() => {
+              const isLastMember = accepted.length === 1;
+              showConfirmModal({
+                title: isLastMember ? t('crew.leaveLastMemberTitle') : t('crew.leaveGroup'),
+                message: isLastMember ? t('crew.leaveLastMemberDesc') : t('crew.leaveGroupConfirm'),
+                confirmLabel: isLastMember ? t('crew.deleteGroupBtn') : t('crew.leaveBtn'),
+                variant: 'danger',
+                onConfirm: () => {
+                  if (isLastMember) onTripDelete(trip.id);
+                  else handleLeaveGroup();
+                }
+              });
+            }} style={{ width: "100%", background: "transparent", border: `1px solid ${C.red}40`, borderRadius: 12, padding: "12px", cursor: "pointer", color: C.red, fontSize: 14, fontWeight: 600, fontFamily: "inherit" }}>
               {t('crew.leaveGroup')}
             </button>
           </div>
 
-          {confirmLeave && (
-            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-              <div style={{ width: "100%", maxWidth: 380, background: C.card, borderRadius: 24, padding: "28px 20px" }}>
-                <div style={{ textAlign: "center", marginBottom: 24 }}>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: C.red, marginBottom: 8 }}>
-                    {accepted.length === 1 ? t('crew.leaveLastMemberTitle') : t('crew.leaveTitle')}
-                  </div>
-                  <div style={{ color: C.textMuted, fontSize: 13 }}>
-                    {accepted.length === 1 ? t('crew.leaveLastMemberDesc') : t('crew.leaveDesc')}
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: 10 }}>
-                  <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setConfirmLeave(false)}>{t('crew.cancel')}</Btn>
-                  {accepted.length === 1 ? (
-                    <Btn style={{ flex: 1 }} variant="danger" onClick={() => { setConfirmLeave(false); onTripDelete(trip.id); }}>
-                      {t('crew.deleteGroupBtn')}
-                    </Btn>
-                  ) : (
-                    <Btn style={{ flex: 1 }} variant="danger" onClick={handleLeaveGroup}>{t('crew.leaveBtn')}</Btn>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
         </>
       ) : crewTab === 'segments' ? (
         <>
@@ -6248,28 +6235,24 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
   const { t } = useTranslation();
   const [managingTrip, setManagingTrip] = useState<Trip | null>(null);
   const [showNewTrip, setShowNewTrip] = useState(false);
-  const [confirmToggleActive, setConfirmToggleActive] = useState<{ id: string, action: 'set' | 'unset' } | null>(null);
   const [newTripName, setNewTripName] = useState("");
   const [newTripDest, setNewTripDest] = useState("");
   const [newTripStart, setNewTripStart] = useState("");
   const [newTripEnd, setNewTripEnd] = useState("");
   const [creatingTrip, setCreatingTrip] = useState(false);
-  const [tripError, setTripError] = useState("");
   const [editingTripId, setEditingTripId] = useState<string | null>(null);
   const [editTripName, setEditTripName] = useState("");
   const [editTripDest, setEditTripDest] = useState("");
   const [editTripStart, setEditTripStart] = useState("");
   const [editTripEnd, setEditTripEnd] = useState("");
   const [savingTrip, setSavingTrip] = useState(false);
-  const [confirmDeleteTripId, setConfirmDeleteTripId] = useState<string | null>(null);
   const [deletingTripId, setDeletingTripId] = useState<string | null>(null);
 
   const handleCreateTrip = async () => {
-    setTripError("");
-    if (!newTripName.trim()) { setTripError(t('group.tripNameReq', "Trip name is required.")); return; }
-    if (!newTripStart) { setTripError(t('group.tripStartReq', "Start date is required.")); return; }
-    if (!newTripEnd) { setTripError(t('group.tripEndReq', "End date is required.")); return; }
-    if (newTripStart > newTripEnd) { setTripError(t('group.tripDateInvalid', "End date must be after start date.")); return; }
+    if (!newTripName.trim()) { showToast(t('group.tripNameReq', "Trip name is required."), 'error'); return; }
+    if (!newTripStart) { showToast(t('group.tripStartReq', "Start date is required."), 'error'); return; }
+    if (!newTripEnd) { showToast(t('group.tripEndReq', "End date is required."), 'error'); return; }
+    if (newTripStart > newTripEnd) { showToast(t('group.tripDateInvalid', "End date must be after start date."), 'error'); return; }
     setCreatingTrip(true);
     try {
       const res = await fetch('/api/trips', {
@@ -6279,14 +6262,14 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to create trip.");
       onTripCreate?.(rowToTrip(await res.json()));
       setNewTripName(""); setNewTripDest(""); setNewTripStart(""); setNewTripEnd("");
-      setShowNewTrip(false); setTripError("");
-    } catch (e: any) { setTripError(e.message || "Failed to create trip."); }
+      setShowNewTrip(false);
+      showToast("Trip created!", 'success');
+    } catch (e: any) { showToast(e.message || "Failed to create trip.", 'error'); }
     finally { setCreatingTrip(false); }
   };
 
   const handleSaveTrip = async (tripId: string) => {
-    setTripError("");
-    if (!editTripName.trim() || !editTripStart || !editTripEnd) { setTripError(t('group.editReq', "Name and dates are required.")); return; }
+    if (!editTripName.trim() || !editTripStart || !editTripEnd) { showToast(t('group.editReq', "Name and dates are required."), 'error'); return; }
     setSavingTrip(true);
     try {
       const res = await fetch(`/api/trips/${tripId}`, {
@@ -6295,8 +6278,9 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
       });
       if (!res.ok) throw new Error("Failed to save trip.");
       onTripUpdate?.(rowToTrip(await res.json()));
-      setEditingTripId(null); setTripError("");
-    } catch (e: any) { setTripError(e.message || t('group.failed', "Failed.")); }
+      setEditingTripId(null);
+      showToast("Trip saved!", 'success');
+    } catch (e: any) { showToast(e.message || t('group.failed', "Failed."), 'error'); }
     finally { setSavingTrip(false); }
   };
 
@@ -6308,8 +6292,8 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
         body: JSON.stringify({ callerSub: user?.sub }),
       });
       onTripDelete?.(tripId);
-      setConfirmDeleteTripId(null);
-    } catch { setTripError(t('group.deleteFailed', "Failed to delete trip.")); setConfirmDeleteTripId(null); }
+      showToast("Trip deleted!", 'success');
+    } catch { showToast(t('group.deleteFailed', "Failed to delete trip."), 'error'); }
     finally { setDeletingTripId(null); }
   };
 
@@ -6336,7 +6320,7 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
           <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>{t('group.groupTitle')}</div>
           <div style={{ color: C.textMuted, fontSize: 12, letterSpacing: 1 }}>{(trips as Trip[]).length} {(trips as Trip[]).length !== 1 ? t('group.tripPlural') : t('group.tripSingular')}</div>
         </div>
-        <button onClick={() => { setShowNewTrip(p => !p); setTripError(""); }} style={{ background: C.cyan, color: "#000", border: "none", borderRadius: 20, padding: "8px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+        <button onClick={() => setShowNewTrip(p => !p)} style={{ background: C.cyan, color: "#000", border: "none", borderRadius: 20, padding: "8px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
           {t('group.newBtn')}
         </button>
       </div>
@@ -6357,9 +6341,8 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
                 <Card style={{ padding: 10 }}><input type="date" value={newTripEnd} onChange={e => setNewTripEnd(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} /></Card>
               </div>
             </div>
-            {tripError && <div style={{ color: C.red, fontSize: 12, marginBottom: 10, padding: "8px 12px", background: C.redDim, borderRadius: 10 }}>{tripError}</div>}
             <div style={{ display: "flex", gap: 10 }}>
-              <Btn style={{ flex: 1 }} variant="ghost" onClick={() => { setShowNewTrip(false); setTripError(""); }}>{t('group.cancelBtn')}</Btn>
+              <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setShowNewTrip(false)}>{t('group.cancelBtn')}</Btn>
               <Btn style={{ flex: 1 }} onClick={handleCreateTrip}>{creatingTrip ? t('group.creatingBtn') : t('group.createBtn')}</Btn>
             </div>
           </Card>
@@ -6392,9 +6375,8 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
                       <Card style={{ padding: 10 }}><input type="date" value={editTripEnd} onChange={e => setEditTripEnd(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} /></Card>
                     </div>
                   </div>
-                  {tripError && <div style={{ color: C.red, fontSize: 12, marginBottom: 10 }}>{tripError}</div>}
                   <div style={{ display: "flex", gap: 10 }}>
-                    <Btn style={{ flex: 1 }} variant="ghost" onClick={() => { setEditingTripId(null); setTripError(""); }}>{t('group.cancelBtn')}</Btn>
+                    <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setEditingTripId(null)}>{t('group.cancelBtn')}</Btn>
                     <Btn style={{ flex: 1 }} onClick={() => handleSaveTrip(trip.id)}>{savingTrip ? t('group.savingBtn') : t('group.saveBtn')}</Btn>
                   </div>
                 </>
@@ -6411,19 +6393,43 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                      <button onClick={() => { setEditingTripId(trip.id); setEditTripName(trip.name); setEditTripDest(trip.destination || ""); setEditTripStart(trip.startDate); setEditTripEnd(trip.endDate); setTripError(""); }} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}>
+                      <button onClick={() => { setEditingTripId(trip.id); setEditTripName(trip.name); setEditTripDest(trip.destination || ""); setEditTripStart(trip.startDate); setEditTripEnd(trip.endDate); }} style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}>
                         <Icon d={icons.edit} size={15} stroke={C.textMuted} />
                       </button>
-                      <button onClick={() => setConfirmDeleteTripId(trip.id)} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}>
+                      <button onClick={() => {
+                        showConfirmModal({
+                          title: t('group.deleteTripPrompt', { name: trip.name }),
+                          message: t('group.deleteTripDesc'),
+                          confirmLabel: t('group.deleteTripBtn'),
+                          variant: 'danger',
+                          onConfirm: () => handleDeleteTrip(trip.id)
+                        });
+                      }} style={{ background: C.redDim, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}>
                         <Icon d={icons.trash} size={15} stroke={C.red} />
                       </button>
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                     {isActive ? (
-                      <Btn style={{ flex: 1, padding: "10px", background: "transparent", border: `1px solid ${C.red}`, color: C.red }} onClick={() => setConfirmToggleActive({ id: trip.id, action: 'unset' })}>{t('group.unsetActiveBtn', 'Deselect')}</Btn>
+                      <Btn style={{ flex: 1, padding: "10px", background: "transparent", border: `1px solid ${C.red}`, color: C.red }} onClick={() => {
+                        showConfirmModal({
+                          title: t('group.promptUnset'),
+                          message: '',
+                          confirmLabel: t('group.confirmBtn', 'Confirm'),
+                          variant: 'danger',
+                          onConfirm: () => onSwitchTrip(null)
+                        });
+                      }}>{t('group.unsetActiveBtn', 'Deselect')}</Btn>
                     ) : (
-                      <Btn variant="primary" style={{ flex: 1, padding: "10px" }} onClick={() => setConfirmToggleActive({ id: trip.id, action: 'set' })}>{t('group.setActiveBtn')}</Btn>
+                      <Btn variant="primary" style={{ flex: 1, padding: "10px" }} onClick={() => {
+                        showConfirmModal({
+                          title: t('group.promptSet'),
+                          message: '',
+                          confirmLabel: t('group.confirmBtn', 'Confirm'),
+                          variant: 'primary',
+                          onConfirm: () => onSwitchTrip(trip.id)
+                        });
+                      }}>{t('group.setActiveBtn')}</Btn>
                     )}
                     <Btn variant="secondary" style={{ flex: 1, padding: "10px" }} onClick={() => setManagingTrip(trip)} icon={<Icon d={icons.users} size={15} />}>{t('group.manageBtn')}</Btn>
                   </div>
@@ -6433,38 +6439,6 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
           );
         })}
 
-        {confirmDeleteTripId && (() => {
-          const tTrip = (trips as Trip[]).find(tr => tr.id === confirmDeleteTripId);
-          return (
-            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 380, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={() => setConfirmDeleteTripId(null)}>
-              <div style={{ width: "100%", maxWidth: 400, background: C.card, borderRadius: 24, padding: "28px 20px", textAlign: "center" }} onClick={e => e.stopPropagation()}>
-                <div style={{ textAlign: "center", marginBottom: 24 }}>
-                  <div style={{ fontSize: 17, fontWeight: 800, color: C.text, marginBottom: 6 }}>{t('group.deleteTripPrompt', { name: tTrip?.name })}</div>
-                  <div style={{ color: C.textMuted, fontSize: 13 }}>{t('group.deleteTripDesc')}</div>
-                </div>
-                <div style={{ display: "flex", gap: 10 }}>
-                  <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setConfirmDeleteTripId(null)}>{t('group.cancelBtn')}</Btn>
-                  <Btn style={{ flex: 1 }} variant="danger" onClick={() => handleDeleteTrip(confirmDeleteTripId)}>{deletingTripId === confirmDeleteTripId ? t('group.deletingTripBtn') : t('group.deleteTripBtn')}</Btn>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
-
-        {confirmToggleActive && (() => {
-          const actionText = confirmToggleActive.action === 'set' ? t('group.promptSet') : t('group.promptUnset');
-          return (
-            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={() => setConfirmToggleActive(null)}>
-              <div style={{ width: "100%", maxWidth: 360, background: C.card, borderRadius: 24, padding: "28px 20px", textAlign: "center" }} onClick={e => e.stopPropagation()}>
-                <div style={{ fontSize: 18, fontWeight: 800, color: C.text, marginBottom: 12 }}>{actionText}</div>
-                <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-                  <Btn style={{ flex: 1 }} variant="ghost" onClick={() => setConfirmToggleActive(null)}>{t('group.cancelBtn')}</Btn>
-                  <Btn style={{ flex: 1 }} variant={confirmToggleActive.action === 'unset' ? 'danger' : 'primary'} onClick={() => { onSwitchTrip(confirmToggleActive.action === 'unset' ? null : confirmToggleActive.id); setConfirmToggleActive(null); }}>{t('group.confirmBtn', 'Confirm')}</Btn>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
       </div>
     </div>
   );
@@ -6612,7 +6586,7 @@ const TodoScreen = ({ activeTripId, onBack }: { activeTripId: string | null; onB
     if (!title.trim() || !activeTripId) return;
     const today = localDateKey(new Date());
     if (dueDate && dueDate < today) {
-      alert(t('todo.invalidDate'));
+      showToast(t('todo.invalidDate'), 'error');
       return;
     }
     if (editItem) {
