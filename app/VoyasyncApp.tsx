@@ -827,13 +827,13 @@ const Header = ({ onSettings, onHome, isOnline = true, isSyncing = false, user }
   };
 
   return (
-    <div style={{ padding: "12px 20px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${C.border}20` }}>
+    <div style={{ padding: "12px 20px 10px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", borderBottom: `1px solid ${C.border}20` }}>
       <div>
         <button
           onClick={onHome}
           style={{ background: "none", border: "none", padding: 0, outline: "none", cursor: "pointer", display: "flex", alignItems: "center" }}
         >
-          <img src="/voyasync-logo-transp.png" alt="Voyasync" style={{ height: 18, objectFit: "contain", paddingTop: 9, paddingBottom: 18 }} />
+          <img src="/voyasync-logo-transp.png" alt="Voyasync" style={{ height: 18, objectFit: "contain", marginBottom: 6 }} />
         </button>
         <button
           onClick={() => {
@@ -1249,6 +1249,23 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
                           {t('home.sosResolved', { actor: a.actor_name || a.actor_sub.slice(0, 8) })}
                         </div>
                         <div style={{ color: C.textMuted, fontSize: 12 }}>{t('home.sosResolvedSubtitle')}</div>
+                      </div>
+                      <div style={{ color: C.textMuted, fontSize: 11, flexShrink: 0 }}>
+                        {new Date(a.created_at).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}
+                      </div>
+                    </div>
+                  </Card>
+                );
+              } else if (a.action === 'EXPENSE_ADD') {
+                return (
+                  <Card key={`act-${a.id}`} style={{ marginBottom: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 12, background: C.card3, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 18 }}>💸</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
+                          {a.actor_name || a.actor_sub?.slice(0, 8)} adicionou uma despesa
+                        </div>
+                        <div style={{ color: C.textMuted, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{a.subject}</div>
                       </div>
                       <div style={{ color: C.textMuted, fontSize: 11, flexShrink: 0 }}>
                         {new Date(a.created_at).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}
@@ -3832,6 +3849,18 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ callerSub: user.sub, ...expenseToRow(expense) }),
+          }).catch(() => { });
+          // Log to activity feed so all group members see it
+          const catLabel = categories.find((c: any) => c.id === cat)?.label || cat;
+          fetch(`/api/trips/${activeTripId}/activity`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              callerSub: user.sub,
+              callerName: user.name || user.email?.split('@')[0] || 'Membro',
+              action: 'EXPENSE_ADD',
+              subject: `${expense.description} — ${expense.localAmount} ${expense.localCurrency}`,
+            }),
           }).catch(() => { });
         }
       }}>{saving ? "Saving..." : t('addExpense.saveBtn', 'Save Expense')}</Btn>
@@ -7058,10 +7087,10 @@ function AppShell() {
   const fetchServerActivityRef = useRef(fetchServerActivity);
   useEffect(() => { fetchServerActivityRef.current = fetchServerActivity; });
 
-  // Poll every 30s so all group members stay up-to-date (Realtime on anon client may be blocked by RLS)
+  // Poll every 10s so all group members stay near-real-time
   useEffect(() => {
     if (!activeTripId || !user) return;
-    const id = setInterval(() => fetchServerActivityRef.current(), 30_000);
+    const id = setInterval(() => fetchServerActivityRef.current(), 10_000);
     return () => clearInterval(id);
   }, [activeTripId, user]);
   const [showPanicModal, setShowPanicModal] = useState(false);
@@ -7179,8 +7208,9 @@ function AppShell() {
     // Reset deactivated flag so this new SOS session can be heard
     deactivatedSOSRef.current = false;
     setIncomingSOSUser(row.user_sub);
-    // Immediately refresh the activity feed so the SOS event shows up without waiting 30s
-    fetchServerActivityRef.current();
+    // Immediately refresh the activity feed so the SOS event shows up
+    // Wait 2.5s for the activity API POST to complete before fetching (race condition fix)
+    setTimeout(() => fetchServerActivityRef.current(), 2500);
     if (mutedSOSRef.current) return;
     // Play the pre-loaded HTML Audio element (iOS-compatible).
     const audio = sosAudioRef.current;
