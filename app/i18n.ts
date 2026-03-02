@@ -542,6 +542,7 @@ const resources = {
             },
             home: {
                 vsYesterday: "vs yesterday",
+                budgetDailyLabel: "DAILY BUDGET",
                 noBudget: "No active budget",
                 createOne: "Create one",
                 now: "Now",
@@ -1194,6 +1195,7 @@ const resources = {
                 sos: "SOS",
                 todo: "TAREFAS",
                 recentActivity: "ATIVIDADE RECENTE",
+                budgetDailyLabel: "ORÇAMENTO DIÁRIO",
                 noExpenses: "Nenhuma atividade ainda.",
                 today: "Hoje",
                 yesterday: "Ontem",
@@ -1750,6 +1752,7 @@ const resources = {
             },
             home: {
                 vsYesterday: "vs ayer",
+                budgetDailyLabel: "PRESUPUESTO DIARIO",
                 noBudget: "Sin presupuesto activo",
                 createOne: "Crear",
                 now: "Ahora",

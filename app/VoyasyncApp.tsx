@@ -831,7 +831,7 @@ const ActiveTripCard = ({ trip, onSwitch, activeSavedBudget, onCreateBudget, isP
   );
 };
 
-const Header = ({ onSettings, onHome, isOnline = true, isSyncing = false, user, isPrivate, onTogglePrivate }: any) => {
+const Header = ({ onSettings, onHome, user, isOnline, isSyncing, isPrivate, onTogglePrivate, todaySpent, yesterdaySpent, activeSavedBudget, budgetCurrency, activeTrip, hidePrivacy }: any) => {
   const { t } = useTranslation();
   const [weather, setWeather] = useState<{ temp: number; code: number; isDay: boolean } | null>(null);
   const [cityName, setCityName] = useState("Localizando...");
@@ -867,15 +867,15 @@ const Header = ({ onSettings, onHome, isOnline = true, isSyncing = false, user, 
           const addr = gData.address || {};
           const city = addr.city || addr.town || addr.village || addr.county || "";
           const country = addr.country || "";
-          if (city) setCityName(country ? `${city}, ${country}` : city);
-        } catch { setCityName("Paris, France"); }
+          // if (city) setCityName(country ? `${city}, ${country}` : city); // cityName is now from activeTrip
+        } catch { /* setCityName("Paris, France"); */ }
       },
-      () => setCityName("Paris, France")
+      () => { /* setCityName("Paris, France") */ } // cityName is now from activeTrip
     );
   }, []);
 
   const getWeatherIcon = () => {
-    if (!weather) return icons.cloud;
+    if (!weather) return icons.sun;
     const code = weather.code;
     if (code >= 200 && code < 300) return icons.cloudLightning;
     if (code >= 300 && code < 600) return icons.cloudRain;
@@ -909,13 +909,14 @@ const Header = ({ onSettings, onHome, isOnline = true, isSyncing = false, user, 
         </div>
       </div>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-        <button
-          onClick={onTogglePrivate}
-          style={{ width: 38, height: 38, borderRadius: "50%", background: "#1c1c1e", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: isPrivate ? C.cyan : C.textMuted }}
-        >
-          <Icon d={isPrivate ? icons.eyeOff : icons.eye} size={16} />
-        </button>
-
+        {!hidePrivacy && (
+          <button
+            onClick={onTogglePrivate}
+            style={{ width: 38, height: 38, borderRadius: "50%", background: "#1c1c1e", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: isPrivate ? C.cyan : C.textMuted }}
+          >
+            <Icon d={isPrivate ? icons.eyeOff : icons.eye} size={16} />
+          </button>
+        )}
         <div style={{ background: "#1c1c1e", borderRadius: 20, padding: "6px 12px", display: "flex", alignItems: "center", gap: 6 }}>
           <div style={{ width: 7, height: 7, borderRadius: "50%", background: isSyncing ? C.yellow : isOnline ? C.green : C.red, animation: isSyncing ? 'net-pulse 1s ease-in-out infinite' : 'none' }} />
           {isSyncing && <span style={{ color: C.yellow, fontSize: 9, fontWeight: 700, letterSpacing: 0.5 }}>{t('header.syncing').toUpperCase()}</span>}
@@ -964,7 +965,7 @@ const BottomNav = ({ active, onNav }: any) => {
   );
 };
 
-const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTripId, activeTrip, user, isPanicModeActive, serverActivity = [], onSOS, onShowMap, onTodo, isPrivate, todaySpent, yesterdaySpent, activeSavedBudget, budget }: any) => {
+const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTripId, activeTrip, user, isPanicModeActive, serverActivity = [], onSOS, onShowMap, onTodo, isPrivate, onTogglePrivate, todaySpent, yesterdaySpent, activeSavedBudget, budget }: any) => {
   const { t } = useTranslation();
   const [allExpenses, setAllExpenses] = useState<Expense[]>([]);
   const [inviteEvents, setInviteEvents] = useState<InviteEvent[]>([]);
@@ -1148,7 +1149,7 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
       <div style={{ padding: "16px 20px 0" }}>
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 8 }}>
           <div style={{ position: "relative", zIndex: 1 }}>
-            <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, fontWeight: 600, marginBottom: 4 }}>{t('home.budgetUsage')}</div>
+            <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, fontWeight: 600, marginBottom: 4 }}>{t('home.budgetDailyLabel')}</div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 2 }}>
               <span style={{ fontSize: 32, fontWeight: 800, letterSpacing: -1 }}>{currSym(budgetCurrency)}{isPrivate ? '***' : fmtAmt(todaySpent)}</span>
               <span style={{ fontSize: 13, color: trendUp ? C.red : C.green, fontWeight: 700 }}>
@@ -1159,7 +1160,15 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
               {t('home.yesterday')}: {currSym(budgetCurrency)}{isPrivate ? '***' : fmtAmt(yesterdaySpent)}
             </div>
           </div>
-          <div style={{ textAlign: "right", position: "relative", zIndex: 1 }}>
+          <div style={{ textAlign: "right", position: "relative", zIndex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 2 }}>
+              <button
+                onClick={(e) => { e.stopPropagation(); onTogglePrivate(); }}
+                style={{ background: "none", border: "none", padding: 4, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+              >
+                <Icon d={isPrivate ? icons.eyeOff : icons.eye} size={16} stroke={C.textMuted} />
+              </button>
+            </div>
             <div style={{ fontSize: 16, fontWeight: 700, color: remaining >= 0 ? C.green : C.red }}>{remaining >= 0 ? '+' : ''}{currSym(budgetCurrency)}{isPrivate ? '***' : fmtAmt(Math.abs(remaining))}</div>
             <div style={{ fontSize: 10, color: C.textSub, letterSpacing: 0.5 }}>{remaining >= 0 ? t('wallet.remaining') : t('wallet.overBudget')}</div>
           </div>
@@ -1177,7 +1186,7 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
               activeSavedBudget={activeSavedBudget}
               onCreateBudget={onCreateBudget}
               isPrivate={isPrivate}
-              onTogglePrivate={() => { }}
+              onTogglePrivate={onTogglePrivate}
               detailed={true}
             />
           </div>
@@ -7707,7 +7716,7 @@ function AppShell() {
     );
   } else {
     switch (tab) {
-      case "home": content = <HomeScreen onNav={handleNav} onAddExpense={handleOpenExpense} onCreateBudget={handleGoToBudget} onShowGroup={() => handleNav("group")} activeTripId={activeTripId} activeTrip={activeTrip} user={user} isPanicModeActive={isPanicModeActive} serverActivity={serverActivity} onSOS={() => setShowPanicModal(true)} onShowMap={() => setShowLiveMap(true)} onTodo={() => setShowTodo(true)} isPrivate={isPrivate} todaySpent={todaySpent} yesterdaySpent={yesterdaySpent} activeSavedBudget={activeSavedBudget} budget={budget} />; break;
+      case "home": content = <HomeScreen onNav={handleNav} onAddExpense={handleOpenExpense} onCreateBudget={handleGoToBudget} onShowGroup={() => handleNav("group")} activeTripId={activeTripId} activeTrip={activeTrip} user={user} isPanicModeActive={isPanicModeActive} serverActivity={serverActivity} onSOS={() => setShowPanicModal(true)} onShowMap={() => setShowLiveMap(true)} onTodo={() => setShowTodo(true)} isPrivate={isPrivate} onTogglePrivate={togglePrivate} todaySpent={todaySpent} yesterdaySpent={yesterdaySpent} activeSavedBudget={activeSavedBudget} budget={budget} />; break;
       case "itinerary": content = <ItineraryScreen activeTripId={activeTripId} activeTrip={activeTrip} userSub={user?.sub} onNav={handleNav} onCreateBudget={handleGoToBudget} onShowGroup={() => handleNav("group")} activeSavedBudget={activeSavedBudget} isPrivate={isPrivate} onTogglePrivate={togglePrivate} />; break;
       case "wallet": content = <WalletScreen key={walletInitTab} initialTab={walletInitTab} onAddExpense={handleOpenExpense} activeTripId={activeTripId} user={user} trips={trips} onShowGroup={() => handleNav("group")} isPrivate={isPrivate} onTogglePrivate={togglePrivate} activeSavedBudget={activeSavedBudget} budget={budget} setBudgetState={setBudget} setActiveSavedBudget={setActiveSavedBudget} />; break;
       case "photos": content = (
@@ -7808,6 +7817,7 @@ function AppShell() {
           isSyncing={isSyncing}
           isPrivate={isPrivate}
           onTogglePrivate={togglePrivate}
+          hidePrivacy={tab === 'home'}
           todaySpent={todaySpent}
           yesterdaySpent={yesterdaySpent}
           activeSavedBudget={activeSavedBudget}
