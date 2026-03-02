@@ -1573,7 +1573,7 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
                     <div style={{ marginBottom: 16 }}>
                       <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('home.source')}</div>
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                        {budget.sources.map(s => (
+                        {budget.sources.map((s: PaymentSource) => (
                           <button key={s.id} onClick={() => setHomeEditSourceId(s.id)} style={{ background: homeEditSourceId === s.id ? "#003d45" : C.card3, border: homeEditSourceId === s.id ? `2px solid ${s.color}` : "2px solid transparent", borderRadius: 10, padding: "8px 12px", cursor: "pointer", color: homeEditSourceId === s.id ? C.text : C.textMuted, fontSize: 12, fontFamily: "inherit" }}>
                             {s.name}
                           </button>
@@ -3434,7 +3434,7 @@ const WalletScreen = ({ onAddExpense, onShowGroup, activeTripId, user, trips = [
                     <div style={{ marginBottom: 16 }}>
                       <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('wallet.colSource')}</div>
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                        {budget.sources.map(s => (
+                        {budget.sources.map((s: PaymentSource) => (
                           <button key={s.id} onClick={() => setEditSourceId(s.id)} style={{ background: editSourceId === s.id ? "#003d45" : C.card3, border: editSourceId === s.id ? `2px solid ${s.color}` : "2px solid transparent", borderRadius: 10, padding: "8px 12px", cursor: "pointer", color: editSourceId === s.id ? C.text : C.textMuted, fontSize: 12, fontFamily: "inherit" }}>
                             {s.name}
                           </button>
