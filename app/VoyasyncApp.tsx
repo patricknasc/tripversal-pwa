@@ -833,7 +833,7 @@ const Header = ({ onSettings, onHome, isOnline = true, isSyncing = false, user }
           onClick={onHome}
           style={{ background: "none", border: "none", padding: 0, outline: "none", cursor: "pointer", display: "flex", alignItems: "center" }}
         >
-          <img src="/voyasync-logo-transp.png" alt="Voyasync" style={{ height: 18, objectFit: "contain", paddingBottom: 9 }} />
+          <img src="/voyasync-logo-transp.png" alt="Voyasync" style={{ height: 18, objectFit: "contain", paddingTop: 9, paddingBottom: 18 }} />
         </button>
         <button
           onClick={() => {
@@ -7036,22 +7036,16 @@ function AppShell() {
     fetchServerActivity();
   }, [activeTripId, user]);
 
-  // Live subscription to trip_activity — ensures all group members see SOS and other events instantly
+  // Keep a stable ref to fetchServerActivity so SOS callback (stale closure) can call it
+  const fetchServerActivityRef = useRef(fetchServerActivity);
+  useEffect(() => { fetchServerActivityRef.current = fetchServerActivity; });
+
+  // Poll every 30s so all group members stay up-to-date (Realtime on anon client may be blocked by RLS)
   useEffect(() => {
-    if (!activeTripId) return;
-    const channel = anonSupabase.channel(`activity_${activeTripId}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'trip_activity',
-        filter: `trip_id=eq.${activeTripId}`,
-      }, (payload) => {
-        const row = payload.new as TripActivityItem;
-        setServerActivity(prev => [row, ...prev].slice(0, 20));
-      })
-      .subscribe();
-    return () => { anonSupabase.removeChannel(channel); };
-  }, [activeTripId]);
+    if (!activeTripId || !user) return;
+    const id = setInterval(() => fetchServerActivityRef.current(), 30_000);
+    return () => clearInterval(id);
+  }, [activeTripId, user]);
   const [showPanicModal, setShowPanicModal] = useState(false);
   const [showLiveMap, setShowLiveMap] = useState(initialRoute === 'live_map');
   const [showTodo, setShowTodo] = useState(false);
@@ -7167,6 +7161,8 @@ function AppShell() {
     // Reset deactivated flag so this new SOS session can be heard
     deactivatedSOSRef.current = false;
     setIncomingSOSUser(row.user_sub);
+    // Immediately refresh the activity feed so the SOS event shows up without waiting 30s
+    fetchServerActivityRef.current();
     if (mutedSOSRef.current) return;
     // Play the pre-loaded HTML Audio element (iOS-compatible).
     const audio = sosAudioRef.current;
