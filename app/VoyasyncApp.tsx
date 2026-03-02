@@ -3446,6 +3446,7 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
   const [customRateStr, setCustomRateStr] = useState("");
 
   const [saving, setSaving] = useState(false);
+  const [expError, setExpError] = useState<string | null>(null);
   const [expDate, setExpDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [expTime, setExpTime] = useState<string>(() => {
     const n = new Date();
@@ -3774,8 +3775,25 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
           </label>
         )}
       </div>
+      {expError && (
+        <div style={{ background: C.redDim, border: `1px solid ${C.red}`, borderRadius: 12, padding: "12px 16px", marginBottom: 12, color: C.red, fontSize: 14, fontWeight: 600 }}>
+          ⚠️ {expError}
+        </div>
+      )}
       <Btn style={{ width: "100%" }} onClick={async () => {
         if (saving) return;
+        // ── Validation ──────────────────────────────────────────────
+        const numAmount = parseFloat(amount);
+        if (!amount || isNaN(numAmount) || numAmount <= 0) {
+          setExpError(t('addExpense.errorAmount', 'O valor deve ser maior que zero.'));
+          return;
+        }
+        if (!expDate) {
+          setExpError(t('addExpense.errorDate', 'A data é obrigatória.'));
+          return;
+        }
+        setExpError(null);
+        // ── Save ─────────────────────────────────────────────────────
         setSaving(true);
         const expense: Expense = {
           id: crypto.randomUUID(),
@@ -3816,7 +3834,7 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
             body: JSON.stringify({ callerSub: user.sub, ...expenseToRow(expense) }),
           }).catch(() => { });
         }
-      }}>{saving ? "Saving..." : "Save Expense"}</Btn>
+      }}>{saving ? "Saving..." : t('addExpense.saveBtn', 'Save Expense')}</Btn>
     </div>
   );
 };
