@@ -1659,7 +1659,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub, onNav, onShowGroup
       if (stored) setItinEvents(JSON.parse(stored));
     } catch { }
     if (userSub) {
-      fetch(`/api/trips/${activeTripId}/itinerary?callerSub=${encodeURIComponent(user.sub)}`)
+      fetch(`/api/trips/${activeTripId}/itinerary?callerSub=${encodeURIComponent(userSub)}`)
         .then(r => r.ok ? r.json() : null)
         .then((rows: ItineraryEventRecord[] | null) => {
           if (!rows) return;
