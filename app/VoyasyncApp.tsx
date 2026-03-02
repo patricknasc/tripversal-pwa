@@ -274,7 +274,7 @@ function formatDisplayDate(dateStr: string): string {
   });
 }
 
-function segmentsToEvents(segments: TripSegment[]): ItineraryEvent[] {
+function segmentsToEvents(segments: TripSegment[], t: any): ItineraryEvent[] {
   const events: ItineraryEvent[] = [];
   segments.forEach(seg => {
     if (seg.startDate && seg.origin && seg.destination) {
@@ -287,14 +287,14 @@ function segmentsToEvents(segments: TripSegment[]): ItineraryEvent[] {
     if (seg.startDate) {
       events.push({
         id: `${seg.id}-checkin`, date: seg.startDate, time: "14:00", category: "checkin",
-        title: `Check-in: ${seg.name}`, subtitle: seg.destination,
+        title: `${t('itinerary.segmentStart') || 'Segment Start'}: ${seg.name}`, subtitle: seg.destination,
         location: seg.destination ? { address: seg.destination } : undefined, segmentId: seg.id,
       });
     }
     if (seg.endDate && seg.endDate !== seg.startDate) {
       events.push({
         id: `${seg.id}-checkout`, date: seg.endDate, time: "11:00", category: "hotel",
-        title: `Check-out: ${seg.name}`, subtitle: seg.destination, segmentId: seg.id,
+        title: `${t('itinerary.segmentEnd') || 'Segment End'}: ${seg.name}`, subtitle: seg.destination, segmentId: seg.id,
       });
     }
   });
@@ -1057,7 +1057,7 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
         )}
       </div>
       {(() => {
-        const events: ItineraryEvent[] = activeTrip ? segmentsToEvents(activeTrip.segments) : [];
+        const events: ItineraryEvent[] = activeTrip ? segmentsToEvents(activeTrip.segments, t) : [];
         const todayStr = localDateKey(new Date());
         const nowStr = `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
         const next = events.find(e => e.date > todayStr || (e.date === todayStr && e.time >= nowStr));
@@ -1481,7 +1481,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub, onNav, onShowGroup
     }
   }, [activeTripId]);
 
-  const segEvents: ItineraryEvent[] = activeTrip ? segmentsToEvents(activeTrip.segments) : [];
+  const segEvents: ItineraryEvent[] = activeTrip ? segmentsToEvents(activeTrip.segments, t) : [];
   const activeItinEvents = itinEvents.filter(e => !e.deletedAt);
   const customEventDates = activeItinEvents.map(e => localDateKey(new Date(e.startDt)));
 
@@ -1703,7 +1703,8 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub, onNav, onShowGroup
   };
 
   const handleSaveEvent = async () => {
-    if (!evtTitle.trim() || !evtDate || !evtTime) return;
+    if (!evtTitle.trim()) { showToast(t('itinerary.titleRequired'), 'error'); return; }
+    if (!evtDate || !evtTime) { showToast(t('itinerary.dateRequired'), 'error'); return; }
     setEvtSaving(true);
     const startDt = new Date(`${evtDate}T${evtTime}:00`).toISOString();
     const endDt = evtEndDate && evtEndTime ? new Date(`${evtEndDate}T${evtEndTime}:00`).toISOString() : undefined;
@@ -1938,7 +1939,14 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub, onNav, onShowGroup
                       background: isNow ? `${C.cyan}15` : C.card, borderRadius: 14, padding: 14,
                       border: isNow ? `1px solid ${C.cyan}30` : isConflict ? `1px solid ${C.yellow}40` : "none"
                     }}>
-                      {isNow && <div style={{ color: C.cyan, fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 4 }}>{t('itinerary.nowLabel')}</div>}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 2 }}>
+                        {isNow && <div style={{ color: C.cyan, fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 4 }}>{t('itinerary.nowLabel')}</div>}
+                        {!event.isCustom && (
+                          <div style={{ background: `${C.cyan}20`, color: C.cyan, fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 4, letterSpacing: 0.5 }}>
+                            {t('itinerary.segmentAuto')}
+                          </div>
+                        )}
+                      </div>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 700, fontSize: 15, color: isDone ? C.textMuted : C.text }}>{event.title}</div>
@@ -2042,7 +2050,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub, onNav, onShowGroup
 
             {/* Title */}
             <div style={{ marginBottom: 12 }}>
-              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('itinerary.titleLabel').toUpperCase()} *</div>
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('itinerary.titleLabel').toUpperCase()} <span style={{ color: C.red, fontWeight: 'normal' }}>(*)</span></div>
               <input value={evtTitle} onChange={e => setEvtTitle(e.target.value)}
                 placeholder={ITIN_TYPES.find(typeDef => typeDef.type === evtType)?.label ? t(ITIN_TYPES.find(typeDef => typeDef.type === evtType)!.label as any) : t('itinerary.titlePlaceholder')}
                 style={{ width: "100%", boxSizing: "border-box" as const, background: C.card2, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", color: C.text, fontSize: 14, outline: "none", fontFamily: "inherit" }} />
@@ -2051,13 +2059,13 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub, onNav, onShowGroup
             {/* Date + Time */}
             <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
               <div style={{ flex: 2 }}>
-                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>DATE *</div>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>DATE <span style={{ color: C.red, fontWeight: 'normal' }}>(*)</span></div>
                 <Card style={{ padding: "10px 14px" }}>
                   <input type="date" value={evtDate} onChange={e => setEvtDate(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} />
                 </Card>
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TIME *</div>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TIME <span style={{ color: C.red, fontWeight: 'normal' }}>(*)</span></div>
                 <Card style={{ padding: "10px 14px" }}>
                   <input type="time" value={evtTime} onChange={e => setEvtTime(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} />
                 </Card>
@@ -2067,13 +2075,13 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub, onNav, onShowGroup
             {/* End Date + Time */}
             <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
               <div style={{ flex: 2 }}>
-                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('itinerary.endDateLabel')}</div>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('itinerary.endDateLabel')} <span style={{ color: C.textSub, fontWeight: 'normal' }}>(opc)</span></div>
                 <Card style={{ padding: "10px 14px" }}>
                   <input type="date" value={evtEndDate} onChange={e => setEvtEndDate(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} />
                 </Card>
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('itinerary.endTimeLabel')}</div>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('itinerary.endTimeLabel')} <span style={{ color: C.textSub, fontWeight: 'normal' }}>(opc)</span></div>
                 <Card style={{ padding: "10px 14px" }}>
                   <input type="time" value={evtEndTime} onChange={e => setEvtEndTime(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} />
                 </Card>

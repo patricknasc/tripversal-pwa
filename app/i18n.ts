@@ -312,6 +312,8 @@ const resources = {
                 typeMeal: "Meal",
                 typeEvent: "Event",
                 typePlace: "Place",
+                segmentStart: "Segment Start",
+                segmentEnd: "Segment End",
                 extraFromAirport: "From Airport",
                 extraToAirport: "To Airport",
                 extraAirline: "Airline",
@@ -342,7 +344,10 @@ const resources = {
                 extraCuisine: "Cuisine",
                 extraReservation: "Reservation",
                 extraVenue: "Venue",
-                extraTicketNum: "Ticket #"
+                extraTicketNum: "Ticket #",
+                titleRequired: "Event title is required.",
+                dateRequired: "Event date and time are required.",
+                segmentAuto: "Segment"
             },
             addExpense: {
                 headerTitle: "ADD EXPENSE",
@@ -937,6 +942,8 @@ const resources = {
                 typeMeal: "Refeição",
                 typeEvent: "Evento",
                 typePlace: "Local",
+                segmentStart: "Início do segmento",
+                segmentEnd: "Fim do segmento",
                 extraFromAirport: "Aeroporto de Origem",
                 extraToAirport: "Aeroporto de Destino",
                 extraAirline: "Companhia Aérea",
@@ -967,7 +974,10 @@ const resources = {
                 extraCuisine: "Cozinha",
                 extraReservation: "Reserva",
                 extraVenue: "Local",
-                extraTicketNum: "Nº do Ingresso"
+                extraTicketNum: "Nº do Ingresso",
+                titleRequired: "O título do evento é obrigatório.",
+                dateRequired: "Data e hora do evento são obrigatórias.",
+                segmentAuto: "Segmento"
             },
             addExpense: {
                 headerTitle: "ADICIONAR DESPESA",
