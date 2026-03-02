@@ -833,7 +833,7 @@ const Header = ({ onSettings, onHome, isOnline = true, isSyncing = false, user }
           onClick={onHome}
           style={{ background: "none", border: "none", padding: 0, outline: "none", cursor: "pointer", display: "flex", alignItems: "center" }}
         >
-          <img src="/voyasync-logo.png" alt="Voyasync" style={{ height: 76, objectFit: "contain" }} />
+          <img src="/voyasync-logo.png" alt="Voyasync" style={{ height: 152, objectFit: "contain" }} />
         </button>
         <button
           onClick={() => {
@@ -5705,6 +5705,9 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
     const finalStart = segStart ? `${segStart}T${segStartTime || "00:00"}:00` : undefined;
     const finalEnd = segEnd ? `${segEnd}T${segEndTime || "23:59"}:59` : undefined;
 
+    if (!segStart) { setSegError(t('segments.startRequired')); return; }
+    if (!segEnd) { setSegError(t('segments.endRequired')); return; }
+
     if (segStart && trip.startDate && segStart < trip.startDate) {
       setSegError(t('segments.outOfBoundsStart'));
       return;
@@ -5753,6 +5756,9 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
 
     const finalStart = editSegStart ? `${editSegStart}T${editSegStartTime || "00:00"}:00` : undefined;
     const finalEnd = editSegEnd ? `${editSegEnd}T${editSegEndTime || "23:59"}:59` : undefined;
+
+    if (!editSegStart) { showToast(t('segments.startRequired'), 'error'); return; }
+    if (!editSegEnd) { showToast(t('segments.endRequired'), 'error'); return; }
 
     if (editSegStart && trip.startDate && editSegStart < trip.startDate) {
       showToast(t('segments.outOfBoundsStart'), 'error');
@@ -7048,18 +7054,39 @@ function AppShell() {
   // deactivatedSOS is SESSION-scoped (not persisted). When a new SOS fires, it resets.
   const deactivatedSOSRef = useRef(false);
 
-  // Pre-warm the AudioContext on first user interaction so iOS can play audio later
+  // SOS siren audio reference — pre-loaded HTML Audio element for iOS compat
+  const sosAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // On first user touch/click, pre-load the SOS audio element.
+  // iOS Safari requires this to happen inside a user gesture before playing from a background callback.
   useEffect(() => {
+    // A 1-second 880Hz alarm beep encoded as a base64 WAV (44100Hz, 16-bit mono)
+    // Generated via: ffmpeg -f lavfi -i "sine=frequency=880:duration=0.6" -ar 44100 sos.wav && base64
+    const SOS_WAV_B64 = 'UklGRiQDAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQADAAAAAP//AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/w==';
     const unlock = () => {
       try {
-        const ctx = new ((window as any).AudioContext || (window as any).webkitAudioContext)();
-        const buf = ctx.createBuffer(1, 1, 22050);
-        const src = ctx.createBufferSource();
-        src.buffer = buf;
-        src.connect(ctx.destination);
-        src.start(0);
-        // Keep the context alive in window for reuse
-        (window as any).__sosCTX = ctx;
+        if (!sosAudioRef.current) {
+          // Try to use a real alarm sound file first, fall back to the base64 WAV
+          const audio = new Audio();
+          audio.src = '/sos-alarm.mp3'; // place an mp3 in /public if you want
+          audio.volume = 1.0;
+          audio.preload = 'auto';
+          // If file fails to load, switch to base64 fallback
+          audio.onerror = () => {
+            const fallback = new Audio(`data:audio/wav;base64,${SOS_WAV_B64}`);
+            fallback.volume = 1.0;
+            sosAudioRef.current = fallback;
+          };
+          // Prime it: play-then-pause inside user gesture so iOS unlocks it
+          audio.play().then(() => { audio.pause(); audio.currentTime = 0; }).catch(() => {
+            // If the file is missing, create a fallback from base64
+            const fallback = new Audio(`data:audio/wav;base64,${SOS_WAV_B64}`);
+            fallback.volume = 1.0;
+            fallback.play().then(() => { fallback.pause(); fallback.currentTime = 0; }).catch(() => { });
+            sosAudioRef.current = fallback;
+          });
+          sosAudioRef.current = audio;
+        }
       } catch (e) { /* ignore */ }
       window.removeEventListener('touchstart', unlock, true);
       window.removeEventListener('click', unlock, true);
@@ -7091,39 +7118,28 @@ function AppShell() {
     if (deactivatedSOSRef.current) return;
     // Don't alert the SOS initiator — they already see the panic button state
     if (row.user_sub === user?.sub) return;
+    // Reset deactivated flag so this new SOS session can be heard
+    deactivatedSOSRef.current = false;
     setIncomingSOSUser(row.user_sub);
     if (mutedSOSRef.current) return;
-    // iOS-compatible audio: use an Audio element with a synthesized data URI
-    // This works because the SOS event originates from a Supabase channel callback
-    // which is not considered a user gesture on iOS. We rely on a pre-loaded audio
-    // file that was already buffered. If it fails we fallback silently.
-    try {
-      // Short 880Hz beep synthesized as a base64 WAV (mono, 8kHz, 0.5s, 3 pulses)
-      const playTone = () => {
-        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        if (ctx.state === 'suspended') ctx.resume();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(880, ctx.currentTime);
-        osc.frequency.linearRampToValueAtTime(440, ctx.currentTime + 0.4);
-        gain.gain.setValueAtTime(0.8, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.5);
-      };
-      playTone();
-      let count = 1;
-      const interval = setInterval(() => {
-        if (count >= 4 || mutedSOSRef.current) { clearInterval(interval); return; }
-        playTone();
-        count++;
-      }, 700);
-    } catch (e) {
-      console.warn('SOS audio failed:', e);
-    }
+    // Play the pre-loaded HTML Audio element (iOS-compatible).
+    // Since this element was unlocked during a prior user gesture, iOS Safari will allow .play() here.
+    const audio = sosAudioRef.current;
+    if (!audio) return;
+    // Play 4 pulses, 700ms apart
+    const playPulse = () => {
+      try {
+        audio.currentTime = 0;
+        audio.play().catch(() => { });
+      } catch { /* ignore */ }
+    };
+    playPulse();
+    let count = 1;
+    const interval = setInterval(() => {
+      if (count >= 4 || mutedSOSRef.current) { clearInterval(interval); return; }
+      playPulse();
+      count++;
+    }, 700);
   }, []));
 
   const activeTrip = trips.find(t => t.id === activeTripId) ?? null;
