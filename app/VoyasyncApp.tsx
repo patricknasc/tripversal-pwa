@@ -2744,7 +2744,7 @@ const WalletScreen = ({ onAddExpense, onShowGroup, activeTripId, user, trips = [
 
   // Source breakdown
   const activeSources = activeSavedBudget ? (activeSavedBudget.sources || []) : budget.sources;
-  const sourceMap = Object.fromEntries(activeSources.map(s => [s.id, s]));
+  const sourceMap = Object.fromEntries(activeSources.map((s: PaymentSource) => [s.id, s]));
   const srcTotals = Object.entries(
     expenses.reduce((acc, e) => { acc[e.sourceId] = (acc[e.sourceId] || 0) + e.baseAmount; return acc; }, {} as Record<string, number>)
   ).sort((a, b) => b[1] - a[1]);
@@ -3567,14 +3567,14 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
   const todayKey = localDateKey(new Date());
   const pastDates = new Set(allExpenses.filter(e => localDateKey(new Date(e.date)) !== todayKey).map(e => localDateKey(new Date(e.date))));
   const accumulatedDays = pastDates.size + 1;
-  const totalSpentAllBase = allExpenses.reduce((s, e) => s + e.baseAmount, 0);
+  const totalSpentAllBase = allExpenses.reduce((s: number, e: Expense) => s + e.baseAmount, 0);
   const remainingBase = accumulatedDays * budget.dailyLimit - totalSpentAllBase;
   const remainingLocal = currentRate > 0 ? remainingBase / currentRate : remainingBase;
 
   // Credit vs balance distinction
-  const selectedSource = activeSources.find(s => s.id === selectedSourceId);
+  const selectedSource = activeSources.find((s: PaymentSource) => s.id === selectedSourceId);
   const isCredit = selectedSource?.type === "credit";
-  const spentOnSource = allExpenses.filter(e => e.sourceId === selectedSourceId).reduce((s, e) => s + e.baseAmount, 0);
+  const spentOnSource = allExpenses.filter((e: Expense) => e.sourceId === selectedSourceId).reduce((s: number, e: Expense) => s + e.baseAmount, 0);
   const sourceLimitBase = selectedSource?.limitInBase ?? selectedSource?.limit ?? 0;
   const sourceRemainingBase = sourceLimitBase - spentOnSource;
   const sourceRemainingLocal = currentRate > 0 ? sourceRemainingBase / currentRate : sourceRemainingBase;
@@ -3653,7 +3653,7 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
             <SectionLabel>{t('addExpense.sourceLabel')}</SectionLabel>
             <div style={{ position: "relative", margin: "0 -20px", padding: "0 20px", marginBottom: 12 }}>
               <div className="no-scrollbar" style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 8, scrollbarWidth: "none", msOverflowStyle: "none" as any, scrollSnapType: "x mandatory", WebkitMaskImage: "linear-gradient(to right, transparent 0%, black 6%, black 94%, transparent 100%)", maskImage: "linear-gradient(to right, transparent 0%, black 6%, black 94%, transparent 100%)" }}>
-                {activeSources.map(src => {
+                {activeSources.map((src: PaymentSource) => {
                   const active = selectedSourceId === src.id;
                   return (
                     <button key={src.id} onClick={() => { setSelectedSourceId(src.id); setLocalCurrency(src.currency); }} style={{ flexShrink: 0, background: active ? "#003d45" : C.card3, border: active ? `2px solid ${src.color}` : "2px solid transparent", borderRadius: 14, padding: "12px 16px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4, minWidth: 120, scrollSnapAlign: "start" }}>
