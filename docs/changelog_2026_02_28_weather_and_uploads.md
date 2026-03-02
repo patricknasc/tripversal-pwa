@@ -1,6 +1,6 @@
 # Refactor: Weather Icons & Social Stream Uploads (Feb 28, 2026)
 
-## 1. Local Weather Render Fix (`app/TripversalApp.tsx`)
+## 1. Local Weather Render Fix (`app/VoyasyncApp.tsx`)
 **Issue**: Weather icons for past or upcoming dates outside the active trip's strictly defined `startDate` and `endDate` boundaries (for instance, the prep days before a trip) were omitted, because the caching and fetch logic explicitly constrained queried dates to `historyStart`.
 **Solution**: 
 - We refactored the `ItineraryScreen` component to first generate a complete `dateRange` array containing every dynamically rendered day in the UI header.

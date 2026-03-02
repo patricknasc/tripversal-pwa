@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
 
   if (tripErr) return NextResponse.json({ error: tripErr.message }, { status: 500 });
 
-  const ownerEmail = body.email ?? `${ownerId}@tripversal.app`;
+  const ownerEmail = body.email ?? `${ownerId}@voyasync.com`;
   await sb.from('trip_members').insert({
     trip_id: trip.id,
     email: ownerEmail,

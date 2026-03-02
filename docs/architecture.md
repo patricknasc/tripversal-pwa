@@ -1777,7 +1777,7 @@ WHERE (visibility = 'all' OR callerSub = ANY(visible_to) OR created_by = callerS
 
 ### 11.1 Social Stream
 
-**Componente:** `SocialStreamScreen` (inline em `TripversalApp.tsx`)
+**Componente:** `SocialStreamScreen` (inline em `VoyasyncApp.tsx`)
 
 Feed de fotos e vídeos compartilhados entre os membros do grupo. **Exclusivo para quando online** — exibe banner de aviso quando offline.
 
@@ -1818,7 +1818,7 @@ GET /api/users/[sub]/shared-profile
 
 ### 11.3 `MemberProfileModal`
 
-**Componente:** `MemberProfileModal` (inline em `TripversalApp.tsx`, antes de `ManageCrewScreen`)
+**Componente:** `MemberProfileModal` (inline em `VoyasyncApp.tsx`, antes de `ManageCrewScreen`)
 
 Modal fullscreen que exibe o perfil compartilhado de um membro do grupo.
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { C } from '../TripversalApp';
+import { C } from '../VoyasyncApp';
 
 interface LocationAutocompleteProps {
     value: string;

@@ -1,5 +1,5 @@
-import TripversalApp from './TripversalApp'
+import VoyasyncApp from './VoyasyncApp'
 
 export default function Page() {
-  return <TripversalApp />
+  return <VoyasyncApp />
 }

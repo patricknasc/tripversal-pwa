@@ -139,7 +139,7 @@ interface ConflictSegment {
 interface SegmentConflict { a: ConflictSegment; b: ConflictSegment; }
 
 type ItinEventType = 'flight' | 'train' | 'bus' | 'car' | 'ferry' | 'hotel_in' | 'hotel_out' | 'tour' | 'meal' | 'event' | 'place' | 'other';
-type TripversalTab = 'home' | 'itinerary' | 'wallet' | 'photos' | 'group';
+type VoyasyncTab = 'home' | 'itinerary' | 'wallet' | 'photos' | 'group';
 
 interface ItineraryEventRecord {
   id: string;
@@ -1406,7 +1406,7 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
   );
 };
 
-const ItineraryScreen = ({ activeTripId, activeTrip, userSub, onNav, onShowGroup, onCreateBudget, activeSavedBudget }: { activeTripId: string | null; activeTrip?: Trip | null; userSub?: string; onNav: (tab: TripversalTab) => void; onShowGroup: () => void; onCreateBudget: () => void; activeSavedBudget: SavedBudget | null }) => {
+const ItineraryScreen = ({ activeTripId, activeTrip, userSub, onNav, onShowGroup, onCreateBudget, activeSavedBudget }: { activeTripId: string | null; activeTrip?: Trip | null; userSub?: string; onNav: (tab: VoyasyncTab) => void; onShowGroup: () => void; onCreateBudget: () => void; activeSavedBudget: SavedBudget | null }) => {
   const { t } = useTranslation();
   const [now, setNow] = useState(() => new Date());
   const todayKey = localDateKey(now);
@@ -7275,7 +7275,7 @@ if (typeof window !== 'undefined') {
   });
 }
 
-export default function TripversalApp() {
+export default function VoyasyncApp() {
   return (
     <GoogleOAuthProvider clientId="389526326520-u55cak6f7dg9ckondrn97slfqj86f2j9.apps.googleusercontent.com">
       <AppShell />
