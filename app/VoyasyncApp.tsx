@@ -775,7 +775,7 @@ const Card = ({ children, style = {}, onClick }: any) => (
   </div>
 );
 
-const Header = ({ onSettings, onHome, isOnline = true, isSyncing = false, user }: any) => {
+const Header = ({ onSettings, onHome, onSwitchTrip, activeTripName, isOnline = true, isSyncing = false, user }: any) => {
   const { t } = useTranslation();
   const [weather, setWeather] = useState<{ temp: number; code: number; isDay: boolean } | null>(null);
   const [cityName, setCityName] = useState("Localizando...");
@@ -819,22 +819,37 @@ const Header = ({ onSettings, onHome, isOnline = true, isSyncing = false, user }
   }, []);
 
   const getWeatherIcon = () => {
-    if (!weather) return icons.sun;
-    const { code, isDay } = weather;
-    if (code <= 1) return isDay ? icons.sun : icons.moon;
-    if (code <= 48) return icons.cloud;
-    return icons.droplet;
+    if (!weather) return icons.cloud;
+    const code = weather.code;
+    if (code >= 200 && code < 300) return icons.cloudLightning;
+    if (code >= 300 && code < 600) return icons.cloudRain;
+    if (code >= 600 && code < 700) return icons.cloudSnow;
+    if (code >= 801 && code < 900) return icons.cloud;
+    return icons.sun;
   };
 
   return (
     <div style={{ padding: "12px 20px 10px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", borderBottom: `1px solid ${C.border}20` }}>
-      <div>
-        <button
-          onClick={onHome}
-          style={{ background: "none", border: "none", padding: "6px 0 0", outline: "none", cursor: "pointer", display: "flex", alignItems: "center" }}
-        >
-          <img src="/voyasync-logo-transp.png" alt="Voyasync" style={{ height: 18, objectFit: "contain" }} />
-        </button>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+          <button
+            onClick={onHome}
+            style={{ background: "none", border: "none", padding: "4px 0 0", outline: "none", cursor: "pointer", display: "flex", alignItems: "center" }}
+          >
+            <img src="/voyasync-logo-transp.png" alt="Voyasync" style={{ height: 16, objectFit: "contain" }} />
+          </button>
+
+          {activeTripName && (
+            <button
+              onClick={onSwitchTrip}
+              style={{ background: C.card3, border: "none", borderRadius: 8, padding: "2px 8px", display: "flex", alignItems: "center", gap: 4, cursor: "pointer", marginTop: 4 }}
+            >
+              <span style={{ fontSize: 11, fontWeight: 700, color: C.cyan, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 120 }}>{activeTripName.toUpperCase()}</span>
+              <Icon d="M7 10l5 5 5-5H7z" size={12} fill={C.cyan} />
+            </button>
+          )}
+        </div>
+
         <button
           onClick={() => {
             const url = geoCoords
@@ -1181,176 +1196,177 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
           </button>
         ))}
       </div>
-      <div style={{ margin: "20px 20px 0" }}>
+      <div style={{ margin: "20px 20px 0", display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <SectionLabel>{t('home.recentActivity')}</SectionLabel>
-        {(() => {
-          const activityItems = [
-            ...allExpenses.map(e => ({ kind: 'expense' as const, at: e.date, data: e })),
-            ...inviteEvents.map(ev => ({ kind: 'event' as const, at: ev.at, data: ev })),
-            ...serverActivity.map((a: any) => ({ kind: 'activity' as const, at: a.created_at, data: a })),
-            ...upcomingEvents.map(e => ({ kind: 'upcoming' as const, at: e.startDt, data: e })),
-          ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+        {activeTrip && <span style={{ fontSize: 9, color: C.cyan, fontWeight: 700, letterSpacing: 0.5 }}>{activeTrip.name.toUpperCase()}</span>}
+      </div>
+      {(() => {
+        const activityItems = [
+          ...allExpenses.map(e => ({ kind: 'expense' as const, at: e.date, data: e })),
+          ...inviteEvents.map(ev => ({ kind: 'event' as const, at: ev.at, data: ev })),
+          ...serverActivity.map((a: any) => ({ kind: 'activity' as const, at: a.created_at, data: a })),
+          ...upcomingEvents.map(e => ({ kind: 'upcoming' as const, at: e.startDt, data: e })),
+        ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 
-          if (activityItems.length === 0) return (
-            <Card>
-              <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "8px 0" }}>{t('home.noExpenses')}</div>
-            </Card>
-          );
+        if (activityItems.length === 0) return (
+          <Card>
+            <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "8px 0" }}>{t('home.noExpenses')}</div>
+          </Card>
+        );
 
-          return activityItems.slice(0, visibleCount).map(item => {
-            if (item.kind === 'upcoming') {
-              const e = item.data as ItineraryEventRecord;
-              const evtEmojis: Record<string, string> = { flight: '✈️', train: '🚂', bus: '🚌', car: '🚗', ferry: '⛴️', hotel_in: '🏨', hotel_out: '🛏️', tour: '🗺️', meal: '🍽️', event: '🎭', place: '📍', other: '📌' };
-              const emoji = evtEmojis[e.type] || '📅';
-              const dt = new Date(e.startDt);
-              const isToday = localDateKey(dt) === localDateKey(new Date());
-              return (
-                <Card key={`up-${e.id}`} style={{ marginBottom: 8, borderLeft: `3px solid ${C.cyan}` }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <div style={{ width: 40, height: 40, borderRadius: 12, background: C.card3, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 18 }}>{emoji}</div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{e.title}</div>
-                      <div style={{ color: C.textMuted, fontSize: 12 }}>{e.location || 'Itinerary'}</div>
-                    </div>
-                    <div style={{ textAlign: "right", flexShrink: 0 }}>
-                      <div style={{ fontSize: 11, color: isToday ? C.cyan : C.textMuted, fontWeight: isToday ? 700 : 400 }}>{isToday ? t('home.today') : dt.toLocaleDateString("en", { month: "short", day: "numeric" })}</div>
-                      <div style={{ fontSize: 10, color: C.textSub }}>{dt.toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}</div>
-                    </div>
-                  </div>
-                </Card>
-              );
-            }
-            if (item.kind === 'activity') {
-              const a = item.data as TripActivityItem;
-              if (a.action === 'SOS_ALERT') {
-                return (
-                  <Card key={`act-${a.id}`} style={{ marginBottom: 8, borderLeft: `3px solid ${C.red}`, cursor: "pointer" }} onClick={onShowMap}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 12, background: C.redDim, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 18 }}>🚨</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: 14, color: C.red, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
-                          {t('home.sosTriggered', { actor: a.actor_name || a.actor_sub.slice(0, 8) })}
-                        </div>
-                        <div style={{ color: C.textMuted, fontSize: 12 }}>{t('home.sosEmergency')}</div>
-                      </div>
-                      <div style={{ color: C.textMuted, fontSize: 11, flexShrink: 0 }}>
-                        {new Date(a.created_at).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}
-                      </div>
-                    </div>
-                  </Card>
-                );
-              } else if (a.action === 'SOS_RESOLVED') {
-                return (
-                  <Card key={`act-${a.id}`} style={{ marginBottom: 8, borderLeft: `3px solid ${C.cyan}` }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 12, background: C.card3, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 18 }}>✅</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: 14, color: C.cyan, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
-                          {t('home.sosResolved', { actor: a.actor_name || a.actor_sub.slice(0, 8) })}
-                        </div>
-                        <div style={{ color: C.textMuted, fontSize: 12 }}>{t('home.sosResolvedSubtitle')}</div>
-                      </div>
-                      <div style={{ color: C.textMuted, fontSize: 11, flexShrink: 0 }}>
-                        {new Date(a.created_at).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}
-                      </div>
-                    </div>
-                  </Card>
-                );
-              } else if (a.action === 'EXPENSE_ADD') {
-                return (
-                  <Card key={`act-${a.id}`} style={{ marginBottom: 8 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 12, background: C.card3, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 18 }}>💸</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: 14, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
-                          {a.actor_name || a.actor_sub?.slice(0, 8)} adicionou uma despesa
-                        </div>
-                        <div style={{ color: C.textMuted, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{a.subject}</div>
-                      </div>
-                      <div style={{ color: C.textMuted, fontSize: 11, flexShrink: 0 }}>
-                        {new Date(a.created_at).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}
-                      </div>
-                    </div>
-                  </Card>
-                );
-              }
-              const actionLabel = a.action === 'event_created' ? t('home.actionAdded') : a.action === 'event_updated' ? t('home.actionUpdated') : t('home.actionRemoved');
-              return (
-                <Card key={`act-${a.id}`} style={{ marginBottom: 8 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <div style={{ width: 40, height: 40, borderRadius: 12, background: C.card3, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 18 }}>📅</div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
-                        {a.actor_name || a.actor_sub.slice(0, 8)} {actionLabel}: {a.subject}
-                      </div>
-                      <div style={{ color: C.textMuted, fontSize: 12 }}>{t('home.itineraryEvent')}</div>
-                    </div>
-                    <div style={{ color: C.textMuted, fontSize: 11, flexShrink: 0 }}>
-                      {new Date(a.created_at).toLocaleDateString("en", { day: "numeric", month: "short" })}
-                    </div>
-                  </div>
-                </Card>
-              );
-            }
-            if (item.kind === 'event') {
-              const ev = item.data as InviteEvent;
-              return (
-                <Card key={`ev-${ev.id}`} style={{ marginBottom: 8 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <div style={{ width: 40, height: 40, borderRadius: 12, background: C.card3, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 18 }}>
-                      {ev.type === 'invited' ? '✉️' : '✅'}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
-                        {ev.type === 'invited' ? t('home.invitedEmail', { email: ev.email }) : t('home.joinedTrip', { name: ev.name || ev.email })}
-                      </div>
-                      <div style={{ color: C.textMuted, fontSize: 12 }}>{ev.tripName}</div>
-                    </div>
-                    <div style={{ color: C.textMuted, fontSize: 11, flexShrink: 0 }}>
-                      {new Date(ev.at).toLocaleDateString("en", { day: "numeric", month: "short" })}
-                    </div>
-                  </div>
-                </Card>
-              );
-            }
-            const exp = item.data as Expense;
-            const catIcon = categories.find(c => c.id === exp.category)?.icon || icons.moreH;
-            const timeStr = new Date(exp.date).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" });
-            const dateStr = new Date(exp.date).toLocaleDateString("en", { day: "numeric", month: "short" });
+        return activityItems.slice(0, visibleCount).map(item => {
+          if (item.kind === 'upcoming') {
+            const e = item.data as ItineraryEventRecord;
+            const evtEmojis: Record<string, string> = { flight: '✈️', train: '🚂', bus: '🚌', car: '🚗', ferry: '⛴️', hotel_in: '🏨', hotel_out: '🛏️', tour: '🗺️', meal: '🍽️', event: '🎭', place: '📍', other: '📌' };
+            const emoji = evtEmojis[e.type] || '📅';
+            const dt = new Date(e.startDt);
+            const isToday = localDateKey(dt) === localDateKey(new Date());
             return (
-              <Card key={exp.id} style={{ marginBottom: 8 }}>
+              <Card key={`up-${e.id}`} style={{ marginBottom: 8, borderLeft: `3px solid ${C.cyan}` }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 12, background: C.card3, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <Icon d={catIcon} size={18} stroke={C.cyan} />
-                  </div>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: C.card3, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 18 }}>{emoji}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{exp.description}</div>
-                    <div style={{ color: C.textMuted, fontSize: 12 }}>
-                      {exp.city ? `📍 ${exp.city} • ` : ""}{exp.category.toUpperCase()} • {dateStr}
-                    </div>
+                    <div style={{ fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{e.title}</div>
+                    <div style={{ color: C.textMuted, fontSize: 12 }}>{e.location || 'Itinerary'}</div>
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    <div style={{ color: C.textMuted, fontSize: 11 }}>{timeStr}</div>
-                    <div style={{ color: C.text, fontWeight: 700, fontSize: 14 }}>{currSym(exp.localCurrency)}{fmtAmt(getEffectiveLocal(exp))}{exp.localCurrency !== (exp.baseCurrency || budget.baseCurrency) && <span style={{ color: C.textMuted, fontSize: 13, fontWeight: 400 }}> ({currSym(exp.baseCurrency || budget.baseCurrency)}{fmtAmt(exp.baseAmount)})</span>}</div>
+                    <div style={{ fontSize: 11, color: isToday ? C.cyan : C.textMuted, fontWeight: isToday ? 700 : 400 }}>{isToday ? t('home.today') : dt.toLocaleDateString("en", { month: "short", day: "numeric" })}</div>
+                    <div style={{ fontSize: 10, color: C.textSub }}>{dt.toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}</div>
                   </div>
-                  <button onClick={e => { e.stopPropagation(); setSelectedActivityExp(exp); setHomeEditMode(false); setHomeConfirmDelete(false); }}
-                    style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer", flexShrink: 0 }}>
-                    <Icon d={icons.moreH} size={16} stroke={C.textMuted} />
-                  </button>
                 </div>
               </Card>
             );
-          });
-        })()}
-        {visibleCount < allExpenses.length && (
-          <div ref={sentinelRef} style={{ height: 40, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <div style={{ color: C.textSub, fontSize: 12 }}>{t('home.loadingMore')}</div>
-          </div>
-        )}
-        {visibleCount >= allExpenses.length && allExpenses.length > 10 && (
-          <div style={{ color: C.textSub, fontSize: 11, textAlign: "center", padding: "12px 0" }}>{t('home.allShown', { count: allExpenses.length })}</div>
-        )}
-      </div>
+          }
+          if (item.kind === 'activity') {
+            const a = item.data as TripActivityItem;
+            if (a.action === 'SOS_ALERT') {
+              return (
+                <Card key={`act-${a.id}`} style={{ marginBottom: 8, borderLeft: `3px solid ${C.red}`, cursor: "pointer" }} onClick={onShowMap}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: C.redDim, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 18 }}>🚨</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, color: C.red, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
+                        {t('home.sosTriggered', { actor: a.actor_name || a.actor_sub.slice(0, 8) })}
+                      </div>
+                      <div style={{ color: C.textMuted, fontSize: 12 }}>{t('home.sosEmergency')}</div>
+                    </div>
+                    <div style={{ color: C.textMuted, fontSize: 11, flexShrink: 0 }}>
+                      {new Date(a.created_at).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}
+                    </div>
+                  </div>
+                </Card>
+              );
+            } else if (a.action === 'SOS_RESOLVED') {
+              return (
+                <Card key={`act-${a.id}`} style={{ marginBottom: 8, borderLeft: `3px solid ${C.cyan}` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: C.card3, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 18 }}>✅</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, color: C.cyan, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
+                        {t('home.sosResolved', { actor: a.actor_name || a.actor_sub.slice(0, 8) })}
+                      </div>
+                      <div style={{ color: C.textMuted, fontSize: 12 }}>{t('home.sosResolvedSubtitle')}</div>
+                    </div>
+                    <div style={{ color: C.textMuted, fontSize: 11, flexShrink: 0 }}>
+                      {new Date(a.created_at).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}
+                    </div>
+                  </div>
+                </Card>
+              );
+            } else if (a.action === 'EXPENSE_ADD') {
+              return (
+                <Card key={`act-${a.id}`} style={{ marginBottom: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: C.card3, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 18 }}>💸</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
+                        {a.actor_name || a.actor_sub?.slice(0, 8)} adicionou uma despesa
+                      </div>
+                      <div style={{ color: C.textMuted, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{a.subject}</div>
+                    </div>
+                    <div style={{ color: C.textMuted, fontSize: 11, flexShrink: 0 }}>
+                      {new Date(a.created_at).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}
+                    </div>
+                  </div>
+                </Card>
+              );
+            }
+            const actionLabel = a.action === 'event_created' ? t('home.actionAdded') : a.action === 'event_updated' ? t('home.actionUpdated') : t('home.actionRemoved');
+            return (
+              <Card key={`act-${a.id}`} style={{ marginBottom: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: C.card3, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 18 }}>📅</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
+                      {a.actor_name || a.actor_sub.slice(0, 8)} {actionLabel}: {a.subject}
+                    </div>
+                    <div style={{ color: C.textMuted, fontSize: 12 }}>{t('home.itineraryEvent')}</div>
+                  </div>
+                  <div style={{ color: C.textMuted, fontSize: 11, flexShrink: 0 }}>
+                    {new Date(a.created_at).toLocaleDateString("en", { day: "numeric", month: "short" })}
+                  </div>
+                </div>
+              </Card>
+            );
+          }
+          if (item.kind === 'event') {
+            const ev = item.data as InviteEvent;
+            return (
+              <Card key={`ev-${ev.id}`} style={{ marginBottom: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: C.card3, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 18 }}>
+                    {ev.type === 'invited' ? '✉️' : '✅'}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
+                      {ev.type === 'invited' ? t('home.invitedEmail', { email: ev.email }) : t('home.joinedTrip', { name: ev.name || ev.email })}
+                    </div>
+                    <div style={{ color: C.textMuted, fontSize: 12 }}>{ev.tripName}</div>
+                  </div>
+                  <div style={{ color: C.textMuted, fontSize: 11, flexShrink: 0 }}>
+                    {new Date(ev.at).toLocaleDateString("en", { day: "numeric", month: "short" })}
+                  </div>
+                </div>
+              </Card>
+            );
+          }
+          const exp = item.data as Expense;
+          const catIcon = categories.find(c => c.id === exp.category)?.icon || icons.moreH;
+          const timeStr = new Date(exp.date).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" });
+          const dateStr = new Date(exp.date).toLocaleDateString("en", { day: "numeric", month: "short" });
+          return (
+            <Card key={exp.id} style={{ marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: C.card3, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Icon d={catIcon} size={18} stroke={C.cyan} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{exp.description}</div>
+                  <div style={{ color: C.textMuted, fontSize: 12 }}>
+                    {exp.city ? `📍 ${exp.city} • ` : ""}{exp.category.toUpperCase()} • {dateStr}
+                  </div>
+                </div>
+                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                  <div style={{ color: C.textMuted, fontSize: 11 }}>{timeStr}</div>
+                  <div style={{ color: C.text, fontWeight: 700, fontSize: 14 }}>{currSym(exp.localCurrency)}{fmtAmt(getEffectiveLocal(exp))}{exp.localCurrency !== (exp.baseCurrency || budget.baseCurrency) && <span style={{ color: C.textMuted, fontSize: 13, fontWeight: 400 }}> ({currSym(exp.baseCurrency || budget.baseCurrency)}{fmtAmt(exp.baseAmount)})</span>}</div>
+                </div>
+                <button onClick={e => { e.stopPropagation(); setSelectedActivityExp(exp); setHomeEditMode(false); setHomeConfirmDelete(false); }}
+                  style={{ background: C.card3, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer", flexShrink: 0 }}>
+                  <Icon d={icons.moreH} size={16} stroke={C.textMuted} />
+                </button>
+              </div>
+            </Card>
+          );
+        });
+      })()}
+      {visibleCount < allExpenses.length && (
+        <div ref={sentinelRef} style={{ height: 40, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ color: C.textSub, fontSize: 12 }}>{t('home.loadingMore')}</div>
+        </div>
+      )}
+      {visibleCount >= allExpenses.length && allExpenses.length > 10 && (
+        <div style={{ color: C.textSub, fontSize: 11, textAlign: "center", padding: "12px 0" }}>{t('home.allShown', { count: allExpenses.length })}</div>
+      )}
       {selectedActivityExp && (() => {
         const exp = selectedActivityExp;
         return (
@@ -1496,7 +1512,7 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
           </>
         );
       })()}
-    </div >
+    </div>
   );
 };
 
@@ -4005,7 +4021,7 @@ class UploadManager {
 
 const uploadManager = new UploadManager();
 
-const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
+const SocialStreamScreen = ({ activeTripId, activeTripName, user, isOnline }: any) => {
   const { t } = useTranslation();
   const [posts, setPosts] = useState<SocialPost[]>([]);
   const [managerTasks, setManagerTasks] = useState<PendingUpload[]>([]);
@@ -4108,6 +4124,12 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
     return () => observer.disconnect();
   }, [allPosts.length, activeTripId, isOnline, user?.sub, user?.name]);
 
+  useEffect(() => {
+    if (!activeTripId || !isOnline) return;
+    const id = setInterval(fetchPosts, 10000);
+    return () => clearInterval(id);
+  }, [fetchPosts, activeTripId, isOnline]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
@@ -4205,7 +4227,22 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 20 }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5 }}>{t('social.title')}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5 }}>{t('social.title')}</div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                fetchPosts();
+                const btn = e.currentTarget;
+                btn.style.transform = 'rotate(360deg)';
+                btn.style.transition = 'all 0.5s ease-in-out';
+                setTimeout(() => btn.style.transform = 'none', 500);
+              }}
+              style={{ background: "none", border: "none", padding: 4, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", marginTop: 4 }}
+            >
+              <Icon d={icons.refresh} size={16} stroke={C.textMuted} />
+            </button>
+          </div>
           <div style={{ color: C.textMuted, fontSize: 12, letterSpacing: 1 }}>{t('social.subtitle')}</div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -4222,6 +4259,11 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
       {/* Upload panel */}
       {showUpload && (
         <Card style={{ marginBottom: 16, border: `1px solid ${C.cyan}30` }}>
+          {managerTasks.some(t => t.tripId === activeTripId && t.post.uploadError) && (
+            <div style={{ background: `${C.red}20`, color: C.red, padding: "10px 14px", borderRadius: 12, marginBottom: 12, fontSize: 13, border: `1px solid ${C.red}40`, fontWeight: 600 }}>
+              ⚠️ {t('social.uploadError', 'Erro no upload. Verifique sua conexão.')}
+            </div>
+          )}
           <div style={{ fontWeight: 700, marginBottom: 12 }}>{t('social.shareMomentTitle')}</div>
           <input type="file" accept="image/*,video/*" id="socialMediaInput" style={{ display: "none" }} onChange={handleFileChange} />
           {previewUrl && file ? (
@@ -6995,20 +7037,18 @@ const TodoScreen = ({ activeTripId, onBack }: { activeTripId: string | null; onB
   );
 };
 
-function useGlobalSOSListener(tripId?: string, currentUserSub?: string, onSOSIncoming?: (row: any) => void) {
+function useGlobalSOSListener(allTripIds: string[], currentUserSub?: string, onSOSIncoming?: (row: any) => void, onSOSResolved?: (row: any) => void) {
   const lastAlertedIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!tripId || !currentUserSub) return;
+    if (allTripIds.length === 0 || !currentUserSub) return;
 
-    // ─── Check for an already-active SOS on mount ───────────────────────────
-    // If User B opens the app after the SOS was triggered, they miss the INSERT.
-    // This query fires immediately to catch any active session.
+    // ─── Check for already-active SOS on mount for ANY of the user's trips ──────
     (async () => {
       try {
         const { data } = await anonSupabase
           .from('trip_sos_sessions')
           .select('*')
-          .eq('trip_id', tripId)
+          .in('trip_id', allTripIds)
           .eq('is_active', true)
           .neq('user_sub', currentUserSub)
           .order('updated_at', { ascending: false })
@@ -7020,38 +7060,34 @@ function useGlobalSOSListener(tripId?: string, currentUserSub?: string, onSOSInc
             if (onSOSIncoming) onSOSIncoming(row);
           }
         }
-      } catch { /* ignore, realtime will handle new events */ }
+      } catch { }
     })();
 
     const channel = anonSupabase.channel('global_sos_listener')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'trip_sos_sessions', filter: `trip_id=eq.${tripId}` }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'trip_sos_sessions' }, (payload) => {
         const row = payload.new as any;
-        // Only fire for OTHER users' active SOS sessions
-        if (row.is_active && row.user_sub !== currentUserSub) {
-          // Deduplicate: don't re-alert for the same session ID
+        if (allTripIds.includes(row.trip_id) && row.is_active && row.user_sub !== currentUserSub) {
           if (lastAlertedIdRef.current === row.id) return;
           lastAlertedIdRef.current = row.id;
           if (onSOSIncoming) onSOSIncoming(row);
         }
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'trip_sos_sessions', filter: `trip_id=eq.${tripId}` }, (payload) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'trip_sos_sessions' }, (payload) => {
         const row = payload.new as any;
         const oldRow = payload.old as any;
-        // Only re-alert if is_active just flipped from false → true (a new SOS activation)
-        // Location-only updates (is_active stays true) must NOT retrigger the alert
-        if (row.is_active && !oldRow?.is_active && row.user_sub !== currentUserSub) {
+        if (allTripIds.includes(row.trip_id) && row.is_active && !oldRow?.is_active && row.user_sub !== currentUserSub) {
           if (lastAlertedIdRef.current === row.id) return;
           lastAlertedIdRef.current = row.id;
           if (onSOSIncoming) onSOSIncoming(row);
         }
-        // If SOS was resolved, clear deduplication so a future new SOS will alert again
         if (!row.is_active) {
           lastAlertedIdRef.current = null;
+          if (onSOSResolved) onSOSResolved(row);
         }
       })
       .subscribe();
     return () => { anonSupabase.removeChannel(channel); };
-  }, [tripId, currentUserSub, onSOSIncoming]);
+  }, [allTripIds.join(','), currentUserSub, onSOSIncoming]);
 }
 
 import dynamic from 'next/dynamic';
@@ -7059,9 +7095,50 @@ import LocationAutocomplete from './components/LocationAutocomplete';
 
 const LiveMap = dynamic(() => import('./components/LiveMap'), { ssr: false });
 
+const TripSwitcherModal = ({ isOpen, onClose, trips, activeTripId, onSelect }: any) => {
+  const { t } = useTranslation();
+  if (!isOpen) return null;
+  return (
+    <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.85)", zIndex: 2000, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
+      <div style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "24px 24px 0 0", padding: "24px 20px 48px", animation: "slide-up 0.3s ease-out" }} onClick={e => e.stopPropagation()}>
+        <style dangerouslySetInnerHTML={{ __html: `@keyframes slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }` }} />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: 'space-between', marginBottom: 20 }}>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>{t('header.switchTrip', 'Minhas Viagens')}</h2>
+          <button onClick={onClose} style={{ background: C.card3, border: "none", borderRadius: "50%", width: 32, height: 32, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon d={icons.x} size={14} stroke={C.textMuted} />
+          </button>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, maxHeight: "60vh", overflowY: "auto" }}>
+          {trips.length === 0 && <div style={{ color: C.textMuted, textAlign: "center", padding: 20 }}>{t('header.noTrips', 'Nenhuma viagem encontrada')}</div>}
+          {trips.map((trip: Trip) => {
+            const isActive = trip.id === activeTripId;
+            return (
+              <button key={trip.id} onClick={() => { onSelect(trip.id); onClose(); }} style={{
+                background: isActive ? `${C.cyan}15` : C.card3,
+                border: isActive ? `1px solid ${C.cyan}40` : "none",
+                borderRadius: 16, padding: "16px 20px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", textAlign: "left"
+              }}>
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: isActive ? C.cyan : C.border, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
+                  ✈️
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, color: isActive ? C.cyan : C.text }}>{trip.name}</div>
+                  <div style={{ fontSize: 12, color: C.textMuted }}>{trip.startDate} — {trip.endDate}</div>
+                </div>
+                {isActive && <Icon d={icons.check} size={18} stroke={C.cyan} />}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 function AppShell() {
   const { t } = useTranslation();
   const [user, setUser] = useState<any>(null);
+  const [showTripSwitcher, setShowTripSwitcher] = useState(false);
 
   // Read initial route from URL hash to support refresh and back/forward
   const initialRoute = typeof window !== 'undefined' ? (window.location.hash.replace('#', '') || localStorage.getItem('voyasync_last_route') || 'home') : 'home';
@@ -7253,11 +7330,13 @@ function AppShell() {
 
   useLiveLocation(isPanicModeActive || showLiveMap || !!incomingSOSUser, user?.sub, activeTripId || undefined, user?.name || user?.email?.split('@')[0]);
 
-  useGlobalSOSListener(activeTripId || undefined, user?.sub, useCallback((row: any) => {
-    if (deactivatedSOSRef.current) return;
+  useGlobalSOSListener(trips.map(t => t.id), user?.sub, useCallback((row: any) => {
     // Don't alert the SOS initiator — they already see the panic button state
     // Use the ref to always access current user sub (avoids stale closure)
     if (row.user_sub === userSubRef.current) return;
+
+    if (deactivatedSOSRef.current) return;
+
     // Reset deactivated flag so this new SOS session can be heard
     deactivatedSOSRef.current = false;
     setIncomingSOSUser(row.user_sub);
@@ -7276,6 +7355,9 @@ function AppShell() {
       playPulse();
       count++;
     }, 700);
+  }, [userSubRef.current]), useCallback((row: any) => {
+    // When SOS is resolved, clear the alert for everyone
+    setIncomingSOSUser(null);
   }, []));
 
   const activeTrip = trips.find(t => t.id === activeTripId) ?? null;
@@ -7466,7 +7548,14 @@ function AppShell() {
       case "home": content = <HomeScreen onNav={handleNav} onAddExpense={handleOpenExpense} onCreateBudget={handleGoToBudget} onShowGroup={() => handleNav("group")} activeTripId={activeTripId} activeTrip={activeTrip} user={user} isPanicModeActive={isPanicModeActive} serverActivity={serverActivity} onSOS={() => setShowPanicModal(true)} onShowMap={() => setShowLiveMap(true)} onTodo={() => setShowTodo(true)} />; break;
       case "itinerary": content = <ItineraryScreen activeTripId={activeTripId} activeTrip={activeTrip} userSub={user?.sub} onNav={handleNav} onCreateBudget={handleGoToBudget} onShowGroup={() => handleNav("group")} activeSavedBudget={activeSavedBudget} />; break;
       case "wallet": content = <WalletScreen key={walletInitTab} initialTab={walletInitTab} onAddExpense={handleOpenExpense} activeTripId={activeTripId} user={user} trips={trips} onShowGroup={() => handleNav("group")} />; break;
-      case "photos": content = <SocialStreamScreen activeTripId={activeTripId} user={user} isOnline={effectiveIsOnline} />; break;
+      case "photos": content = (
+        <SocialStreamScreen
+          activeTripId={activeTripId}
+          activeTripName={trips.find(t => t.id === activeTripId)?.name}
+          user={user}
+          isOnline={effectiveIsOnline}
+        />
+      ); break;
       case "group": content = <GroupScreen
         trips={trips}
         activeTripId={activeTripId}
@@ -7484,7 +7573,7 @@ function AppShell() {
 
   // SOS alert overlay — must render above ALL screens including full-screen ones
   // IMPORTANT: never show for the SOS initiator (isPanicModeActive) or when cleared
-  const sosAlertOverlay = (incomingSOSUser && !isPanicModeActive) ? (
+  const sosAlertOverlay = (incomingSOSUser && incomingSOSUser !== user?.sub && !isPanicModeActive) ? (
     <>
       <div style={{ position: "fixed", inset: 0, background: "rgba(100,0,0,0.8)", zIndex: 10000 }} onClick={() => setIncomingSOSUser(null)} />
       <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "calc(100% - 40px)", maxWidth: 400, background: C.card, borderRadius: 24, padding: 24, zIndex: 10001, textAlign: "center", border: `2px solid ${C.red}` }}>
@@ -7555,6 +7644,8 @@ function AppShell() {
           user={user}
           isOnline={effectiveIsOnline}
           isSyncing={isSyncing}
+          activeTripName={trips.find(t => t.id === activeTripId)?.name}
+          onSwitchTrip={() => setShowTripSwitcher(true)}
         />
         <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
           {content}
@@ -7604,6 +7695,13 @@ function AppShell() {
         }}
       />
       {sosAlertOverlay}
+      <TripSwitcherModal
+        isOpen={showTripSwitcher}
+        onClose={() => setShowTripSwitcher(false)}
+        trips={trips}
+        activeTripId={activeTripId}
+        onSelect={switchActiveTrip}
+      />
     </div>
   );
 }
