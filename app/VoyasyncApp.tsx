@@ -831,9 +831,9 @@ const Header = ({ onSettings, onHome, isOnline = true, isSyncing = false, user }
       <div>
         <button
           onClick={onHome}
-          style={{ background: "none", border: "none", padding: 0, outline: "none", cursor: "pointer", display: "flex", alignItems: "center" }}
+          style={{ background: "none", border: "none", padding: "6px 0 0", outline: "none", cursor: "pointer", display: "flex", alignItems: "center" }}
         >
-          <img src="/voyasync-logo-transp.png" alt="Voyasync" style={{ height: 18, objectFit: "contain", marginBottom: 6 }} />
+          <img src="/voyasync-logo-transp.png" alt="Voyasync" style={{ height: 18, objectFit: "contain" }} />
         </button>
         <button
           onClick={() => {
@@ -848,7 +848,7 @@ const Header = ({ onSettings, onHome, isOnline = true, isSyncing = false, user }
           {cityName}
         </button>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
         <div style={{ background: "#1c1c1e", borderRadius: 20, padding: "6px 12px", display: "flex", alignItems: "center", gap: 6 }}>
           <div style={{ width: 7, height: 7, borderRadius: "50%", background: isSyncing ? C.yellow : isOnline ? C.green : C.red, animation: isSyncing ? 'net-pulse 1s ease-in-out infinite' : 'none' }} />
           {isSyncing && <span style={{ color: C.yellow, fontSize: 9, fontWeight: 700, letterSpacing: 0.5 }}>{t('header.syncing').toUpperCase()}</span>}
@@ -4054,6 +4054,39 @@ const SocialStreamScreen = ({ activeTripId, user, isOnline }: any) => {
 
   useEffect(() => { fetchPosts(); }, [fetchPosts]);
 
+  // Realtime subscription for new posts
+  useEffect(() => {
+    if (!activeTripId || !isOnline) return;
+    const channel = anonSupabase.channel(`social_${activeTripId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'social_posts',
+        filter: `trip_id=eq.${activeTripId}`,
+      }, (payload) => {
+        const newPost = payload.new as any;
+        // Map to our SocialPost interface
+        const mapped: SocialPost = {
+          id: newPost.id,
+          tripId: newPost.trip_id,
+          userSub: newPost.user_sub,
+          userName: newPost.user_name,
+          userAvatar: newPost.user_avatar,
+          mediaUrl: newPost.media_url,
+          mediaType: newPost.media_type,
+          caption: newPost.caption,
+          reactions: [],
+          myReaction: undefined,
+          viewCount: 0,
+          viewedByMe: false,
+          createdAt: newPost.created_at,
+        };
+        setPosts(prev => [mapped, ...prev]);
+      })
+      .subscribe();
+    return () => { anonSupabase.removeChannel(channel); };
+  }, [activeTripId, isOnline]);
+
   // IntersectionObserver — mark posts as viewed when 50% visible
   useEffect(() => {
     if (!isOnline || !user?.sub || !activeTripId) return;
@@ -5446,11 +5479,11 @@ const MemberProfileModal = ({ googleSub, fallbackName, fallbackAvatar, onClose }
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 300, background: C.bg, display: "flex", flexDirection: "column", maxWidth: 430, margin: "0 auto" }}>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px", borderBottom: `1px solid ${C.border}30`, flexShrink: 0 }}>
-        <button onClick={onClose} style={{ background: C.card3, border: "none", borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-          <Icon d={icons.arrowLeft} size={18} stroke={C.text} />
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "16px 20px", borderBottom: `1px solid ${C.border}30`, flexShrink: 0 }}>
+        <button onClick={onClose} style={{ background: "none", border: "none", borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
+          <Icon d={icons.arrowLeft} size={22} stroke={C.text} />
         </button>
-        <span style={{ fontWeight: 700, fontSize: 16 }}>{t('invite.memberProfile')}</span>
+        <span style={{ fontWeight: 700, fontSize: 18 }}>{t('invite.memberProfile')}</span>
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "20px 20px 60px" }}>
@@ -7083,14 +7116,34 @@ function AppShell() {
     fetchServerActivity();
   }, [activeTripId, user]);
 
-  // Keep a stable ref to fetchServerActivity so SOS callback (stale closure) can call it
-  const fetchServerActivityRef = useRef(fetchServerActivity);
-  useEffect(() => { fetchServerActivityRef.current = fetchServerActivity; });
+  // Live subscription to trip_activity — ensures all group members see events instantly
+  useEffect(() => {
+    if (!activeTripId) return;
+    const channel = anonSupabase.channel(`activity_${activeTripId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'trip_activity',
+        filter: `trip_id=eq.${activeTripId}`,
+      }, (payload) => {
+        const row = payload.new as TripActivityItem;
+        setServerActivity(prev => [row, ...prev].slice(0, 20));
+      })
+      .subscribe();
+    return () => { anonSupabase.removeChannel(channel); };
+  }, [activeTripId]);
 
-  // Poll every 10s so all group members stay near-real-time
+  // Also poll every 10s as a safety net
   useEffect(() => {
     if (!activeTripId || !user) return;
-    const id = setInterval(() => fetchServerActivityRef.current(), 10_000);
+    const id = setInterval(() => {
+      if (activeTripId && user) {
+        fetch(`/api/trips/${activeTripId}/activity?callerSub=${encodeURIComponent(user.sub)}&limit=10`)
+          .then(r => r.ok ? r.json() : [])
+          .then((rows: TripActivityItem[]) => setServerActivity(rows))
+          .catch(() => { });
+      }
+    }, 10_000);
     return () => clearInterval(id);
   }, [activeTripId, user]);
   const [showPanicModal, setShowPanicModal] = useState(false);
@@ -7208,9 +7261,7 @@ function AppShell() {
     // Reset deactivated flag so this new SOS session can be heard
     deactivatedSOSRef.current = false;
     setIncomingSOSUser(row.user_sub);
-    // Immediately refresh the activity feed so the SOS event shows up
-    // Wait 2.5s for the activity API POST to complete before fetching (race condition fix)
-    setTimeout(() => fetchServerActivityRef.current(), 2500);
+    // The Realtime subscription on trip_activity will handle feed updates automatically
     if (mutedSOSRef.current) return;
     // Play the pre-loaded HTML Audio element (iOS-compatible).
     const audio = sosAudioRef.current;

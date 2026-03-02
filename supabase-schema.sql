@@ -322,6 +322,8 @@ CREATE POLICY "service_role_all_sos" ON trip_sos_sessions FOR ALL USING (true);
 CREATE POLICY "anon_all_sos" ON trip_sos_sessions FOR ALL USING (true);
 -- Enable Realtime
 ALTER PUBLICATION supabase_realtime ADD TABLE trip_sos_sessions;
+ALTER PUBLICATION supabase_realtime ADD TABLE trip_activity;
+ALTER PUBLICATION supabase_realtime ADD TABLE social_posts;
 
 -- ─── Web Push Subscriptions ───
 CREATE TABLE IF NOT EXISTS user_push_subscriptions (
