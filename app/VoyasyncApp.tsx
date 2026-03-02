@@ -2413,6 +2413,7 @@ const WalletScreen = ({ onAddExpense, onShowGroup, activeTripId, user, trips = [
   const [srcCurrency, setSrcCurrency] = useState<Currency>("EUR");
   const [srcAmount, setSrcAmount] = useState("");
   const [srcColor, setSrcColor] = useState("#00e5ff");
+  const [srcSaving, setSrcSaving] = useState(false);
   const srcColors = ["#00e5ff", "#30d158", "#ffd60a", "#ff3b30", "#f57c00", "#6a1b9a", "#1565c0", "#e91e8c"];
 
   useEffect(() => {
