@@ -6610,6 +6610,11 @@ const TodoScreen = ({ activeTripId, onBack }: { activeTripId: string | null; onB
 
   const handleSave = async () => {
     if (!title.trim() || !activeTripId) return;
+    const today = localDateKey(new Date());
+    if (dueDate && dueDate < today) {
+      alert(t('todo.invalidDate'));
+      return;
+    }
     if (editItem) {
       await fetch(`/api/trips/${activeTripId}/todos/${editItem.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -6701,7 +6706,7 @@ const TodoScreen = ({ activeTripId, onBack }: { activeTripId: string | null; onB
         </Card>
         <Card style={{ padding: 16, marginBottom: 12 }}>
           <label style={{ color: C.textMuted, fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 6 }}>{t('todo.dueDate')}</label>
-          <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} style={{ width: '100%', padding: 12, borderRadius: 12, border: `1px solid ${C.border}`, background: C.card2, color: C.text, fontSize: 14, boxSizing: 'border-box' }} />
+          <input type="date" min={localDateKey(new Date())} value={dueDate} onChange={e => setDueDate(e.target.value)} style={{ width: '100%', padding: 12, borderRadius: 12, border: `1px solid ${C.border}`, background: C.card2, color: C.text, fontSize: 14, boxSizing: 'border-box' }} />
         </Card>
         <Card style={{ padding: 16, marginBottom: 12 }}>
           <label style={{ color: C.textMuted, fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 6 }}>{t('todo.priority')}</label>

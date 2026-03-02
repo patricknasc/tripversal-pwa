@@ -467,6 +467,7 @@ const resources = {
                 back: "Back",
                 markDone: "Mark as done",
                 markUndone: "Mark as pending",
+                invalidDate: "Due date cannot be in the past.",
             },
             home: {
                 vsYesterday: "vs yesterday",
@@ -1025,6 +1026,7 @@ const resources = {
                 back: "Voltar",
                 markDone: "Marcar como concluído",
                 markUndone: "Marcar como pendente",
+                invalidDate: "A data de vencimento não pode ser no passado.",
             },
             home: {
                 vsYesterday: "vs ontem",
@@ -1583,6 +1585,7 @@ const resources = {
                 back: "Volver",
                 markDone: "Marcar como completada",
                 markUndone: "Marcar como pendiente",
+                invalidDate: "La fecha de vencimiento no puede ser en el pasado.",
             },
             home: {
                 vsYesterday: "vs ayer",
