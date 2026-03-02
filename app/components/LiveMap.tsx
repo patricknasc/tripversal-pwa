@@ -41,15 +41,24 @@ function AutoPan({ position }: { position: [number, number] | null }) {
 
 const anonSupabase = getSupabaseAnon();
 
-export default function LiveMap({ tripId, onBack, currentUserSub }: { tripId: string; onBack: () => void; currentUserSub?: string }) {
+export default function LiveMap({
+    tripId,
+    onBack,
+    currentUserSub,
+    sosInitiatorSub,
+}: {
+    tripId: string;
+    onBack: () => void;
+    currentUserSub?: string;
+    sosInitiatorSub?: string | null;
+}) {
     const { t } = useTranslation();
     const [sessions, setSessions] = useState<ActiveSession[]>([]);
-    const [isSOSActive, setIsSOSActive] = useState(true);
 
     useEffect(() => {
         if (!tripId) return;
 
-        // Fetch all active sessions
+        // Fetch all active sessions (both SOS initiator and group members)
         anonSupabase.from('trip_sos_sessions')
             .select('user_sub, user_name, lat, lng, is_active')
             .eq('trip_id', tripId)
@@ -57,11 +66,10 @@ export default function LiveMap({ tripId, onBack, currentUserSub }: { tripId: st
             .then(({ data }) => {
                 if (data && data.length > 0) {
                     setSessions(data as ActiveSession[]);
-                    setIsSOSActive(true);
                 }
             });
 
-        // Subscribe to all changes
+        // Subscribe to all location changes
         const channel = anonSupabase.channel(`sos_updates_${tripId}`)
             .on('postgres_changes', {
                 event: '*',
@@ -72,8 +80,14 @@ export default function LiveMap({ tripId, onBack, currentUserSub }: { tripId: st
                 const row = payload.new as any;
                 setSessions(prev => {
                     const filtered = prev.filter(s => s.user_sub !== row.user_sub);
-                    if (row.is_active) {
-                        return [...filtered, { user_sub: row.user_sub, user_name: row.user_name || '', lat: row.lat, lng: row.lng, is_active: true }];
+                    if (row.is_active && row.lat && row.lng) {
+                        return [...filtered, {
+                            user_sub: row.user_sub,
+                            user_name: row.user_name || '',
+                            lat: row.lat,
+                            lng: row.lng,
+                            is_active: true
+                        }];
                     }
                     return filtered;
                 });
@@ -84,7 +98,12 @@ export default function LiveMap({ tripId, onBack, currentUserSub }: { tripId: st
         };
     }, [tripId]);
 
-    const firstLoc: [number, number] | null = sessions.length > 0 ? [sessions[0].lat, sessions[0].lng] : null;
+    // Center on SOS initiator if present, otherwise first session
+    const initiatorSession = sessions.find(s => s.user_sub === sosInitiatorSub) ?? null;
+    const centerSession = initiatorSession ?? (sessions.length > 0 ? sessions[0] : null);
+    const centerPos: [number, number] | null = centerSession ? [centerSession.lat, centerSession.lng] : null;
+
+    const sosActive = sessions.some(s => s.user_sub === sosInitiatorSub);
 
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: '#000' }}>
@@ -100,28 +119,34 @@ export default function LiveMap({ tripId, onBack, currentUserSub }: { tripId: st
                 <button onClick={onBack} style={{ cursor: 'pointer', background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)', border: 'none', color: '#fff', padding: '10px 16px', borderRadius: 20, fontWeight: 700 }}>
                     ← {t('liveMap.back')}
                 </button>
-                <div style={{ background: sessions.length > 0 ? 'rgba(255,0,0,0.8)' : 'rgba(100,100,100,0.8)', color: '#fff', padding: '10px 16px', borderRadius: 20, fontWeight: 700, flex: 1, textAlign: 'center' }}>
-                    {sessions.length > 0 ? `🚨 ${t('liveMap.liveTracking')}` : t('liveMap.resolved')}
+                <div style={{ background: sosActive ? 'rgba(255,0,0,0.8)' : 'rgba(100,100,100,0.8)', color: '#fff', padding: '10px 16px', borderRadius: 20, fontWeight: 700, flex: 1, textAlign: 'center' }}>
+                    {sosActive ? `🚨 ${t('liveMap.liveTracking')}` : t('liveMap.resolved')}
                 </div>
             </div>
 
-            {firstLoc ? (
-                <MapContainer center={firstLoc} zoom={16} zoomControl={false} style={{ width: '100vw', height: '100vh' }}>
+            {centerPos ? (
+                <MapContainer center={centerPos} zoom={16} zoomControl={false} style={{ width: '100vw', height: '100vh' }}>
                     <TileLayer
                         attribution='&copy; OpenStreetMap'
                         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     />
                     {sessions.map(s => {
+                        const isInitiator = s.user_sub === sosInitiatorSub;
                         const isMe = s.user_sub === currentUserSub;
-                        const color = isMe ? '#0a84ff' : '#ff3b30';
-                        const label = isMe ? `📍 ${s.user_name || t('liveMap.you')}` : `🚨 ${s.user_name || t('liveMap.sosLocation')}`;
+                        // SOS initiator → red pulsing for everyone
+                        // Other members (including me when I'm not initiator) → blue
+                        const color = isInitiator ? '#ff3b30' : '#0a84ff';
+                        const pulse = isInitiator;
+                        const displayName = s.user_name?.trim() || (isMe ? t('liveMap.you') : '?');
+                        const prefix = isInitiator ? '🚨' : (isMe ? '📍' : '👤');
+                        const label = `${prefix} ${displayName}`;
                         return (
-                            <Marker key={s.user_sub} position={[s.lat, s.lng]} icon={createLabeledIcon(label, color, !isMe)}>
-                                <Popup>{s.user_name || (isMe ? t('liveMap.you') : t('liveMap.sosLocation'))}</Popup>
+                            <Marker key={s.user_sub} position={[s.lat, s.lng]} icon={createLabeledIcon(label, color, pulse)}>
+                                <Popup>{displayName}</Popup>
                             </Marker>
                         );
                     })}
-                    <AutoPan position={firstLoc} />
+                    <AutoPan position={centerPos} />
                 </MapContainer>
             ) : (
                 <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#888' }}>

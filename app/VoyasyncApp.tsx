@@ -7136,26 +7136,26 @@ function AppShell() {
     setIncomingSOSUser(null);
   };
 
-  useLiveLocation(isPanicModeActive || showLiveMap, user?.sub, activeTripId || undefined, user?.name || user?.email?.split('@')[0]);
+  // Keep a stable ref for the current user sub to avoid stale closures in callbacks
+  const userSubRef = useRef<string | undefined>(undefined);
+  useEffect(() => { userSubRef.current = user?.sub; }, [user?.sub]);
+
+  useLiveLocation(isPanicModeActive || showLiveMap || !!incomingSOSUser, user?.sub, activeTripId || undefined, user?.name || user?.email?.split('@')[0]);
 
   useGlobalSOSListener(activeTripId || undefined, user?.sub, useCallback((row: any) => {
     if (deactivatedSOSRef.current) return;
     // Don't alert the SOS initiator — they already see the panic button state
-    if (row.user_sub === user?.sub) return;
+    // Use the ref to always access current user sub (avoids stale closure)
+    if (row.user_sub === userSubRef.current) return;
     // Reset deactivated flag so this new SOS session can be heard
     deactivatedSOSRef.current = false;
     setIncomingSOSUser(row.user_sub);
     if (mutedSOSRef.current) return;
     // Play the pre-loaded HTML Audio element (iOS-compatible).
-    // Since this element was unlocked during a prior user gesture, iOS Safari will allow .play() here.
     const audio = sosAudioRef.current;
     if (!audio) return;
-    // Play 4 pulses, 700ms apart
     const playPulse = () => {
-      try {
-        audio.currentTime = 0;
-        audio.play().catch(() => { });
-      } catch { /* ignore */ }
+      try { audio.currentTime = 0; audio.play().catch(() => { }); } catch { /* ignore */ }
     };
     playPulse();
     let count = 1;
@@ -7311,7 +7311,9 @@ function AppShell() {
 
   let content;
   if (showLiveMap) {
-    content = <LiveMap tripId={activeTripId!} onBack={() => setShowLiveMap(false)} currentUserSub={user?.sub} />;
+    // sosInitiatorSub: if current user triggered SOS → themselves; otherwise → whoever triggered it
+    const sosInitiatorSub = isPanicModeActive ? user?.sub : incomingSOSUser;
+    content = <LiveMap tripId={activeTripId!} onBack={() => setShowLiveMap(false)} currentUserSub={user?.sub} sosInitiatorSub={sosInitiatorSub} />;
   } else if (showAddExpense) {
     content = <AddExpenseScreen onBack={() => setShowAddExpense(false)} onGoToBudget={handleGoToBudget} activeTripId={activeTripId} activeTrip={activeTrip} user={user} />;
   } else if (showHistory) {
