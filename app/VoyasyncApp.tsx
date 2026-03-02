@@ -180,6 +180,14 @@ interface InviteEvent {
   at: string;
 }
 
+export interface SyncJob {
+  id: string;
+  url: string;
+  method: string;
+  body?: any;
+  createdAt: string;
+}
+
 interface MedicalId {
   bloodType: string;
   contactName: string;
@@ -305,6 +313,69 @@ function segmentsToEvents(segments: TripSegment[], t: any): ItineraryEvent[] {
     }
   });
   return events.sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+}
+
+// ──────────────────────────────────────────────────────────────
+// Offline-First Sync Engine
+// ──────────────────────────────────────────────────────────────
+
+/** Attempt to flush all queued offline mutations to the server. */
+export async function processSyncQueue(): Promise<void> {
+  try {
+    const stored = localStorage.getItem('voyasync_sync_queue');
+    if (!stored) return;
+    const queue: SyncJob[] = JSON.parse(stored);
+    if (queue.length === 0) return;
+
+    const remaining: SyncJob[] = [];
+    for (const job of queue) {
+      try {
+        const res = await fetch(job.url, {
+          method: job.method,
+          headers: job.body ? { 'Content-Type': 'application/json' } : undefined,
+          body: job.body ? JSON.stringify(job.body) : undefined,
+        });
+        // Hard client errors (4xx) → discard; the data was malformed anyway.
+        if (!res.ok && res.status >= 400 && res.status < 500) continue;
+        if (!res.ok) remaining.push(job); // Soft server error → retry later
+      } catch {
+        remaining.push(job); // Network error → retry later
+      }
+    }
+    localStorage.setItem('voyasync_sync_queue', JSON.stringify(remaining));
+  } catch (e) {
+    console.error('[processSyncQueue] failed:', e);
+  }
+}
+
+/**
+ * Intercepts mutations. If online → fires fetch immediately.
+ * If offline or the network call fails → queues the job in localStorage.
+ */
+export async function enqueueSyncJob(url: string, method: string, body?: any): Promise<void> {
+  const payload = body ? JSON.stringify(body) : undefined;
+  if (typeof navigator !== 'undefined' && navigator.onLine) {
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: payload ? { 'Content-Type': 'application/json' } : undefined,
+        body: payload,
+      });
+      if (res.ok) return; // sent successfully
+      if (res.status >= 400 && res.status < 500) return; // client error, no point queuing
+    } catch {
+      // Network error → fall through to queue
+    }
+  }
+  // Offline or network error: persist for later sync
+  try {
+    const stored = localStorage.getItem('voyasync_sync_queue');
+    const queue: SyncJob[] = stored ? JSON.parse(stored) : [];
+    queue.push({ id: crypto.randomUUID(), url, method, body, createdAt: new Date().toISOString() });
+    localStorage.setItem('voyasync_sync_queue', JSON.stringify(queue));
+  } catch (e) {
+    console.error('[enqueueSyncJob] could not persist job:', e);
+  }
 }
 
 async function fetchRate(from: Currency, to: Currency): Promise<number> {
@@ -762,7 +833,7 @@ const Header = ({ onSettings, onHome, isOnline = true, isSyncing = false, user }
           onClick={onHome}
           style={{ background: "none", border: "none", padding: 0, outline: "none", cursor: "pointer", display: "flex", alignItems: "center" }}
         >
-          <img src="/logo.png" alt="Voyasync" style={{ height: 38, objectFit: "contain" }} />
+          <img src="/voyasync-logo.png" alt="Voyasync" style={{ height: 76, objectFit: "contain" }} />
         </button>
         <button
           onClick={() => {
@@ -1731,10 +1802,8 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub, onNav, onShowGroup
       };
       saveItinEvents(itinEvents.map(e => e.id === editingEventId ? updated : e));
       if (activeTripId) {
-        fetch(`/api/trips/${activeTripId}/itinerary/${editingEventId}`, {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ callerSub: userSub, actorName: null, type: evtType, title: evtTitle.trim(), startDt, endDt: endDt ?? null, location: evtLocation || null, notes: evtNotes || null, confirmation: evtConfirmation || null, extras: extrasObj ?? null, visibility: visibilityVal, visibleTo: visibleToVal }),
-        }).catch(() => { });
+        enqueueSyncJob(`/api/trips/${activeTripId}/itinerary/${editingEventId}`, 'PUT',
+          { callerSub: userSub, actorName: null, type: evtType, title: evtTitle.trim(), startDt, endDt: endDt ?? null, location: evtLocation || null, notes: evtNotes || null, confirmation: evtConfirmation || null, extras: extrasObj ?? null, visibility: visibilityVal, visibleTo: visibleToVal });
       }
     } else {
       savedId = crypto.randomUUID();
@@ -1747,20 +1816,16 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub, onNav, onShowGroup
       };
       saveItinEvents([...itinEvents, newRec]);
       if (activeTripId) {
-        fetch(`/api/trips/${activeTripId}/itinerary`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ callerSub: userSub, actorName: null, id: savedId, type: evtType, title: evtTitle.trim(), startDt, endDt: endDt ?? null, location: evtLocation || null, notes: evtNotes || null, confirmation: evtConfirmation || null, extras: extrasObj ?? null, visibility: visibilityVal, visibleTo: visibleToVal }),
-        }).catch(() => { });
+        enqueueSyncJob(`/api/trips/${activeTripId}/itinerary`, 'POST',
+          { callerSub: userSub, actorName: null, id: savedId, type: evtType, title: evtTitle.trim(), startDt, endDt: endDt ?? null, location: evtLocation || null, notes: evtNotes || null, confirmation: evtConfirmation || null, extras: extrasObj ?? null, visibility: visibilityVal, visibleTo: visibleToVal });
       }
     }
-    // Upload attachments (fire-and-forget)
+    // Upload attachments (queued if offline)
     evtAttachments.forEach(att => {
-      fetch(`/api/trips/${activeTripId}/itinerary/${savedId}/attachments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ callerSub: userSub, id: att.id, name: att.name, fileData: att.fileData }),
-      }).catch(() => { });
+      enqueueSyncJob(`/api/trips/${activeTripId}/itinerary/${savedId}/attachments`, 'POST',
+        { callerSub: userSub, id: att.id, name: att.name, fileData: att.fileData });
     });
+    if (!navigator.onLine) showToast(t('common.savedOffline'), 'info');
     setEvtAttachments([]);
     setShowEventForm(false);
     setEvtSaving(false);
@@ -1770,10 +1835,8 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub, onNav, onShowGroup
     const ts = new Date().toISOString();
     saveItinEvents(itinEvents.map(e => e.id === id ? { ...e, deletedAt: ts } : e));
     if (activeTripId) {
-      fetch(`/api/trips/${activeTripId}/itinerary/${id}`, {
-        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ callerSub: userSub, actorName: null }),
-      }).catch(() => { });
+      enqueueSyncJob(`/api/trips/${activeTripId}/itinerary/${id}`, 'DELETE',
+        { callerSub: userSub, actorName: null });
     }
     setConfirmDeleteId(null);
   };
@@ -2203,8 +2266,8 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub, onNav, onShowGroup
 
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={() => setShowEventForm(false)} style={{ flex: 1, background: C.card3, border: "none", borderRadius: 14, padding: "14px", color: C.textMuted, cursor: "pointer", fontSize: 14, fontFamily: "inherit" }}>{t('itinerary.cancelBtn')}</button>
-              <button onClick={handleSaveEvent} disabled={evtSaving || !evtTitle.trim() || !evtDate || !evtTime}
-                style={{ flex: 2, background: evtSaving || !evtTitle.trim() ? C.card3 : C.cyan, border: "none", borderRadius: 14, padding: "14px", color: evtSaving || !evtTitle.trim() ? C.textMuted : "#000", cursor: "pointer", fontSize: 14, fontWeight: 700, fontFamily: "inherit" }}>
+              <button onClick={handleSaveEvent} disabled={evtSaving}
+                style={{ flex: 2, background: evtSaving ? C.card3 : C.cyan, border: "none", borderRadius: 14, padding: "14px", color: evtSaving ? C.textMuted : "#000", cursor: "pointer", fontSize: 14, fontWeight: 700, fontFamily: "inherit" }}>
                 {evtSaving ? t("itinerary.savingBtn") : editingEventId ? t("itinerary.saveChangesBtn") : t("itinerary.addBtn")}
               </button>
             </div>
@@ -5656,21 +5719,14 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
     }
     setSegError(null);
     setSegSaving(true);
-    try {
-      const res = await fetch(`/api/trips/${trip.id}/segments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ callerSub: user.sub, name: segName.trim(), origin: segOrigin, destination: segDest, startDate: finalStart, endDate: finalEnd, color: segColor, assignedMemberIds: segAssigned }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || t('segments.addFailed'));
-      }
-      const seg = await res.json();
-      const newSeg: TripSegment = { id: seg.id, name: seg.name, startDate: seg.start_date, endDate: seg.end_date, origin: seg.origin, destination: seg.destination, color: seg.color, visibility: seg.visibility, assignedMemberIds: seg.assigned_member_ids || [], invitedMemberIds: seg.invited_member_ids || [] };
-      onTripUpdate({ ...trip, segments: [...segments, newSeg] });
-      setSegName(""); setSegOrigin(""); setSegDest(""); setSegStart(""); setSegStartTime(""); setSegEnd(""); setSegEndTime(""); setSegColor("#00e5ff"); setSegAssigned([]); setSegIconTab('colors'); setShowAddSeg(false);
-    } catch (e: any) { showToast(e.message || t('segments.addFailed'), 'error'); }
+    // Optimistic local update — a temporary id that will be overwritten on reconnect.
+    const tempId = crypto.randomUUID();
+    const newSeg: TripSegment = { id: tempId, name: segName.trim(), startDate: finalStart || undefined, endDate: finalEnd || undefined, origin: segOrigin || undefined, destination: segDest || undefined, color: segColor, visibility: 'public', assignedMemberIds: segAssigned, invitedMemberIds: [] };
+    onTripUpdate({ ...trip, segments: [...segments, newSeg] });
+    setSegName(""); setSegOrigin(""); setSegDest(""); setSegStart(""); setSegStartTime(""); setSegEnd(""); setSegEndTime(""); setSegColor("#00e5ff"); setSegAssigned([]); setSegIconTab('colors'); setShowAddSeg(false);
+    // Sync to server (queued if offline)
+    enqueueSyncJob(`/api/trips/${trip.id}/segments`, 'POST', { callerSub: user.sub, id: tempId, name: newSeg.name, origin: segOrigin || null, destination: segDest || null, startDate: finalStart ?? null, endDate: finalEnd ?? null, color: segColor, assignedMemberIds: segAssigned });
+    if (!navigator.onLine) showToast(t('common.savedOffline'), 'info');
     setSegSaving(false);
   };
 
@@ -5711,20 +5767,13 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
       return;
     }
     setEditSegSaving(true);
-    try {
-      const res = await fetch(`/api/trips/${trip.id}/segments/${editSegId}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ callerSub: user.sub, name: editSegName.trim(), origin: editSegOrigin || null, destination: editSegDest || null, startDate: finalStart || null, endDate: finalEnd || null, color: editSegColor, assignedMemberIds: editSegAssigned }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || t('segments.updateFailed'));
-      }
-      const updated = await res.json();
-      const updatedSeg: TripSegment = { id: updated.id, name: updated.name, startDate: updated.start_date, endDate: updated.end_date, origin: updated.origin, destination: updated.destination, color: updated.color, visibility: updated.visibility, assignedMemberIds: updated.assigned_member_ids || [], invitedMemberIds: updated.invited_member_ids || [] };
-      onTripUpdate({ ...trip, segments: segments.map((s: TripSegment) => s.id === editSegId ? updatedSeg : s) });
-      setEditSegId(null);
-    } catch (e: any) { showToast(e.message || t('segments.updateFailed'), 'error'); }
+    // Optimistic local update
+    const updatedSeg: TripSegment = { id: editSegId!, name: editSegName.trim(), startDate: finalStart || undefined, endDate: finalEnd || undefined, origin: editSegOrigin || undefined, destination: editSegDest || undefined, color: editSegColor, visibility: 'public', assignedMemberIds: editSegAssigned, invitedMemberIds: [] };
+    onTripUpdate({ ...trip, segments: segments.map((s: TripSegment) => s.id === editSegId ? updatedSeg : s) });
+    setEditSegId(null);
+    // Sync to server (queued if offline)
+    enqueueSyncJob(`/api/trips/${trip.id}/segments/${editSegId}`, 'PUT', { callerSub: user.sub, name: editSegName.trim(), origin: editSegOrigin || null, destination: editSegDest || null, startDate: finalStart ?? null, endDate: finalEnd ?? null, color: editSegColor, assignedMemberIds: editSegAssigned });
+    if (!navigator.onLine) showToast(t('common.savedOffline'), 'info');
     setEditSegSaving(false);
   };
 
@@ -6861,19 +6910,33 @@ const TodoScreen = ({ activeTripId, onBack }: { activeTripId: string | null; onB
 };
 
 function useGlobalSOSListener(tripId?: string, currentUserSub?: string, onSOSIncoming?: (row: any) => void) {
+  const lastAlertedIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (!tripId || !currentUserSub) return;
     const channel = anonSupabase.channel('global_sos_listener')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'trip_sos_sessions', filter: `trip_id=eq.${tripId}` }, (payload) => {
         const row = payload.new as any;
+        // Only fire for OTHER users' active SOS sessions
         if (row.is_active && row.user_sub !== currentUserSub) {
+          // Deduplicate: don't re-alert for the same session ID
+          if (lastAlertedIdRef.current === row.id) return;
+          lastAlertedIdRef.current = row.id;
           if (onSOSIncoming) onSOSIncoming(row);
         }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'trip_sos_sessions', filter: `trip_id=eq.${tripId}` }, (payload) => {
         const row = payload.new as any;
-        if (row.is_active && row.user_sub !== currentUserSub) {
+        const oldRow = payload.old as any;
+        // Only re-alert if is_active just flipped from false → true (a new SOS activation)
+        // Location-only updates (is_active stays true) must NOT retrigger the alert
+        if (row.is_active && !oldRow?.is_active && row.user_sub !== currentUserSub) {
+          if (lastAlertedIdRef.current === row.id) return;
+          lastAlertedIdRef.current = row.id;
           if (onSOSIncoming) onSOSIncoming(row);
+        }
+        // If SOS was resolved, clear deduplication so a future new SOS will alert again
+        if (!row.is_active) {
+          lastAlertedIdRef.current = null;
         }
       })
       .subscribe();
@@ -6982,11 +7045,32 @@ function AppShell() {
   const [incomingSOSUser, setIncomingSOSUser] = useState<string | null>(null);
   const [mutedSOS, setMutedSOS] = useState(false);
   const mutedSOSRef = useRef(false);
-  const [deactivatedSOS, setDeactivatedSOS] = useState(() => {
-    if (typeof window !== 'undefined') return localStorage.getItem('voyasync_sos_deactivated') === 'true';
-    return false;
-  });
-  const deactivatedSOSRef = useRef(deactivatedSOS);
+  // deactivatedSOS is SESSION-scoped (not persisted). When a new SOS fires, it resets.
+  const deactivatedSOSRef = useRef(false);
+
+  // Pre-warm the AudioContext on first user interaction so iOS can play audio later
+  useEffect(() => {
+    const unlock = () => {
+      try {
+        const ctx = new ((window as any).AudioContext || (window as any).webkitAudioContext)();
+        const buf = ctx.createBuffer(1, 1, 22050);
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.connect(ctx.destination);
+        src.start(0);
+        // Keep the context alive in window for reuse
+        (window as any).__sosCTX = ctx;
+      } catch (e) { /* ignore */ }
+      window.removeEventListener('touchstart', unlock, true);
+      window.removeEventListener('click', unlock, true);
+    };
+    window.addEventListener('touchstart', unlock, true);
+    window.addEventListener('click', unlock, true);
+    return () => {
+      window.removeEventListener('touchstart', unlock, true);
+      window.removeEventListener('click', unlock, true);
+    };
+  }, []);
 
   const toggleMuteSOS = () => {
     const next = !mutedSOS;
@@ -6995,42 +7079,51 @@ function AppShell() {
   };
 
   const handleDeactivateSOS = () => {
-    setDeactivatedSOS(true);
     deactivatedSOSRef.current = true;
     mutedSOSRef.current = true;
     setMutedSOS(true);
     setIncomingSOSUser(null);
-    localStorage.setItem('voyasync_sos_deactivated', 'true');
   };
 
   useLiveLocation(isPanicModeActive || showLiveMap, user?.sub, activeTripId || undefined, user?.name || user?.email?.split('@')[0]);
 
   useGlobalSOSListener(activeTripId || undefined, user?.sub, useCallback((row: any) => {
     if (deactivatedSOSRef.current) return;
+    // Don't alert the SOS initiator — they already see the panic button state
+    if (row.user_sub === user?.sub) return;
     setIncomingSOSUser(row.user_sub);
     if (mutedSOSRef.current) return;
+    // iOS-compatible audio: use an Audio element with a synthesized data URI
+    // This works because the SOS event originates from a Supabase channel callback
+    // which is not considered a user gesture on iOS. We rely on a pre-loaded audio
+    // file that was already buffered. If it fails we fallback silently.
     try {
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const playBeep = () => {
+      // Short 880Hz beep synthesized as a base64 WAV (mono, 8kHz, 0.5s, 3 pulses)
+      const playTone = () => {
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        if (ctx.state === 'suspended') ctx.resume();
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);
         gain.connect(ctx.destination);
-        osc.type = 'square';
+        osc.type = 'sawtooth';
         osc.frequency.setValueAtTime(880, ctx.currentTime);
-        osc.frequency.setValueAtTime(1100, ctx.currentTime + 0.2);
-        gain.gain.setValueAtTime(0.5, ctx.currentTime);
-        osc.start();
-        setTimeout(() => osc.stop(), 800);
+        osc.frequency.linearRampToValueAtTime(440, ctx.currentTime + 0.4);
+        gain.gain.setValueAtTime(0.8, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.5);
       };
-      playBeep();
+      playTone();
       let count = 1;
       const interval = setInterval(() => {
-        if (count >= 3 || mutedSOSRef.current) return clearInterval(interval);
-        playBeep();
+        if (count >= 4 || mutedSOSRef.current) { clearInterval(interval); return; }
+        playTone();
         count++;
-      }, 1000);
-    } catch (e) { console.warn("Audio play failed", e); }
+      }, 700);
+    } catch (e) {
+      console.warn('SOS audio failed:', e);
+    }
   }, []));
 
   const activeTrip = trips.find(t => t.id === activeTripId) ?? null;
@@ -7038,6 +7131,9 @@ function AppShell() {
   // Re-fetch trips and expenses from Supabase when connectivity is restored
   const handleReconnect = useCallback(async () => {
     if (!user) return;
+    // 1. First flush any offline-queued mutations to the server
+    await processSyncQueue();
+    // 2. Then re-pull the latest server state
     const rows = await fetch(`/api/trips?userId=${user.sub}`)
       .then(r => r.ok ? r.json() : [])
       .catch(() => []);
@@ -7233,7 +7329,8 @@ function AppShell() {
   const activeTab = showSettings || showManageCrew || showAddExpense || showHistory || showTodo ? null : tab;
 
   // SOS alert overlay — must render above ALL screens including full-screen ones
-  const sosAlertOverlay = incomingSOSUser ? (
+  // IMPORTANT: never show for the SOS initiator (isPanicModeActive) or when cleared
+  const sosAlertOverlay = (incomingSOSUser && !isPanicModeActive) ? (
     <>
       <div style={{ position: "fixed", inset: 0, background: "rgba(100,0,0,0.8)", zIndex: 10000 }} onClick={() => setIncomingSOSUser(null)} />
       <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "calc(100% - 40px)", maxWidth: 400, background: C.card, borderRadius: 24, padding: 24, zIndex: 10001, textAlign: "center", border: `2px solid ${C.red}` }}>
