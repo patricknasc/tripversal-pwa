@@ -610,18 +610,18 @@ const SEG_FLAGS = ['🇧🇷', '🇺🇸', '🇬🇧', '🇫🇷', '🇩🇪', '
 const SEG_EMOJIS = ['✈️', '🚂', '🚢', '🚁', '🏨', '🏝', '🗺️', '🏕', '🌋', '🌊', '🗼', '🗽', '🏰', '🎡', '🎭', '🎿', '⛷️', '🏄', '🎪', '🎨', '🏔', '🌅', '🌃', '🌆', '🌉', '🎠', '🚡', '🛥️', '🏺', '⛩️', '🕌', '🕍', '🏯', '🏟', '🛕', '🗿', '🎑', '🎆', '🎇', '🌄'];
 
 const ITIN_TYPES: { type: ItinEventType; emoji: string; label: string; extras: string[] }[] = [
-  { type: 'flight', emoji: '✈️', label: 'Flight', extras: ['From Airport', 'To Airport', 'Airline', 'Flight #', 'Seat', 'Terminal', 'Gate'] },
-  { type: 'train', emoji: '🚂', label: 'Train', extras: ['From Station', 'To Station', 'Train #', 'Seat', 'Platform'] },
-  { type: 'bus', emoji: '🚌', label: 'Bus', extras: ['From Stop', 'To Stop', 'Bus #', 'Seat'] },
-  { type: 'car', emoji: '🚗', label: 'Car', extras: ['Company', 'Pickup', 'Dropoff'] },
-  { type: 'ferry', emoji: '⛴️', label: 'Ferry', extras: ['From Port', 'To Port', 'Ferry Name', 'Cabin'] },
-  { type: 'hotel_in', emoji: '🏨', label: 'Check-in', extras: ['Hotel', 'Room', 'Address'] },
-  { type: 'hotel_out', emoji: '🛏️', label: 'Check-out', extras: ['Hotel', 'Address'] },
-  { type: 'tour', emoji: '🗺️', label: 'Tour', extras: ['Operator', 'Meeting Point'] },
-  { type: 'meal', emoji: '🍽️', label: 'Meal', extras: ['Restaurant', 'Cuisine', 'Reservation'] },
-  { type: 'event', emoji: '🎭', label: 'Event', extras: ['Venue', 'Ticket #'] },
-  { type: 'place', emoji: '📍', label: 'Place', extras: ['Address'] },
-  { type: 'other', emoji: '📌', label: 'Other', extras: ['Venue'] },
+  { type: 'flight', emoji: '✈️', label: 'itinerary.typeFlight', extras: ['itinerary.extraFromAirport', 'itinerary.extraToAirport', 'itinerary.extraAirline', 'itinerary.extraFlightNum', 'itinerary.extraSeat', 'itinerary.extraTerminal', 'itinerary.extraGate'] },
+  { type: 'train', emoji: '🚂', label: 'itinerary.typeTrain', extras: ['itinerary.extraFromStation', 'itinerary.extraToStation', 'itinerary.extraTrainNum', 'itinerary.extraSeat', 'itinerary.extraPlatform'] },
+  { type: 'bus', emoji: '🚌', label: 'itinerary.typeBus', extras: ['itinerary.extraFromStop', 'itinerary.extraToStop', 'itinerary.extraBusNum', 'itinerary.extraSeat'] },
+  { type: 'car', emoji: '🚗', label: 'itinerary.typeCar', extras: ['itinerary.extraCompany', 'itinerary.extraPickup', 'itinerary.extraDropoff'] },
+  { type: 'ferry', emoji: '⛴️', label: 'itinerary.typeFerry', extras: ['itinerary.extraFromPort', 'itinerary.extraToPort', 'itinerary.extraFerryName', 'itinerary.extraCabin'] },
+  { type: 'hotel_in', emoji: '🏨', label: 'itinerary.typeCheckIn', extras: ['itinerary.extraHotel', 'itinerary.extraRoom', 'itinerary.extraAddress'] },
+  { type: 'hotel_out', emoji: '🛏️', label: 'itinerary.typeCheckOut', extras: ['itinerary.extraHotel', 'itinerary.extraAddress'] },
+  { type: 'tour', emoji: '🗺️', label: 'itinerary.typeTour', extras: ['itinerary.extraOperator', 'itinerary.extraMeetingPoint'] },
+  { type: 'meal', emoji: '🍽️', label: 'itinerary.typeMeal', extras: ['itinerary.extraRestaurant', 'itinerary.extraCuisine', 'itinerary.extraReservation'] },
+  { type: 'event', emoji: '🎭', label: 'itinerary.typeEvent', extras: ['itinerary.extraVenue', 'itinerary.extraTicketNum'] },
+  { type: 'place', emoji: '📍', label: 'itinerary.typePlace', extras: ['itinerary.extraAddress'] },
+  { type: 'other', emoji: '📌', label: 'itinerary.typeOther', extras: ['itinerary.extraVenue'] },
 ];
 
 function weatherIcon(code: number): string {
@@ -1787,13 +1787,13 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub, onNav, onShowGroup
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, marginTop: 4 }}>
             <a href={`/api/trips/${activeTripId}/ics`} download
               style={{ color: C.cyan, fontSize: 12, display: "flex", alignItems: "center", gap: 4, textDecoration: "none" }}>
-              <Icon d={icons.calendar} size={13} stroke={C.cyan} /> Export
+              <Icon d={icons.calendar} size={13} stroke={C.cyan} /> {t('itinerary.exportBtn')}
             </a>
             <button onClick={() => {
               const url = `webcal://${typeof window !== 'undefined' ? window.location.host : ''}/api/trips/${activeTripId}/ics`;
               navigator.clipboard.writeText(url).catch(() => { });
             }} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, fontSize: 12, display: "flex", alignItems: "center", gap: 4, padding: 0, fontFamily: "inherit" }}>
-              <Icon d={icons.refreshCw} size={13} stroke={C.textMuted} /> Subscribe
+              <Icon d={icons.refreshCw} size={13} stroke={C.textMuted} /> {t('itinerary.subscribeBtn')}
             </button>
           </div>
         )}
@@ -1874,10 +1874,10 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub, onNav, onShowGroup
       {countdown && selectedDay === todayKey && (
         <div style={{ margin: "0 20px 12px", background: `${C.cyan}12`, border: `1px solid ${C.cyan}30`, borderRadius: 12, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ fontSize: 13, color: C.textMuted }}>
-            Next: <span style={{ color: C.text, fontWeight: 600 }}>{countdown.title}</span>
+            {t('itinerary.nextLabel')} <span style={{ color: C.text, fontWeight: 600 }}>{countdown.title}</span>
           </div>
           <div style={{ background: C.cyan, color: "#000", borderRadius: 20, padding: "3px 10px", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
-            in {countdown.remaining}
+            {t('itinerary.inTime', { time: countdown.remaining })}
           </div>
         </div>
       )}
@@ -1938,7 +1938,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub, onNav, onShowGroup
                       background: isNow ? `${C.cyan}15` : C.card, borderRadius: 14, padding: 14,
                       border: isNow ? `1px solid ${C.cyan}30` : isConflict ? `1px solid ${C.yellow}40` : "none"
                     }}>
-                      {isNow && <div style={{ color: C.cyan, fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 4 }}>● NOW</div>}
+                      {isNow && <div style={{ color: C.cyan, fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 4 }}>{t('itinerary.nowLabel')}</div>}
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 700, fontSize: 15, color: isDone ? C.textMuted : C.text }}>{event.title}</div>
@@ -1964,7 +1964,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub, onNav, onShowGroup
                       {rec?.extras && Object.keys(rec.extras).some(k => rec.extras![k]) && (
                         <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap" as const, gap: 4 }}>
                           {Object.entries(rec.extras).map(([k, v]) => v ? (
-                            <span key={k} style={{ background: C.card3, borderRadius: 6, padding: "2px 8px", fontSize: 11, color: C.textMuted }}>{k}: {v}</span>
+                            <span key={k} style={{ background: C.card3, borderRadius: 6, padding: "2px 8px", fontSize: 11, color: C.textMuted }}>{t(k as any)}: {v}</span>
                           ) : null)}
                         </div>
                       )}
@@ -2030,11 +2030,11 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub, onNav, onShowGroup
             <div style={{ marginBottom: 16 }}>
               <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 8 }}>TYPE</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
-                {ITIN_TYPES.map(t => (
-                  <button key={t.type} onClick={() => { setEvtType(t.type); setEvtExtras({}); }}
-                    style={{ background: evtType === t.type ? `${C.cyan}20` : C.card3, border: `1.5px solid ${evtType === t.type ? C.cyan : "transparent"}`, borderRadius: 10, padding: "10px 4px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-                    <span style={{ fontSize: 20 }}>{t.emoji}</span>
-                    <span style={{ fontSize: 10, color: evtType === t.type ? C.cyan : C.textMuted, fontFamily: "inherit" }}>{t.label}</span>
+                {ITIN_TYPES.map(typeDef => (
+                  <button key={typeDef.type} onClick={() => { setEvtType(typeDef.type); setEvtExtras({}); }}
+                    style={{ background: evtType === typeDef.type ? `${C.cyan}20` : C.card3, border: `1.5px solid ${evtType === typeDef.type ? C.cyan : "transparent"}`, borderRadius: 10, padding: "10px 4px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                    <span style={{ fontSize: 20 }}>{typeDef.emoji}</span>
+                    <span style={{ fontSize: 10, color: evtType === typeDef.type ? C.cyan : C.textMuted, fontFamily: "inherit" }}>{t(typeDef.label as any)}</span>
                   </button>
                 ))}
               </div>
@@ -2042,9 +2042,9 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub, onNav, onShowGroup
 
             {/* Title */}
             <div style={{ marginBottom: 12 }}>
-              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TITLE *</div>
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('itinerary.titleLabel').toUpperCase()} *</div>
               <input value={evtTitle} onChange={e => setEvtTitle(e.target.value)}
-                placeholder={ITIN_TYPES.find(t => t.type === evtType)?.label ?? "Event title"}
+                placeholder={ITIN_TYPES.find(typeDef => typeDef.type === evtType)?.label ? t(ITIN_TYPES.find(typeDef => typeDef.type === evtType)!.label as any) : t('itinerary.titlePlaceholder')}
                 style={{ width: "100%", boxSizing: "border-box" as const, background: C.card2, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", color: C.text, fontSize: 14, outline: "none", fontFamily: "inherit" }} />
             </div>
 
@@ -2107,7 +2107,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub, onNav, onShowGroup
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                   {extrasForType.map(field => (
                     <input key={field} value={evtExtras[field] || ''} onChange={e => setEvtExtras(prev => ({ ...prev, [field]: e.target.value }))}
-                      placeholder={field}
+                      placeholder={t(field as any)}
                       style={{ background: C.card2, border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", color: C.text, fontSize: 13, outline: "none", fontFamily: "inherit" }} />
                   ))}
                 </div>
@@ -2685,7 +2685,7 @@ const WalletScreen = ({ onAddExpense, onShowGroup, activeTripId, user, trips = [
         </div>
         <div style={{ textAlign: "right" }}>
           <div style={{ fontSize: 18, fontWeight: 700, color: remaining >= 0 ? C.green : C.red }}>{remaining >= 0 ? '+' : ''}{currSym(budgetCurrency)}{fmtAmt(Math.abs(remaining))}</div>
-          <div style={{ color: C.textSub, fontSize: 11, letterSpacing: 1 }}>{remaining >= 0 ? 'REMAINING' : 'OVER BUDGET'}</div>
+          <div style={{ color: C.textSub, fontSize: 11, letterSpacing: 1 }}>{remaining >= 0 ? t('wallet.remaining') : t('wallet.overBudget')}</div>
         </div>
       </div>
 
@@ -2701,7 +2701,7 @@ const WalletScreen = ({ onAddExpense, onShowGroup, activeTripId, user, trips = [
       {walletTab === 'transactions' ? (
         <>
           {expenses.length === 0 && (
-            <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", padding: "40px 0", textAlign: "center" }}>No expenses yet. Tap + to add one.</div>
+            <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", padding: "40px 0", textAlign: "center" }}>{t('wallet.noExpenses')}</div>
           )}
           {expenses.slice(0, visibleTxCount).map(exp => {
             const src = sourceMap[exp.sourceId];
@@ -2759,11 +2759,11 @@ const WalletScreen = ({ onAddExpense, onShowGroup, activeTripId, user, trips = [
                 {Math.round(pctSpent * 100)}%
               </text>
               <text x={CX} y={CY + 12} textAnchor="middle" fill={C.textMuted} fontSize={10} fontFamily="-apple-system,sans-serif">
-                OF BUDGET
+                {t('wallet.ofBudget')}
               </text>
               {totalBudgetInBase > 0 && (
                 <text x={CX} y={CY + 28} textAnchor="middle" fill={C.textSub} fontSize={9} fontFamily="-apple-system,sans-serif">
-                  {currSym(budgetCurrency)}{fmtAmt(totalBudgetInBase, 0)} total
+                  {t('wallet.totalBudgetSuffix', { amount: currSym(budgetCurrency) + fmtAmt(totalBudgetInBase, 0) })}
                 </text>
               )}
             </svg>
@@ -2776,7 +2776,7 @@ const WalletScreen = ({ onAddExpense, onShowGroup, activeTripId, user, trips = [
                     <div style={{ fontWeight: 700, fontSize: 18, color: C.text }}>{currSym(budgetCurrency)}{fmtAmt(totalSpent)}</div>
                   </div>
                   <div>
-                    <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>{remaining >= 0 ? 'REMAINING' : 'OVER BUDGET'}</div>
+                    <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1 }}>{remaining >= 0 ? t('wallet.remaining') : t('wallet.overBudget')}</div>
                     <div style={{ fontWeight: 700, fontSize: 18, color: remaining >= 0 ? C.green : C.red }}>{currSym(budgetCurrency)}{fmtAmt(Math.abs(remaining))}</div>
                   </div>
                 </>
@@ -2802,7 +2802,7 @@ const WalletScreen = ({ onAddExpense, onShowGroup, activeTripId, user, trips = [
                     <div style={{ height: 8, background: C.card3, borderRadius: 4, overflow: "hidden" }}>
                       <div style={{ width: `${pct * 100}%`, height: "100%", background: color, borderRadius: 4, transition: "width 0.5s ease" }} />
                     </div>
-                    <div style={{ color: C.textSub, fontSize: 10, marginTop: 3 }}>{totalSpent > 0 ? Math.round(amt / totalSpent * 100) : 0}% of total</div>
+                    <div style={{ color: C.textSub, fontSize: 10, marginTop: 3 }}>{t('wallet.pctOfTotal', { pct: totalSpent > 0 ? Math.round(amt / totalSpent * 100) : 0 })}</div>
                   </div>
                 );
               })}
@@ -2828,7 +2828,7 @@ const WalletScreen = ({ onAddExpense, onShowGroup, activeTripId, user, trips = [
                     <div style={{ height: 8, background: C.card3, borderRadius: 4, overflow: "hidden" }}>
                       <div style={{ width: `${(limitBase > 0 ? usePct : pct) * 100}%`, height: "100%", background: src.color, borderRadius: 4, transition: "width 0.5s ease" }} />
                     </div>
-                    {limitBase > 0 && <div style={{ color: C.textSub, fontSize: 10, marginTop: 3 }}>{Math.round(usePct * 100)}% of limit</div>}
+                    {limitBase > 0 && <div style={{ color: C.textSub, fontSize: 10, marginTop: 3 }}>{t('wallet.pctOfLimit', { pct: Math.round(usePct * 100) })}</div>}
                   </div>
                 );
               })}
@@ -2838,7 +2838,7 @@ const WalletScreen = ({ onAddExpense, onShowGroup, activeTripId, user, trips = [
           {/* ── 14-day Trend ── */}
           <Card style={{ marginBottom: 16 }}>
             <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{t('wallet.dailySpendTitle')}</div>
-            <div style={{ color: C.textMuted, fontSize: 11, marginBottom: 16 }}>{currSym(budget.baseCurrency)} per day</div>
+            <div style={{ color: C.textMuted, fontSize: 11, marginBottom: 16 }}>{currSym(budget.baseCurrency)} {t('wallet.perDay')}</div>
             <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 120 }}>
               {dayData.map((d, i) => {
                 const barPct = d.total > 0 ? Math.max(d.total / maxDay, 0.04) : 0;
@@ -5557,7 +5557,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
       const base = segments.find((s: TripSegment) => s.id === segId)!;
       const updatedSeg: TripSegment = { ...base, visibility: updated.visibility, assignedMemberIds: updated.assigned_member_ids || [], invitedMemberIds: updated.invited_member_ids || [] };
       onTripUpdate({ ...trip, segments: segments.map((s: TripSegment) => s.id === segId ? updatedSeg : s) });
-    } catch { showToast("Failed to update status", 'error'); }
+    } catch { showToast(t('crew.statusUpdateFailed'), 'error'); }
   };
 
   const handleInvite = async () => {
@@ -5574,8 +5574,8 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
       pushInviteEvent({ id: crypto.randomUUID(), type: 'invited', email: inviteEmail.trim(), tripName: trip.name, at: new Date().toISOString() });
       onTripUpdate({ ...trip, crew: [...crew.filter((m: TripMember) => m.email !== member.email), { id: member.id, email: member.email, role: 'member', status: 'pending', invitedAt: member.invited_at }] });
       setInviteEmail("");
-      showToast("Invite sent!", 'success');
-    } catch { showToast("Failed to send invite.", 'error'); }
+      showToast(t('crew.inviteSent'), 'success');
+    } catch { showToast(t('crew.inviteFailed'), 'error'); }
     setInviting(false);
   };
 
@@ -5589,7 +5589,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
       });
       if (!res.ok) { showToast(t('crew.permissionDenied') || 'Permission denied'); return; }
       onTripUpdate({ ...trip, crew: crew.map((m: TripMember) => m.id === memberId ? { ...m, role } : m) });
-    } catch { showToast("Failed to update role.", 'error'); }
+    } catch { showToast(t('crew.roleUpdateFailed'), 'error'); }
   };
 
   const handleRemoveMember = async (memberId: string) => {
@@ -5601,7 +5601,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
       });
       if (!res.ok) { showToast(t('crew.permissionDenied') || 'Permission denied'); return; }
       onTripUpdate({ ...trip, crew: crew.filter((m: TripMember) => m.id !== memberId) });
-    } catch { showToast("Failed to remove member.", 'error'); }
+    } catch { showToast(t('crew.removeMemberFailed'), 'error'); }
   };
 
   const handleLeaveGroup = async () => {
@@ -5613,13 +5613,17 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
       });
       if (!res.ok) { const d = await res.json(); showToast(d.error || "Failed to leave group.", 'error'); return; }
       onBack();
-    } catch { showToast("Failed to leave group.", 'error'); }
+    } catch { showToast(t('crew.leaveGroupFailed'), 'error'); }
   };
 
 
 
   const handleAddSegment = async () => {
-    if (!segName.trim()) { setSegError("Segment name is required."); return; }
+    if (!segName.trim()) { setSegError(t('segments.nameRequired')); return; }
+    if (segStart && segEnd && segEnd < segStart) {
+      setSegError(t('segments.invalidDates'));
+      return;
+    }
     setSegError(null);
     setSegSaving(true);
     try {
@@ -5628,12 +5632,15 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ callerSub: user.sub, name: segName.trim(), origin: segOrigin, destination: segDest, startDate: segStart || undefined, endDate: segEnd || undefined, color: segColor, assignedMemberIds: segAssigned }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || t('segments.addFailed'));
+      }
       const seg = await res.json();
       const newSeg: TripSegment = { id: seg.id, name: seg.name, startDate: seg.start_date, endDate: seg.end_date, origin: seg.origin, destination: seg.destination, color: seg.color, visibility: seg.visibility, assignedMemberIds: seg.assigned_member_ids || [], invitedMemberIds: seg.invited_member_ids || [] };
       onTripUpdate({ ...trip, segments: [...segments, newSeg] });
       setSegName(""); setSegOrigin(""); setSegDest(""); setSegStart(""); setSegEnd(""); setSegColor("#00e5ff"); setSegAssigned([]); setSegIconTab('colors'); setShowAddSeg(false);
-    } catch { showToast("Failed to add segment.", 'error'); }
+    } catch (e: any) { showToast(e.message || t('segments.addFailed'), 'error'); }
     setSegSaving(false);
   };
 
@@ -5651,19 +5658,26 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
   };
 
   const handleEditSegment = async () => {
-    if (!editSegName.trim()) { showToast("Segment name is required.", 'error'); return; }
+    if (!editSegName.trim()) { showToast(t('segments.nameRequired'), 'error'); return; }
+    if (editSegStart && editSegEnd && editSegEnd < editSegStart) {
+      showToast(t('segments.invalidDates'), 'error');
+      return;
+    }
     setEditSegSaving(true);
     try {
       const res = await fetch(`/api/trips/${trip.id}/segments/${editSegId}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ callerSub: user.sub, name: editSegName.trim(), origin: editSegOrigin || null, destination: editSegDest || null, startDate: editSegStart || null, endDate: editSegEnd || null, color: editSegColor, assignedMemberIds: editSegAssigned }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || t('segments.updateFailed'));
+      }
       const updated = await res.json();
       const updatedSeg: TripSegment = { id: updated.id, name: updated.name, startDate: updated.start_date, endDate: updated.end_date, origin: updated.origin, destination: updated.destination, color: updated.color, visibility: updated.visibility, assignedMemberIds: updated.assigned_member_ids || [], invitedMemberIds: updated.invited_member_ids || [] };
       onTripUpdate({ ...trip, segments: segments.map((s: TripSegment) => s.id === editSegId ? updatedSeg : s) });
       setEditSegId(null);
-    } catch { showToast("Failed to update segment.", 'error'); }
+    } catch (e: any) { showToast(e.message || t('segments.updateFailed'), 'error'); }
     setEditSegSaving(false);
   };
 
@@ -5675,7 +5689,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
         body: JSON.stringify({ callerSub: user.sub }),
       });
       onTripUpdate({ ...trip, segments: segments.filter((s: TripSegment) => s.id !== segId) });
-    } catch { showToast("Failed to delete segment.", 'error'); }
+    } catch { showToast(t('segments.deleteFailed'), 'error'); }
   };
 
   return (
@@ -5875,11 +5889,11 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
               <Input placeholder={t('segments.segmentNamePlace')} value={segName} onChange={setSegName} style={{ marginBottom: 10 }} />
               <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.fromLabel')}</div>
+                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.originLabel')}</div>
                   <Input placeholder={t('segments.originPlace')} value={segOrigin} onChange={setSegOrigin} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.toLabel')}</div>
+                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.destinationLabel')}</div>
                   <Input placeholder={t('segments.destinationPlace')} value={segDest} onChange={setSegDest} />
                 </div>
               </div>
@@ -5971,8 +5985,8 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
               <div style={{ fontWeight: 700, marginBottom: 12 }}>{t('segments.editSegmentTitle')}</div>
               <Input placeholder={t('segments.segmentNameReqPlace')} value={editSegName} onChange={setEditSegName} style={{ marginBottom: 10 }} />
               <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
-                <div style={{ flex: 1 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.fromLabel')}</div><Input placeholder={t('segments.originPlace')} value={editSegOrigin} onChange={setEditSegOrigin} /></div>
-                <div style={{ flex: 1 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.toLabel')}</div><Input placeholder={t('segments.destinationPlace')} value={editSegDest} onChange={setEditSegDest} /></div>
+                <div style={{ flex: 1 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.originLabel')}</div><Input placeholder={t('segments.originPlace')} value={editSegOrigin} onChange={setEditSegOrigin} /></div>
+                <div style={{ flex: 1 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.destinationLabel')}</div><Input placeholder={t('segments.destinationPlace')} value={editSegDest} onChange={setEditSegDest} /></div>
               </div>
               <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
                 <div style={{ flex: 1 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.startLabel')}</div><Card style={{ padding: 10 }}><input type="date" value={editSegStart} onChange={e => setEditSegStart(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} /></Card></div>
@@ -6263,8 +6277,8 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
       onTripCreate?.(rowToTrip(await res.json()));
       setNewTripName(""); setNewTripDest(""); setNewTripStart(""); setNewTripEnd("");
       setShowNewTrip(false);
-      showToast("Trip created!", 'success');
-    } catch (e: any) { showToast(e.message || "Failed to create trip.", 'error'); }
+      showToast(t('group.tripCreated'), 'success');
+    } catch (e: any) { showToast(e.message || t('group.failed', "Failed to create trip."), 'error'); }
     finally { setCreatingTrip(false); }
   };
 
@@ -6279,7 +6293,7 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
       if (!res.ok) throw new Error("Failed to save trip.");
       onTripUpdate?.(rowToTrip(await res.json()));
       setEditingTripId(null);
-      showToast("Trip saved!", 'success');
+      showToast(t('group.tripSaved'), 'success');
     } catch (e: any) { showToast(e.message || t('group.failed', "Failed."), 'error'); }
     finally { setSavingTrip(false); }
   };
@@ -6292,7 +6306,7 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
         body: JSON.stringify({ callerSub: user?.sub }),
       });
       onTripDelete?.(tripId);
-      showToast("Trip deleted!", 'success');
+      showToast(t('group.tripDeleted'), 'success');
     } catch { showToast(t('group.deleteFailed', "Failed to delete trip."), 'error'); }
     finally { setDeletingTripId(null); }
   };
@@ -6426,7 +6440,7 @@ const GroupScreen = ({ trips, activeTripId, user, onBack, onSwitchTrip, onTripUp
                           title: t('group.promptSet'),
                           message: '',
                           confirmLabel: t('group.confirmBtn', 'Confirm'),
-                          variant: 'primary',
+                          variant: 'default',
                           onConfirm: () => onSwitchTrip(trip.id)
                         });
                       }}>{t('group.setActiveBtn')}</Btn>
@@ -6732,7 +6746,7 @@ const TodoScreen = ({ activeTripId, onBack }: { activeTripId: string | null; onB
               }} onClick={() => setDetailItem(todo)}>
                 {(isDueToday || isOverdueNow) && (
                   <div style={{ background: `${C.red}20`, color: C.red, fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, padding: '4px 10px', borderRadius: 6, marginBottom: 10, textAlign: 'center' }}>
-                    {isOverdueNow ? `⚠️ ${t('todo.overdue')}` : `🔥 ${t('todo.dueToday', 'Vence hoje!')}`}
+                    {isOverdueNow ? `⚠️ ${t('todo.overdue')}` : `🔥 ${t('todo.dueToday')}`}
                   </div>
                 )}
                 {isDueTomorrow && (
