@@ -800,16 +800,17 @@ const ActiveTripCard = ({ trip, onSwitch, activeSavedBudget, onCreateBudget, isP
   const currency = activeSavedBudget?.currency || "EUR";
 
   return (
-    <div style={{ background: C.card3, borderRadius: 14, padding: detailed ? "12px 16px" : "10px 14px", display: "flex", alignItems: "center", gap: 10, cursor: onSwitch ? "pointer" : "default" }} onClick={onSwitch}>
+    <div style={{ position: "relative", background: C.card3, borderRadius: 14, padding: detailed ? "12px 16px" : "10px 14px", display: "flex", alignItems: "center", gap: 10, cursor: onSwitch ? "pointer" : "default" }} onClick={onSwitch}>
       {onTogglePrivate && (
         <button
           onClick={(e) => { e.stopPropagation(); onTogglePrivate(); }}
-          style={{ background: "none", border: "none", padding: 4, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+          style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", background: `${C.bg}dd`, border: "none", borderRadius: "50%", padding: 6, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10, boxShadow: "0 2px 8px rgba(0,0,0,0.3)" }}
         >
-          <Icon d={isPrivate ? icons.eyeOff : icons.eye} size={16} stroke={C.textMuted} />
+          <Icon d={isPrivate ? icons.eyeOff : icons.eye} size={18} stroke={C.cyan} />
         </button>
       )}
       {!onTogglePrivate && <span style={{ fontSize: 18 }}>✈️</span>}
+      {onTogglePrivate && isPrivate && <div style={{ width: 18, height: 18 }} />}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 11, color: C.textMuted, letterSpacing: 1 }}>{t('wallet.activeTrip')}</div>
         <div style={{ fontSize: detailed ? 16 : 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{trip.name}</div>
@@ -1147,7 +1148,15 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
   return (
     <div style={{ padding: "0 0 100px" }}>
       <div style={{ padding: "16px 20px 0" }}>
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 8 }}>
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 8, position: "relative" }}>
+          {onTogglePrivate && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onTogglePrivate(); }}
+              style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", background: `${C.bg}dd`, border: "none", borderRadius: "50%", padding: 6, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10, boxShadow: "0 2px 8px rgba(0,0,0,0.3)" }}
+            >
+              <Icon d={isPrivate ? icons.eyeOff : icons.eye} size={18} stroke={C.cyan} />
+            </button>
+          )}
           <div style={{ position: "relative", zIndex: 1 }}>
             <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, fontWeight: 600, marginBottom: 4 }}>{t('home.budgetDailyLabel')}</div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 2 }}>
@@ -1161,14 +1170,6 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
             </div>
           </div>
           <div style={{ textAlign: "right", position: "relative", zIndex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 2 }}>
-              <button
-                onClick={(e) => { e.stopPropagation(); onTogglePrivate(); }}
-                style={{ background: "none", border: "none", padding: 4, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-              >
-                <Icon d={isPrivate ? icons.eyeOff : icons.eye} size={16} stroke={C.textMuted} />
-              </button>
-            </div>
             <div style={{ fontSize: 16, fontWeight: 700, color: remaining >= 0 ? C.green : C.red }}>{remaining >= 0 ? '+' : ''}{currSym(budgetCurrency)}{isPrivate ? '***' : fmtAmt(Math.abs(remaining))}</div>
             <div style={{ fontSize: 10, color: C.textSub, letterSpacing: 0.5 }}>{remaining >= 0 ? t('wallet.remaining') : t('wallet.overBudget')}</div>
           </div>
@@ -3534,10 +3535,11 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
     }
   }, []);
 
+  const baseCurrency = (activeSavedBudget?.currency || budget.baseCurrency) as Currency;
   useEffect(() => {
-    if (localCurrency === budget.baseCurrency) { setDisplayRate(1); setCustomRateStr("1"); return; }
-    fetchRate(localCurrency, budget.baseCurrency).then(r => { setDisplayRate(r); setCustomRateStr(String(r)); }).catch(() => { setDisplayRate(1); setCustomRateStr("1"); });
-  }, [localCurrency, budget.baseCurrency]);
+    if (localCurrency === baseCurrency) { setDisplayRate(1); setCustomRateStr("1"); return; }
+    fetchRate(localCurrency, baseCurrency).then(r => { setDisplayRate(r); setCustomRateStr(String(r)); }).catch(() => { setDisplayRate(1); setCustomRateStr("1"); });
+  }, [localCurrency, baseCurrency]);
 
   const taxVal = parseFloat(taxAmountStr) || 0;
   const discVal = parseFloat(discountAmountStr) || 0;
@@ -3603,7 +3605,7 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
             activeSavedBudget={activeSavedBudget}
             onCreateBudget={onGoToBudget}
             isPrivate={isPrivate}
-            onTogglePrivate={null}
+            onTogglePrivate={onTogglePrivate}
             detailed={true}
           />
         </div>
@@ -3690,14 +3692,14 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
                 </div>
               </div>
             </div>
-            {localCurrency !== budget.baseCurrency && (
+            {localCurrency !== baseCurrency && (
               <div>
-                <div style={{ fontSize: 11, color: C.textSub, marginBottom: 4 }}>Exchange Rate ({localCurrency} to {budget.baseCurrency})</div>
+                <div style={{ fontSize: 11, color: C.textSub, marginBottom: 4 }}>Exchange Rate ({localCurrency} to {baseCurrency})</div>
                 <div style={{ display: "flex", background: C.bg, borderRadius: 8, padding: 4 }}>
                   <input value={customRateStr} onChange={e => setCustomRateStr(e.target.value)} placeholder="1.00" style={{ background: "transparent", border: "none", color: C.text, width: "100%", outline: "none", paddingLeft: 8 }} />
                   <button onClick={async () => {
                     try {
-                      const r = await fetchRate(localCurrency, budget.baseCurrency);
+                      const r = await fetchRate(localCurrency, baseCurrency);
                       setCustomRateStr(String(r));
                     } catch { }
                   }} style={{ background: C.card3, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", display: "flex", alignItems: "center" }} title="Refresh rate from API">
@@ -3710,7 +3712,10 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
               <div style={{ fontSize: 11, color: C.textSub, letterSpacing: 1 }}>{t('addExpense.finalPreviewLabel')}</div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                 <div style={{ fontSize: 13, color: C.textMuted }}>{currSym(localCurrency)}{fmtAmt(effectiveLocal)}</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: C.cyan }}>{currSym(budget.baseCurrency)}{fmtAmt(previewBaseAmount)}</div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: C.cyan }}>{currSym(baseCurrency)}{fmtAmt(previewBaseAmount)}</div>
+                  <div style={{ fontSize: 10, color: C.cyan, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>{t('addExpense.baseEquiv')} ({baseCurrency})</div>
+                </div>
               </div>
             </div>
           </div>
@@ -3744,8 +3749,8 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
         <div style={{ background: C.card3, borderRadius: 14, padding: "12px 16px", flex: 1 }}>
           <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 4 }}>{t('addExpense.dailyBalanceLabel')}</div>
           <div style={{ color: remainingBase >= 0 ? C.green : C.red, fontSize: 15, fontWeight: 800 }}>
-            {currSym(budget.baseCurrency)}{fmtAmt(remainingBase)}
-            {localCurrency !== budget.baseCurrency ? ` / ${currSym(localCurrency)}${fmtAmt(remainingLocal)}` : ""}
+            {currSym(baseCurrency)}{fmtAmt(remainingBase)}
+            {localCurrency !== baseCurrency ? ` / ${currSym(localCurrency)}${fmtAmt(remainingLocal)}` : ""}
           </div>
         </div>
         {selectedSource && (
@@ -3754,8 +3759,8 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
               {isCredit ? "SOURCE CREDIT REMAINING" : "SOURCE BALANCE REMAINING"}
             </div>
             <div style={{ color: sourceRemainingBase >= 0 ? C.green : C.red, fontSize: 15, fontWeight: 800 }}>
-              {currSym(budget.baseCurrency)}{fmtAmt(sourceRemainingBase)}
-              {!isCredit && localCurrency !== budget.baseCurrency ? ` / ${currSym(localCurrency)}${fmtAmt(sourceRemainingLocal)}` : ""}
+              {currSym(baseCurrency)}{fmtAmt(sourceRemainingBase)}
+              {!isCredit && localCurrency !== baseCurrency ? ` / ${currSym(localCurrency)}${fmtAmt(sourceRemainingLocal)}` : ""}
             </div>
           </div>
         )}
@@ -3882,7 +3887,7 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
           discountAmount: discVal,
           discountType,
           cambialRate: currentRate,
-          baseCurrency: budget.baseCurrency,
+          baseCurrency,
           localToBaseRate: currentRate,
           whoPaid: expType === "group" ? whoPaid : undefined,
           splits: expType === "group" ? shares : undefined,
