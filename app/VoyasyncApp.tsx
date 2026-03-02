@@ -117,19 +117,22 @@ interface Trip {
 
 type EventCategory = "flight" | "transit" | "checkin" | "hotel" | "activity" | "food" | "car" | "other";
 
+interface ItineraryEventWeather { temp: number; code: number };
+
 interface ItineraryEvent {
   id: string;
-  date: string;           // "YYYY-MM-DD"
-  time: string;           // "HH:MM"
+  date: string; // YYYY-MM-DD
+  time: string; // HH:mm
+  endDate?: string;
+  endTime?: string;
   category: EventCategory;
   title: string;
   subtitle?: string;
   location?: { address?: string; lat?: number; lng?: number };
-  docUrls?: string[];
-  durationMin?: number;
-  segmentId?: string;  // source trip_segment.id — used for conflict cross-referencing
+  segmentId?: string;
+  color?: string;
+  weather?: ItineraryEventWeather;
   isCustom?: boolean;
-  weather?: { temp: number; code: number };
   _record?: ItineraryEventRecord;
 }
 
@@ -290,32 +293,34 @@ function segmentsToEvents(segments: TripSegment[], t: any): ItineraryEvent[] {
     // If no startDate/endDate, skip or use fallbacks? Segments usually have them.
     if (!seg.startDate) return;
 
-    const sDate = seg.startDate.substring(0, 10);
-    const sTime = seg.startDate.includes('T') ? seg.startDate.substring(11, 16) : "00:00";
-
-    const eDate = seg.endDate ? seg.endDate.substring(0, 10) : sDate;
-    const eTime = seg.endDate && seg.endDate.includes('T') ? seg.endDate.substring(11, 16) : "23:59";
+    const sd = seg.startDate.substring(0, 10);
+    const st = seg.startDate.includes('T') ? seg.startDate.substring(11, 16) : '00:00';
+    const ed = seg.endDate ? seg.endDate.substring(0, 10) : sd;
+    const et = seg.endDate && seg.endDate.includes('T') ? seg.endDate.substring(11, 16) : '23:59';
 
     if (seg.origin && seg.destination) {
       events.push({
-        id: `${seg.id}-travel`, date: sDate, time: sTime, category: "flight",
+        id: `${seg.id}-travel`, date: sd, time: st, endDate: ed, endTime: et, category: "flight",
         title: `${seg.origin} → ${seg.destination}`, subtitle: seg.name,
         location: { address: seg.destination }, segmentId: seg.id,
       });
     }
     events.push({
-      id: `${seg.id}-checkin`, date: sDate, time: sTime, category: "checkin",
+      id: `${seg.id}-checkin`, date: sd, time: st, endDate: ed, endTime: et, category: "checkin",
       title: `${t('itinerary.segmentStart') || 'Segment Start'}: ${seg.name}`, subtitle: seg.destination,
       location: seg.destination ? { address: seg.destination } : undefined, segmentId: seg.id,
     });
     if (seg.endDate) {
       events.push({
-        id: `${seg.id}-checkout`, date: eDate, time: eTime, category: "hotel",
+        id: `${seg.id}-checkout`, date: ed, time: et, endDate: ed, endTime: et, category: "hotel",
         title: `${t('itinerary.segmentEnd') || 'Segment End'}: ${seg.name}`, subtitle: seg.destination, segmentId: seg.id,
       });
     }
   });
-  return events.sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+  return events.sort((a, b) => {
+    if (a.date !== b.date) return a.date.localeCompare(b.date);
+    return a.time.localeCompare(b.time);
+  });
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -466,7 +471,7 @@ const icons: Record<string, any> = {
   users: ["M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2", "M9 11a4 4 0 100-8 4 4 0 000 8z", "M23 21v-2a4 4 0 00-3-3.87", "M16 3.13a4 4 0 010 7.75"],
   copy: ["M20 9h-9a2 2 0 00-2 2v9a2 2 0 002 2h9a2 2 0 002-2v-9a2 2 0 00-2-2z", "M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"],
   edit: ["M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7", "M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"],
-  trash: ["M3 6h18", "M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"],
+  trash: ["M3 6h18", "M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011-1v2"],
   eye: ["M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z", "M12 15a3 3 0 100-6 3 3 0 000 6z"],
   eyeOff: ["M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94", "M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19", "M1 1l22 22", "M9.17 9.17a3 3 0 104.24 4.24"],
   share: ["M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8", "M16 6l-4-4-4 4", "M12 2v13"],
@@ -732,23 +737,25 @@ function itinTypeIcon(type: ItinEventType): string {
   return icons.calendar;
 }
 
-function itinRecordToEvent(rec: ItineraryEventRecord): ItineraryEvent & { isCustom: true; _record: ItineraryEventRecord } {
+function recToEvent(rec: ItineraryEventRecord): ItineraryEvent {
   const dt = new Date(rec.startDt);
   const date = localDateKey(dt);
   const time = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
+  const endDt = rec.endDt ? new Date(rec.endDt) : undefined;
+  const endDate = endDt ? localDateKey(endDt) : undefined;
+  const endTime = endDt ? `${String(endDt.getHours()).padStart(2, '0')}:${String(endDt.getMinutes()).padStart(2, '0')}` : undefined;
   const cat: EventCategory =
     rec.type === 'flight' ? 'flight' :
       rec.type === 'meal' ? 'food' :
-        rec.type === 'car' ? 'car' :
-          (rec.type === 'hotel_in' || rec.type === 'hotel_out') ? 'hotel' :
-            'activity';
+        (rec.type === 'hotel_in' || rec.type === 'hotel_out') ? 'hotel' :
+          'activity';
   return {
-    id: rec.id, date, time, category: cat,
+    id: rec.id, date, time, endDate, endTime, category: cat,
     title: rec.title,
     subtitle: rec.location,
     location: rec.location ? { address: rec.location } : undefined,
-    isCustom: true,
-    _record: rec,
+    color: rec.type === 'flight' ? C.cyan : undefined,
+    weather: rec.weather,
   };
 }
 
@@ -782,11 +789,18 @@ const Card = ({ children, style = {}, onClick }: any) => (
   </div>
 );
 
-const ActiveTripCard = ({ trip, onSwitch, activeSavedBudget, onCreateBudget, isPrivate, onTogglePrivate }: any) => {
+const ActiveTripCard = ({ trip, onSwitch, activeSavedBudget, onCreateBudget, isPrivate, onTogglePrivate, detailed = false }: any) => {
   const { t } = useTranslation();
   if (!trip) return null;
+
+  const tripDays = trip.startDate && trip.endDate
+    ? Math.max(1, Math.round((new Date(trip.endDate + 'T12:00:00').getTime() - new Date(trip.startDate + 'T12:00:00').getTime()) / (1000 * 60 * 60 * 24)) + 1)
+    : 0;
+  const dailyMax = tripDays > 0 ? (activeSavedBudget?.amount || 0) / tripDays : 0;
+  const currency = activeSavedBudget?.currency || "EUR";
+
   return (
-    <div style={{ background: C.card3, borderRadius: 14, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+    <div style={{ background: C.card3, borderRadius: 14, padding: detailed ? "12px 16px" : "10px 14px", display: "flex", alignItems: "center", gap: 10, cursor: onSwitch ? "pointer" : "default" }} onClick={onSwitch}>
       {onTogglePrivate && (
         <button
           onClick={(e) => { e.stopPropagation(); onTogglePrivate(); }}
@@ -796,14 +810,19 @@ const ActiveTripCard = ({ trip, onSwitch, activeSavedBudget, onCreateBudget, isP
         </button>
       )}
       {!onTogglePrivate && <span style={{ fontSize: 18 }}>✈️</span>}
-      <div onClick={onSwitch} style={{ flex: 1, minWidth: 0, cursor: "pointer" }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 11, color: C.textMuted, letterSpacing: 1 }}>{t('wallet.activeTrip')}</div>
-        <div style={{ fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{trip.name}</div>
+        <div style={{ fontSize: detailed ? 16 : 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{trip.name}</div>
       </div>
       {activeSavedBudget ? (
         <div style={{ textAlign: "right", flexShrink: 0 }}>
           <div style={{ fontSize: 11, color: C.textMuted }}>{t('wallet.budgetLabel')}</div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: C.cyan }}>{activeSavedBudget.currency} {isPrivate ? '***' : activeSavedBudget.amount.toLocaleString()}</div>
+          <div style={{ fontSize: detailed ? 15 : 13, fontWeight: 700, color: C.cyan }}>{currency} {isPrivate ? '***' : activeSavedBudget.amount.toLocaleString()}</div>
+          {detailed && dailyMax > 0 && (
+            <div style={{ fontSize: 10, color: C.textSub }}>
+              {currency} {isPrivate ? '***' : Math.round(dailyMax).toLocaleString()}/{t('common.day') || 'day'} · {tripDays}d
+            </div>
+          )}
         </div>
       ) : onCreateBudget ? (
         <button onClick={(e) => { e.stopPropagation(); onCreateBudget(); }} style={{ background: C.cyan, color: "#000", border: "none", borderRadius: 16, padding: "6px 14px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{t('wallet.createBudgetBtn')}</button>
@@ -961,9 +980,8 @@ const BottomNav = ({ active, onNav }: any) => {
   );
 };
 
-const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTripId, activeTrip, user, isPanicModeActive, serverActivity = [], onSOS, onShowMap, onTodo, isPrivate, todaySpent, yesterdaySpent, activeSavedBudget }: any) => {
+const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTripId, activeTrip, user, isPanicModeActive, serverActivity = [], onSOS, onShowMap, onTodo, isPrivate, todaySpent, yesterdaySpent, activeSavedBudget, budget }: any) => {
   const { t } = useTranslation();
-  const [budget, setBudget] = useState<TripBudget>(DEFAULT_BUDGET);
   const [allExpenses, setAllExpenses] = useState<Expense[]>([]);
   const [inviteEvents, setInviteEvents] = useState<InviteEvent[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<ItineraryEventRecord[]>([]);
@@ -984,33 +1002,12 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
   const [homeEditDiscountType, setHomeEditDiscountType] = useState<'fixed' | 'percentage'>('fixed');
   const [homeEditCambialRate, setHomeEditCambialRate] = useState("1");
   const [homeConfirmDelete, setHomeConfirmDelete] = useState(false);
-  const [activeSavedBudget, setActiveSavedBudget] = useState<SavedBudget | null>(null);
 
   useEffect(() => {
     try {
-      const bs = localStorage.getItem('voyasync_budget');
-      const b: TripBudget = bs ? JSON.parse(bs) : DEFAULT_BUDGET;
-      setBudget(b);
-
-      const savedBs = localStorage.getItem('voyasync_saved_budgets');
-      if (savedBs) {
-        const parsed = JSON.parse(savedBs) as SavedBudget[];
-        const active = parsed.find(sb => sb.activeTripId === activeTripId);
-        setActiveSavedBudget(active || null);
-      }
-
       const es = localStorage.getItem('voyasync_expenses');
       const all: Expense[] = es ? JSON.parse(es) : [];
-      const expenses: Expense[] = all
-        .filter(e => !e.tripId || !activeTripId || e.tripId === activeTripId)
-        .sort((a: Expense, b: Expense) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      const todayKey = localDateKey(new Date());
-      const yest = new Date(); yest.setDate(yest.getDate() - 1);
-      const yesterdayKey = localDateKey(yest);
-      setTodaySpent(expenses.filter(e => localDateKey(new Date(e.date)) === todayKey).reduce((s, e) => s + e.baseAmount, 0));
-      setYesterdaySpent(expenses.filter(e => localDateKey(new Date(e.date)) === yesterdayKey).reduce((s, e) => s + e.baseAmount, 0));
-      setAllExpenses(expenses);
-      setInviteEvents(getInviteEvents());
+      setAllExpenses(all.filter(e => !e.tripId || !activeTripId || e.tripId === activeTripId));
     } catch { }
     // Background hydration from server
     if (activeTripId && user?.sub) {
@@ -1037,13 +1034,7 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
           }
           const merged = mergeServerExpenses(stored, rows.map(rowToExpense), activeTripId);
           localStorage.setItem('voyasync_expenses', JSON.stringify(merged));
-          // Use same filter as initial render — includes expenses with no tripId
           const forTrip = merged.filter(e => !e.tripId || !activeTripId || e.tripId === activeTripId);
-          const todayKey = localDateKey(new Date());
-          const yest = new Date(); yest.setDate(yest.getDate() - 1);
-          const yesterdayKey = localDateKey(yest);
-          setTodaySpent(forTrip.filter(e => localDateKey(new Date(e.date)) === todayKey).reduce((s, e) => s + e.baseAmount, 0));
-          setYesterdaySpent(forTrip.filter(e => localDateKey(new Date(e.date)) === yesterdayKey).reduce((s, e) => s + e.baseAmount, 0));
           setAllExpenses(forTrip);
         })
         .catch(() => { });
@@ -1058,7 +1049,7 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
     }
   }, [activeTripId]);
 
-  const sourceMap = Object.fromEntries(budget.sources.map(s => [s.id, s]));
+  const sourceMap = Object.fromEntries((budget?.sources || []).map((s: any) => [s.id, s]));
 
   const saveHomeExpenses = (arr: Expense[]) => {
     const sorted = [...arr].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -1141,7 +1132,7 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
   const tripDays = activeTrip
     ? Math.max(1, Math.round((new Date(activeTrip.endDate + 'T12:00:00').getTime() - new Date(activeTrip.startDate + 'T12:00:00').getTime()) / (1000 * 60 * 60 * 24)) + 1)
     : 0;
-  const dailyMax = tripDays > 0 && totalBudgetInBase > 0 ? totalBudgetInBase / tripDays : 0;
+  const dailyMax = tripDays > 0 && todaySpent >= 0 ? (activeSavedBudget?.amount || 0) / tripDays : 0;
 
   const pct = dailyMax > 0 ? Math.min(todaySpent / dailyMax, 1) : 0;
   const barColor = pct > 0.85 ? C.red : pct > 0.6 ? C.yellow : C.cyan;
@@ -1164,26 +1155,47 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
     badgeBg = "#1a2a1a"; badgeColor = C.green;
   }
 
+  const trendUp = todaySpent > yesterdaySpent;
+  const trendPerc = yesterdaySpent > 0 ? ((todaySpent - yesterdaySpent) / yesterdaySpent) * 100 : 0;
+  const remaining = totalBudgetInBase - todaySpent;
+
   return (
     <div style={{ padding: "0 0 100px" }}>
       <div style={{ padding: "16px 20px 0" }}>
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-            <span style={{ fontSize: 40, fontWeight: 800, color: C.text, letterSpacing: -1 }}>{currSym(budgetCurrency)}{isPrivate ? '***' : fmtAmt(todaySpent)}</span>
-            <span style={{ color: C.textMuted, fontSize: 18 }}>/ {currSym(budgetCurrency)}{isPrivate ? '***' : fmtAmt(dailyMax, 0)}</span>
-          </div>
-          {!isPrivate && (
-            <div style={{ background: badgeBg, color: badgeColor, borderRadius: 20, padding: "4px 10px", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
-              <span>{badgeArrow}</span> {badgeLabel}
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 8 }}>
+          <div style={{ position: "relative", zIndex: 1 }}>
+            <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, fontWeight: 600, marginBottom: 4 }}>{t('home.budgetUsage')}</div>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 2 }}>
+              <span style={{ fontSize: 32, fontWeight: 800, letterSpacing: -1 }}>{currSym(budgetCurrency)}{isPrivate ? '***' : fmtAmt(todaySpent)}</span>
+              <span style={{ fontSize: 13, color: trendUp ? C.red : C.green, fontWeight: 700 }}>
+                {trendUp ? '↑' : '↓'} {isPrivate ? '***' : Math.abs(trendPerc).toFixed(0)}%
+              </span>
             </div>
-          )}
+            <div style={{ fontSize: 12, color: C.textSub }}>
+              {t('home.yesterday')}: {currSym(budgetCurrency)}{isPrivate ? '***' : fmtAmt(yesterdaySpent)}
+            </div>
+          </div>
+          <div style={{ textAlign: "right", position: "relative", zIndex: 1 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: remaining >= 0 ? C.green : C.red }}>{remaining >= 0 ? '+' : ''}{currSym(budgetCurrency)}{isPrivate ? '***' : fmtAmt(Math.abs(remaining))}</div>
+            <div style={{ fontSize: 10, color: C.textSub, letterSpacing: 0.5 }}>{remaining >= 0 ? t('wallet.remaining') : t('wallet.overBudget')}</div>
+          </div>
         </div>
-        <div style={{ height: 6, background: C.card3, borderRadius: 4, overflow: "hidden" }}>
+
+        <div style={{ height: 6, background: C.card3, borderRadius: 4, overflow: "hidden", marginBottom: 16 }}>
           <div style={{ width: `${pct * 100}%`, height: "100%", background: barColor, borderRadius: 4, transition: "width 0.3s" }} />
         </div>
-        {yesterdaySpent > 0 && (
-          <div style={{ color: C.textSub, fontSize: 11, marginTop: 6, textAlign: "right" }}>
-            {t('home.vsYesterday')} {currSym(budgetCurrency)}{isPrivate ? '***' : fmtAmt(yesterdaySpent)}
+
+        {activeTrip && (
+          <div style={{ padding: "0 0 20px" }}>
+            <ActiveTripCard
+              trip={activeTrip}
+              onSwitch={onShowGroup}
+              activeSavedBudget={activeSavedBudget}
+              onCreateBudget={onCreateBudget}
+              isPrivate={isPrivate}
+              onTogglePrivate={() => { }}
+              detailed={true}
+            />
           </div>
         )}
         {!activeSavedBudget && (
@@ -1192,7 +1204,7 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
               <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.red }} />
               <span style={{ color: C.textMuted, fontSize: 13, fontWeight: 600 }}>{t('home.noBudget')}</span>
             </div>
-            <button onClick={() => onCreateBudget ? onCreateBudget() : onNav('wallet')} style={{ background: C.card, border: `1px solid ${C.cyan}`, color: C.cyan, borderRadius: 16, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{t('home.createOne')}</button>
+            <button onClick={() => onCreateBudget ? onCreateBudget() : onNav('wallet')} style={{ background: C.cyan, color: "#000", border: "none", borderRadius: 16, padding: "6px 14px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{t('home.createOne')}</button>
           </div>
         )}
       </div>
@@ -1200,13 +1212,30 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
         const events: ItineraryEvent[] = activeTrip ? segmentsToEvents(activeTrip.segments, t) : [];
         const todayStr = localDateKey(new Date());
         const nowStr = `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
-        const next = events.find(e => e.date > todayStr || (e.date === todayStr && e.time >= nowStr));
+
+        // Find first event that is either ongoing or in the future
+        const next = events.find(e => {
+          const startStr = e.date + "T" + e.time;
+          const endStr = (e.endDate || e.date) + "T" + (e.endTime || "23:59");
+          const nowFull = todayStr + "T" + nowStr;
+          return endStr >= nowFull;
+        });
+
         if (!next) return null;
+        const isOngoing = (next.date + "T" + next.time) <= (todayStr + "T" + nowStr);
+
         const eventDate = new Date(`${next.date}T${next.time}:00`);
-        const diffMs = eventDate.getTime() - Date.now();
-        const diffH = Math.floor(diffMs / 3_600_000);
-        const diffM = Math.floor((diffMs % 3_600_000) / 60_000);
-        const timeLabel = diffMs < 0 ? t('home.now') : diffH > 0 ? t('home.inTime', { h: diffH, m: diffM }) : t('home.inMins', { m: diffM });
+        const nowMs = Date.now();
+        const diffMs = eventDate.getTime() - nowMs;
+        const diffH = Math.floor(Math.abs(diffMs) / 3_600_000);
+        const diffM = Math.floor((Math.abs(diffMs) % 3_600_000) / 60_000);
+
+        let timeLabel = "";
+        if (isOngoing) {
+          timeLabel = t('home.ongoing') || "ONGOING";
+        } else {
+          timeLabel = diffH > 0 ? t('home.inTime', { h: diffH, m: diffM }) : t('home.inMins', { m: diffM });
+        }
         const catIcon = CATEGORY_ICONS[next.category] || icons.calendar;
         return (
           <div style={{ margin: "16px 20px 0", background: "linear-gradient(135deg, #0d2526 0%, #0a1a1a 100%)", borderRadius: 20, padding: 20, border: `1px solid ${C.cyan}20` }}>
@@ -1630,7 +1659,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub, onNav, onShowGroup
       if (stored) setItinEvents(JSON.parse(stored));
     } catch { }
     if (userSub) {
-      fetch(`/api/trips/${activeTripId}/itinerary?callerSub=${encodeURIComponent(userSub)}`)
+      fetch(`/api/trips/${activeTripId}/itinerary?callerSub=${encodeURIComponent(user.sub)}`)
         .then(r => r.ok ? r.json() : null)
         .then((rows: ItineraryEventRecord[] | null) => {
           if (!rows) return;
@@ -1799,7 +1828,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub, onNav, onShowGroup
   const dayCustomEvents = activeItinEvents
     .filter(e => localDateKey(new Date(e.startDt)) === selectedDay)
     .map(rec => {
-      const e = itinRecordToEvent(rec);
+      const e = recToEvent(rec);
       const loc = e.location?.address;
       if (loc) {
         const hour = e.time.split(':')[0];
@@ -1967,6 +1996,7 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub, onNav, onShowGroup
             onCreateBudget={onCreateBudget}
             isPrivate={isPrivate}
             onTogglePrivate={onTogglePrivate}
+            detailed={true}
           />
         </div>
       )}
@@ -2340,11 +2370,11 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub, onNav, onShowGroup
   );
 };
 
-const WalletScreen = ({ onAddExpense, onShowGroup, activeTripId, user, trips = [], initialTab = 'transactions', isPrivate, onTogglePrivate }: { onAddExpense: () => void; onShowGroup: () => void; activeTripId: string | null; user?: any; trips?: Trip[]; initialTab?: 'transactions' | 'analytics' | 'budget'; isPrivate: boolean; onTogglePrivate: () => void }) => {
+const WalletScreen = ({ onAddExpense, onShowGroup, activeTripId, user, trips = [], initialTab = 'transactions', isPrivate, onTogglePrivate, activeSavedBudget, budget, setBudgetState, setActiveSavedBudget }: {
+  onAddExpense: () => void; onShowGroup: () => void; activeTripId: string | null; user?: any; trips?: Trip[]; initialTab?: 'transactions' | 'analytics' | 'budget'; isPrivate: boolean; onTogglePrivate: () => void; activeSavedBudget: SavedBudget | null; budget: TripBudget; setBudgetState: (b: TripBudget) => void; setActiveSavedBudget: (b: SavedBudget | null) => void
+}) => {
   const { t } = useTranslation();
-  const [budget, setBudgetState] = useState<TripBudget>(DEFAULT_BUDGET);
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [activeSavedBudget, setActiveSavedBudget] = useState<SavedBudget | null>(null);
   const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [editDesc, setEditDesc] = useState("");
@@ -2383,7 +2413,6 @@ const WalletScreen = ({ onAddExpense, onShowGroup, activeTripId, user, trips = [
   const [srcCurrency, setSrcCurrency] = useState<Currency>("EUR");
   const [srcAmount, setSrcAmount] = useState("");
   const [srcColor, setSrcColor] = useState("#00e5ff");
-  const [srcSaving, setSrcSaving] = useState(false);
   const srcColors = ["#00e5ff", "#30d158", "#ffd60a", "#ff3b30", "#f57c00", "#6a1b9a", "#1565c0", "#e91e8c"];
 
   useEffect(() => {
@@ -2794,30 +2823,11 @@ const WalletScreen = ({ onAddExpense, onShowGroup, activeTripId, user, trips = [
   });
   balanceRows.sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
 
+  // Wallet items
   return (
     <div style={{ padding: "0 20px 100px" }}>
-      {/* ── Active trip banner ── */}
-      {activeTrip && (
-        <div style={{ background: C.card3, borderRadius: 14, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, marginTop: 16, marginBottom: 12 }}>
-          <span style={{ fontSize: 18 }}>✈️</span>
-          <div onClick={onShowGroup} style={{ flex: 1, minWidth: 0, cursor: "pointer" }}>
-            <div style={{ fontSize: 11, color: C.textMuted, letterSpacing: 1 }}>{t('wallet.activeTrip')}</div>
-            <div style={{ fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{activeTrip.name}</div>
-          </div>
-          {activeSavedBudget ? (
-            <div style={{ textAlign: "right", flexShrink: 0 }}>
-              <div style={{ fontSize: 11, color: C.textMuted }}>{t('wallet.budgetLabel')}</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: C.cyan }}>{activeSavedBudget.currency} {activeSavedBudget.amount.toLocaleString()}</div>
-              {dailyBudget > 0 && <div style={{ fontSize: 10, color: C.textSub }}>{currSym(budgetCurrency)}{fmtAmt(dailyBudget, 0)}/day · {tripDays}d</div>}
-            </div>
-          ) : (
-            <button onClick={(e) => { e.stopPropagation(); setWalletTab('budget'); }} style={{ background: C.cyan, color: "#000", border: "none", borderRadius: 16, padding: "6px 14px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{t('wallet.createBudgetBtn')}</button>
-          )}
-        </div>
-      )}
-
       {/* ── Header totals ── */}
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", paddingTop: activeTrip ? 4 : 16, marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", paddingTop: 16, marginBottom: 16 }}>
         <div>
           <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: -1 }}>{currSym(budgetCurrency)}{isPrivate ? '***' : fmtAmt(totalSpent)}</div>
           <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, fontWeight: 600 }}>{t('wallet.totalSpend')}</div>
@@ -2827,6 +2837,21 @@ const WalletScreen = ({ onAddExpense, onShowGroup, activeTripId, user, trips = [
           <div style={{ color: C.textSub, fontSize: 11, letterSpacing: 1 }}>{remaining >= 0 ? t('wallet.remaining') : t('wallet.overBudget')}</div>
         </div>
       </div>
+
+      {/* ── Active trip banner ── */}
+      {activeTrip && (
+        <div style={{ marginBottom: 20 }}>
+          <ActiveTripCard
+            trip={activeTrip}
+            onSwitch={onShowGroup}
+            activeSavedBudget={activeSavedBudget}
+            onCreateBudget={() => setWalletTab('budget')}
+            isPrivate={isPrivate}
+            onTogglePrivate={onTogglePrivate}
+            detailed={true}
+          />
+        </div>
+      )}
 
       {/* ── Tab switcher ── */}
       <div style={{ background: C.card3, borderRadius: 14, padding: 4, display: "flex", marginBottom: 20 }}>
@@ -3460,7 +3485,7 @@ function compressImage(file: File, maxPx = 800, quality = 0.7): Promise<string> 
   });
 }
 
-const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user }: any) => {
+const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user, activeSavedBudget, isPrivate }: any) => {
   const { t } = useTranslation();
   const [amount, setAmount] = useState("0");
   const [cat, setCat] = useState("food");
@@ -3600,21 +3625,15 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
     <div style={{ padding: "0 20px 100px", overflowY: "auto" }}>
       {activeTrip && (
         <div style={{ padding: "0 0 16px", marginTop: 16 }}>
-          <div style={{ background: C.card3, borderRadius: 14, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 18 }}>✈️</span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 11, color: C.textMuted, letterSpacing: 1 }}>{t('wallet.activeTrip')}</div>
-              <div style={{ fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{activeTrip.name}</div>
-            </div>
-            {activeSavedBudget ? (
-              <div style={{ textAlign: "right", flexShrink: 0 }}>
-                <div style={{ fontSize: 11, color: C.textMuted }}>{t('wallet.budgetLabel')}</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: C.cyan }}>{activeSavedBudget.currency} {isPrivate ? '***' : activeSavedBudget.amount.toLocaleString()}</div>
-              </div>
-            ) : (
-              <button onClick={(e) => { e.stopPropagation(); onGoToBudget(); }} style={{ background: C.cyan, color: "#000", border: "none", borderRadius: 16, padding: "6px 14px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{t('wallet.createBudgetBtn')}</button>
-            )}
-          </div>
+          <ActiveTripCard
+            trip={activeTrip}
+            onSwitch={null}
+            activeSavedBudget={activeSavedBudget}
+            onCreateBudget={onGoToBudget}
+            isPrivate={isPrivate}
+            onTogglePrivate={null}
+            detailed={true}
+          />
         </div>
       )}
       <div style={{ textAlign: "center", padding: "12px 0 16px", borderBottom: `1px solid ${C.border}` }}>
@@ -5925,11 +5944,11 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
     if (!segEnd) { setSegError(t('segments.endRequired')); return; }
 
     if (segStart && trip.startDate && segStart < trip.startDate) {
-      setSegError(t('segments.outOfBoundsStart'));
+      setSegError(`${t('segments.outOfBoundsStart')} (${new Date(trip.startDate + "T12:00:00").toLocaleDateString("pt-BR")})`);
       return;
     }
     if (segEnd && trip.endDate && segEnd > trip.endDate) {
-      setSegError(t('segments.outOfBoundsEnd'));
+      setSegError(`${t('segments.outOfBoundsEnd')} (${new Date(trip.endDate + "T12:00:00").toLocaleDateString("pt-BR")})`);
       return;
     }
     if (finalStart && finalEnd && finalEnd < finalStart) {
@@ -5977,11 +5996,11 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
     if (!editSegEnd) { showToast(t('segments.endRequired'), 'error'); return; }
 
     if (editSegStart && trip.startDate && editSegStart < trip.startDate) {
-      showToast(t('segments.outOfBoundsStart'), 'error');
+      showToast(`${t('segments.outOfBoundsStart')} (${new Date(trip.startDate + "T12:00:00").toLocaleDateString("pt-BR")})`, 'error');
       return;
     }
     if (editSegEnd && trip.endDate && editSegEnd > trip.endDate) {
-      showToast(t('segments.outOfBoundsEnd'), 'error');
+      showToast(`${t('segments.outOfBoundsEnd')} (${new Date(trip.endDate + "T12:00:00").toLocaleDateString("pt-BR")})`, 'error');
       return;
     }
     if (finalStart && finalEnd && finalEnd < finalStart) {
@@ -6218,23 +6237,35 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
               <div style={{ marginBottom: 12 }}>
                 <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.startLabel')}</div>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <Card style={{ padding: 10, flex: 2 }}>
-                    <input type="date" value={segStart} onChange={e => setSegStart(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%" }} />
-                  </Card>
-                  <Card style={{ padding: 10, flex: 1 }}>
-                    <input type="time" value={segStartTime} onChange={e => setSegStartTime(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%", paddingLeft: 4 }} />
-                  </Card>
+                  <div style={{ flex: 2 }}>
+                    <div style={{ fontSize: 10, color: C.textSub, marginBottom: 4, marginLeft: 4 }}>{t('common.date') || 'Data'}</div>
+                    <Card style={{ padding: 10 }}>
+                      <input type="date" value={segStart} onChange={e => setSegStart(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%" }} />
+                    </Card>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 10, color: C.textSub, marginBottom: 4, marginLeft: 4 }}>{t('common.time') || 'Hora'}</div>
+                    <Card style={{ padding: 10 }}>
+                      <input type="time" value={segStartTime} onChange={e => setSegStartTime(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%", paddingLeft: 4 }} />
+                    </Card>
+                  </div>
                 </div>
               </div>
               <div style={{ marginBottom: 12 }}>
                 <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.endLabel')}</div>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <Card style={{ padding: 10, flex: 2 }}>
-                    <input type="date" value={segEnd} onChange={e => setSegEnd(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%" }} />
-                  </Card>
-                  <Card style={{ padding: 10, flex: 1 }}>
-                    <input type="time" value={segEndTime} onChange={e => setSegEndTime(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%", paddingLeft: 4 }} />
-                  </Card>
+                  <div style={{ flex: 2 }}>
+                    <div style={{ fontSize: 10, color: C.textSub, marginBottom: 4, marginLeft: 4 }}>{t('common.date') || 'Data'}</div>
+                    <Card style={{ padding: 10 }}>
+                      <input type="date" value={segEnd} onChange={e => setSegEnd(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%" }} />
+                    </Card>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 10, color: C.textSub, marginBottom: 4, marginLeft: 4 }}>{t('common.time') || 'Hora'}</div>
+                    <Card style={{ padding: 10 }}>
+                      <input type="time" value={segEndTime} onChange={e => setSegEndTime(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%", paddingLeft: 4 }} />
+                    </Card>
+                  </div>
                 </div>
               </div>
               <div style={{ marginBottom: 12 }}>
@@ -6317,23 +6348,35 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
               <div style={{ marginBottom: 12 }}>
                 <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.startLabel')}</div>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <Card style={{ padding: 10, flex: 2 }}>
-                    <input type="date" value={editSegStart} onChange={e => setEditSegStart(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} />
-                  </Card>
-                  <Card style={{ padding: 10, flex: 1 }}>
-                    <input type="time" value={editSegStartTime} onChange={e => setEditSegStartTime(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%", paddingLeft: 4 }} />
-                  </Card>
+                  <div style={{ flex: 2 }}>
+                    <div style={{ fontSize: 10, color: C.textSub, marginBottom: 4, marginLeft: 4 }}>{t('common.date') || 'Data'}</div>
+                    <Card style={{ padding: 10 }}>
+                      <input type="date" value={editSegStart} onChange={e => setEditSegStart(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} />
+                    </Card>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 10, color: C.textSub, marginBottom: 4, marginLeft: 4 }}>{t('common.time') || 'Hora'}</div>
+                    <Card style={{ padding: 10 }}>
+                      <input type="time" value={editSegStartTime} onChange={e => setEditSegStartTime(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%", paddingLeft: 4 }} />
+                    </Card>
+                  </div>
                 </div>
               </div>
               <div style={{ marginBottom: 12 }}>
                 <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.endLabel')}</div>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <Card style={{ padding: 10, flex: 2 }}>
-                    <input type="date" value={editSegEnd} onChange={e => setEditSegEnd(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} />
-                  </Card>
-                  <Card style={{ padding: 10, flex: 1 }}>
-                    <input type="time" value={editSegEndTime} onChange={e => setEditSegEndTime(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%", paddingLeft: 4 }} />
-                  </Card>
+                  <div style={{ flex: 2 }}>
+                    <div style={{ fontSize: 10, color: C.textSub, marginBottom: 4, marginLeft: 4 }}>{t('common.date') || 'Data'}</div>
+                    <Card style={{ padding: 10 }}>
+                      <input type="date" value={editSegEnd} onChange={e => setEditSegEnd(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} />
+                    </Card>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 10, color: C.textSub, marginBottom: 4, marginLeft: 4 }}>{t('common.time') || 'Hora'}</div>
+                    <Card style={{ padding: 10 }}>
+                      <input type="time" value={editSegEndTime} onChange={e => setEditSegEndTime(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%", paddingLeft: 4 }} />
+                    </Card>
+                  </div>
                 </div>
               </div>
               <div style={{ marginBottom: 12 }}>
@@ -6383,7 +6426,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
           {segments.length === 0 && !showAddSeg && (
             <div style={{ color: C.textSub, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "40px 0" }}>{t('segments.noSegmentsYet')}</div>
           )}
-          {segments.filter(seg => seg.visibility === 'public' || isAdmin || seg.assignedMemberIds.includes(myMemberId) || seg.invitedMemberIds?.includes(myMemberId) || seg.assignedMemberIds.length === 0).map((seg: TripSegment) => {
+          {segments.filter(seg => seg.visibility === 'public' || isAdmin || (trip.ownerId === user?.sub) || seg.assignedMemberIds.includes(myMemberId) || seg.invitedMemberIds?.includes(myMemberId) || seg.assignedMemberIds.length === 0).map((seg: TripSegment) => {
             const assignedNames = seg.assignedMemberIds.length === 0 ? t('crew.everyone')
               : seg.assignedMemberIds.map((id: string) => accepted.find((m: TripMember) => m.id === id)?.name || '?').join(', ');
             const invitedNames = seg.invitedMemberIds?.map((id: string) => accepted.find((m: TripMember) => m.id === id)?.name || '?').join(', ');
@@ -7141,6 +7184,7 @@ function useGlobalSOSListener(allTripIds: string[], currentUserSub?: string, onS
           .in('trip_id', allTripIds)
           .eq('is_active', true)
           .neq('user_sub', currentUserSub)
+          .gt('updated_at', new Date(Date.now() - 2 * 3600 * 1000).toISOString())
           .order('updated_at', { ascending: false })
           .limit(1);
         if (data && data.length > 0) {
@@ -7646,7 +7690,16 @@ function AppShell() {
     const sosInitiatorSub = isPanicModeActive ? user?.sub : incomingSOSUser;
     content = <LiveMap tripId={activeTripId!} onBack={() => setShowLiveMap(false)} currentUserSub={user?.sub} sosInitiatorSub={sosInitiatorSub} />;
   } else if (showAddExpense) {
-    content = <AddExpenseScreen onBack={() => setShowAddExpense(false)} onGoToBudget={handleGoToBudget} activeTripId={activeTripId!} activeTrip={activeTrip!} user={user} isPrivate={isPrivate} onTogglePrivate={togglePrivate} />;
+    content = <AddExpenseScreen
+      onBack={() => setShowAddExpense(false)}
+      onGoToBudget={handleGoToBudget}
+      activeTripId={activeTripId!}
+      activeTrip={activeTrip!}
+      user={user}
+      activeSavedBudget={activeSavedBudget}
+      isPrivate={isPrivate}
+      onTogglePrivate={togglePrivate}
+    />;
   } else if (showHistory) {
     content = <TransactionHistoryScreen onBack={() => setShowHistory(false)} />;
   } else if (showManageCrew) {
@@ -7681,10 +7734,18 @@ function AppShell() {
       />
     );
   } else {
+    const [budget, setBudget] = useState<TripBudget>(DEFAULT_BUDGET);
+    useEffect(() => {
+      try {
+        const bs = localStorage.getItem('voyasync_budget');
+        if (bs) setBudget(JSON.parse(bs));
+      } catch { }
+    }, []);
+
     switch (tab) {
-      case "home": content = <HomeScreen onNav={handleNav} onAddExpense={handleOpenExpense} onCreateBudget={handleGoToBudget} onShowGroup={() => handleNav("group")} activeTripId={activeTripId} activeTrip={activeTrip} user={user} isPanicModeActive={isPanicModeActive} serverActivity={serverActivity} onSOS={() => setShowPanicModal(true)} onShowMap={() => setShowLiveMap(true)} onTodo={() => setShowTodo(true)} isPrivate={isPrivate} todaySpent={todaySpent} yesterdaySpent={yesterdaySpent} activeSavedBudget={activeSavedBudget} />; break;
+      case "home": content = <HomeScreen onNav={handleNav} onAddExpense={handleOpenExpense} onCreateBudget={handleGoToBudget} onShowGroup={() => handleNav("group")} activeTripId={activeTripId} activeTrip={activeTrip} user={user} isPanicModeActive={isPanicModeActive} serverActivity={serverActivity} onSOS={() => setShowPanicModal(true)} onShowMap={() => setShowLiveMap(true)} onTodo={() => setShowTodo(true)} isPrivate={isPrivate} todaySpent={todaySpent} yesterdaySpent={yesterdaySpent} activeSavedBudget={activeSavedBudget} budget={budget} />; break;
       case "itinerary": content = <ItineraryScreen activeTripId={activeTripId} activeTrip={activeTrip} userSub={user?.sub} onNav={handleNav} onCreateBudget={handleGoToBudget} onShowGroup={() => handleNav("group")} activeSavedBudget={activeSavedBudget} isPrivate={isPrivate} onTogglePrivate={togglePrivate} />; break;
-      case "wallet": content = <WalletScreen key={walletInitTab} initialTab={walletInitTab} onAddExpense={handleOpenExpense} activeTripId={activeTripId} user={user} trips={trips} onShowGroup={() => handleNav("group")} isPrivate={isPrivate} onTogglePrivate={togglePrivate} />; break;
+      case "wallet": content = <WalletScreen key={walletInitTab} initialTab={walletInitTab} onAddExpense={handleOpenExpense} activeTripId={activeTripId} user={user} trips={trips} onShowGroup={() => handleNav("group")} isPrivate={isPrivate} onTogglePrivate={togglePrivate} activeSavedBudget={activeSavedBudget} budget={budget} setBudgetState={setBudget} setActiveSavedBudget={setActiveSavedBudget} />; break;
       case "photos": content = (
         <SocialStreamScreen
           trips={trips}
