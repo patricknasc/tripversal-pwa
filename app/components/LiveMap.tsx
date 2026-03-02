@@ -98,9 +98,10 @@ export default function LiveMap({
         };
     }, [tripId]);
 
-    // Center on SOS initiator if present, otherwise first session
-    const initiatorSession = sessions.find(s => s.user_sub === sosInitiatorSub) ?? null;
-    const centerSession = initiatorSession ?? (sessions.length > 0 ? sessions[0] : null);
+    // Center on SOS initiator if present, otherwise first session with real coordinates
+    const sessionsWithCoords = sessions.filter(s => s.lat !== 0 || s.lng !== 0);
+    const initiatorSession = sessionsWithCoords.find(s => s.user_sub === sosInitiatorSub) ?? null;
+    const centerSession = initiatorSession ?? (sessionsWithCoords.length > 0 ? sessionsWithCoords[0] : null);
     const centerPos: [number, number] | null = centerSession ? [centerSession.lat, centerSession.lng] : null;
 
     const sosActive = sessions.some(s => s.user_sub === sosInitiatorSub);

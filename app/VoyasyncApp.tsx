@@ -833,7 +833,7 @@ const Header = ({ onSettings, onHome, isOnline = true, isSyncing = false, user }
           onClick={onHome}
           style={{ background: "none", border: "none", padding: 0, outline: "none", cursor: "pointer", display: "flex", alignItems: "center" }}
         >
-          <img src="/voyasync-logo-transp.png" alt="Voyasync" style={{ height: 36, objectFit: "contain" }} />
+          <img src="/voyasync-logo-transp.png" alt="Voyasync" style={{ height: 18, objectFit: "contain", paddingBottom: 9 }} />
         </button>
         <button
           onClick={() => {
@@ -7480,6 +7480,26 @@ function AppShell() {
           if (newState && "geolocation" in navigator) navigator.geolocation.getCurrentPosition(() => { });
 
           if (activeTripId && user) {
+            // Immediately upsert an active SOS session so other members receive the Realtime INSERT alert
+            // without waiting for GPS (which can be slow or blocked)
+            if (newState) {
+              anonSupabase.from('trip_sos_sessions').upsert({
+                trip_id: activeTripId,
+                user_sub: user.sub,
+                user_name: user.name || user.email?.split('@')[0] || '',
+                lat: 0,
+                lng: 0,
+                is_active: true,
+                updated_at: new Date().toISOString(),
+              }, { onConflict: 'trip_id, user_sub' }).then();
+            } else {
+              // Mark as inactive when SOS is resolved
+              anonSupabase.from('trip_sos_sessions')
+                .update({ is_active: false })
+                .eq('trip_id', activeTripId)
+                .eq('user_sub', user.sub)
+                .then();
+            }
             fetch(`/api/trips/${activeTripId}/activity`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
