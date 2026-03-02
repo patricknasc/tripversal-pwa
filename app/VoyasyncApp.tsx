@@ -277,23 +277,29 @@ function formatDisplayDate(dateStr: string): string {
 function segmentsToEvents(segments: TripSegment[], t: any): ItineraryEvent[] {
   const events: ItineraryEvent[] = [];
   segments.forEach(seg => {
+    const sDate = seg.startDate ? seg.startDate.substring(0, 10) : "";
+    const sTime = seg.startDate && seg.startDate.includes('T') ? seg.startDate.substring(11, 16) : "00:00";
+
+    const eDate = seg.endDate ? seg.endDate.substring(0, 10) : "";
+    const eTime = seg.endDate && seg.endDate.includes('T') ? seg.endDate.substring(11, 16) : "23:59";
+
     if (seg.startDate && seg.origin && seg.destination) {
       events.push({
-        id: `${seg.id}-travel`, date: seg.startDate, time: "09:00", category: "flight",
+        id: `${seg.id}-travel`, date: sDate, time: sTime, category: "flight",
         title: `${seg.origin} → ${seg.destination}`, subtitle: seg.name,
         location: { address: seg.destination }, segmentId: seg.id,
       });
     }
     if (seg.startDate) {
       events.push({
-        id: `${seg.id}-checkin`, date: seg.startDate, time: "14:00", category: "checkin",
+        id: `${seg.id}-checkin`, date: sDate, time: sTime, category: "checkin",
         title: `${t('itinerary.segmentStart') || 'Segment Start'}: ${seg.name}`, subtitle: seg.destination,
         location: seg.destination ? { address: seg.destination } : undefined, segmentId: seg.id,
       });
     }
     if (seg.endDate && seg.endDate !== seg.startDate) {
       events.push({
-        id: `${seg.id}-checkout`, date: seg.endDate, time: "11:00", category: "hotel",
+        id: `${seg.id}-checkout`, date: eDate, time: eTime, category: "hotel",
         title: `${t('itinerary.segmentEnd') || 'Segment End'}: ${seg.name}`, subtitle: seg.destination, segmentId: seg.id,
       });
     }
@@ -756,7 +762,7 @@ const Header = ({ onSettings, onHome, isOnline = true, isSyncing = false, user }
           onClick={onHome}
           style={{ background: "none", border: "none", padding: 0, outline: "none", cursor: "pointer", display: "flex", alignItems: "center" }}
         >
-          <img src="/logo.png" alt="Voyasync" style={{ height: 26, objectFit: "contain" }} />
+          <img src="/logo.png" alt="Voyasync" style={{ height: 38, objectFit: "contain" }} />
         </button>
         <button
           onClick={() => {
@@ -5486,7 +5492,9 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
   const [segOrigin, setSegOrigin] = useState("");
   const [segDest, setSegDest] = useState("");
   const [segStart, setSegStart] = useState("");
+  const [segStartTime, setSegStartTime] = useState("");
   const [segEnd, setSegEnd] = useState("");
+  const [segEndTime, setSegEndTime] = useState("");
   const [segColor, setSegColor] = useState("#00e5ff");
   const [segAssigned, setSegAssigned] = useState<string[]>([]);
   const [segSaving, setSegSaving] = useState(false);
@@ -5504,7 +5512,9 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
   const [editSegOrigin, setEditSegOrigin] = useState('');
   const [editSegDest, setEditSegDest] = useState('');
   const [editSegStart, setEditSegStart] = useState('');
+  const [editSegStartTime, setEditSegStartTime] = useState('');
   const [editSegEnd, setEditSegEnd] = useState('');
+  const [editSegEndTime, setEditSegEndTime] = useState('');
   const [editSegColor, setEditSegColor] = useState('#00e5ff');
   const [editSegAssigned, setEditSegAssigned] = useState<string[]>([]);
   const [editSegIconTab, setEditSegIconTab] = useState<'colors' | 'flags' | 'emojis'>('colors');
@@ -5628,7 +5638,19 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
 
   const handleAddSegment = async () => {
     if (!segName.trim()) { setSegError(t('segments.nameRequired')); return; }
-    if (segStart && segEnd && segEnd < segStart) {
+
+    const finalStart = segStart ? `${segStart}T${segStartTime || "00:00"}:00` : undefined;
+    const finalEnd = segEnd ? `${segEnd}T${segEndTime || "23:59"}:59` : undefined;
+
+    if (segStart && trip.startDate && segStart < trip.startDate) {
+      setSegError(t('segments.outOfBoundsStart'));
+      return;
+    }
+    if (segEnd && trip.endDate && segEnd > trip.endDate) {
+      setSegError(t('segments.outOfBoundsEnd'));
+      return;
+    }
+    if (finalStart && finalEnd && finalEnd < finalStart) {
       setSegError(t('segments.invalidDates'));
       return;
     }
@@ -5638,7 +5660,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
       const res = await fetch(`/api/trips/${trip.id}/segments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ callerSub: user.sub, name: segName.trim(), origin: segOrigin, destination: segDest, startDate: segStart || undefined, endDate: segEnd || undefined, color: segColor, assignedMemberIds: segAssigned }),
+        body: JSON.stringify({ callerSub: user.sub, name: segName.trim(), origin: segOrigin, destination: segDest, startDate: finalStart, endDate: finalEnd, color: segColor, assignedMemberIds: segAssigned }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -5647,7 +5669,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
       const seg = await res.json();
       const newSeg: TripSegment = { id: seg.id, name: seg.name, startDate: seg.start_date, endDate: seg.end_date, origin: seg.origin, destination: seg.destination, color: seg.color, visibility: seg.visibility, assignedMemberIds: seg.assigned_member_ids || [], invitedMemberIds: seg.invited_member_ids || [] };
       onTripUpdate({ ...trip, segments: [...segments, newSeg] });
-      setSegName(""); setSegOrigin(""); setSegDest(""); setSegStart(""); setSegEnd(""); setSegColor("#00e5ff"); setSegAssigned([]); setSegIconTab('colors'); setShowAddSeg(false);
+      setSegName(""); setSegOrigin(""); setSegDest(""); setSegStart(""); setSegStartTime(""); setSegEnd(""); setSegEndTime(""); setSegColor("#00e5ff"); setSegAssigned([]); setSegIconTab('colors'); setShowAddSeg(false);
     } catch (e: any) { showToast(e.message || t('segments.addFailed'), 'error'); }
     setSegSaving(false);
   };
@@ -5657,8 +5679,13 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
     setEditSegName(seg.name);
     setEditSegOrigin(seg.origin || '');
     setEditSegDest(seg.destination || '');
-    setEditSegStart(seg.startDate || '');
-    setEditSegEnd(seg.endDate || '');
+    const sd = seg.startDate ? seg.startDate.substring(0, 10) : '';
+    const st = seg.startDate && seg.startDate.includes('T') ? seg.startDate.substring(11, 16) : '';
+    setEditSegStart(sd); setEditSegStartTime(st);
+
+    const ed = seg.endDate ? seg.endDate.substring(0, 10) : '';
+    const et = seg.endDate && seg.endDate.includes('T') ? seg.endDate.substring(11, 16) : '';
+    setEditSegEnd(ed); setEditSegEndTime(et);
     setEditSegColor(seg.color);
     setEditSegAssigned(seg.assignedMemberIds || []);
     const c = seg.color;
@@ -5667,7 +5694,19 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
 
   const handleEditSegment = async () => {
     if (!editSegName.trim()) { showToast(t('segments.nameRequired'), 'error'); return; }
-    if (editSegStart && editSegEnd && editSegEnd < editSegStart) {
+
+    const finalStart = editSegStart ? `${editSegStart}T${editSegStartTime || "00:00"}:00` : undefined;
+    const finalEnd = editSegEnd ? `${editSegEnd}T${editSegEndTime || "23:59"}:59` : undefined;
+
+    if (editSegStart && trip.startDate && editSegStart < trip.startDate) {
+      showToast(t('segments.outOfBoundsStart'), 'error');
+      return;
+    }
+    if (editSegEnd && trip.endDate && editSegEnd > trip.endDate) {
+      showToast(t('segments.outOfBoundsEnd'), 'error');
+      return;
+    }
+    if (finalStart && finalEnd && finalEnd < finalStart) {
       showToast(t('segments.invalidDates'), 'error');
       return;
     }
@@ -5675,7 +5714,7 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
     try {
       const res = await fetch(`/api/trips/${trip.id}/segments/${editSegId}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ callerSub: user.sub, name: editSegName.trim(), origin: editSegOrigin || null, destination: editSegDest || null, startDate: editSegStart || null, endDate: editSegEnd || null, color: editSegColor, assignedMemberIds: editSegAssigned }),
+        body: JSON.stringify({ callerSub: user.sub, name: editSegName.trim(), origin: editSegOrigin || null, destination: editSegDest || null, startDate: finalStart || null, endDate: finalEnd || null, color: editSegColor, assignedMemberIds: editSegAssigned }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -5908,15 +5947,25 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
               <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.startLabel')}</div>
-                  <Card style={{ padding: 10 }}>
-                    <input type="date" value={segStart} onChange={e => setSegStart(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%" }} />
-                  </Card>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <Card style={{ padding: 10, flex: 1 }}>
+                      <input type="date" value={segStart} onChange={e => setSegStart(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%" }} />
+                    </Card>
+                    <Card style={{ padding: 10, width: 80 }}>
+                      <input type="time" value={segStartTime} onChange={e => setSegStartTime(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%", paddingLeft: 4 }} />
+                    </Card>
+                  </div>
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.endLabel')}</div>
-                  <Card style={{ padding: 10 }}>
-                    <input type="date" value={segEnd} onChange={e => setSegEnd(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%" }} />
-                  </Card>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <Card style={{ padding: 10, flex: 1 }}>
+                      <input type="date" value={segEnd} onChange={e => setSegEnd(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%" }} />
+                    </Card>
+                    <Card style={{ padding: 10, width: 80 }}>
+                      <input type="time" value={segEndTime} onChange={e => setSegEndTime(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%", paddingLeft: 4 }} />
+                    </Card>
+                  </div>
                 </div>
               </div>
               <div style={{ marginBottom: 12 }}>
@@ -5997,8 +6046,28 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
                 <div style={{ flex: 1 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.destinationLabel')}</div><Input placeholder={t('segments.destinationPlace')} value={editSegDest} onChange={setEditSegDest} /></div>
               </div>
               <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
-                <div style={{ flex: 1 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.startLabel')}</div><Card style={{ padding: 10 }}><input type="date" value={editSegStart} onChange={e => setEditSegStart(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} /></Card></div>
-                <div style={{ flex: 1 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.endLabel')}</div><Card style={{ padding: 10 }}><input type="date" value={editSegEnd} onChange={e => setEditSegEnd(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} /></Card></div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.startLabel')}</div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <Card style={{ padding: 10, flex: 1 }}>
+                      <input type="date" value={editSegStart} onChange={e => setEditSegStart(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} />
+                    </Card>
+                    <Card style={{ padding: 10, width: 80 }}>
+                      <input type="time" value={editSegStartTime} onChange={e => setEditSegStartTime(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%", paddingLeft: 4 }} />
+                    </Card>
+                  </div>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.endLabel')}</div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <Card style={{ padding: 10, flex: 1 }}>
+                      <input type="date" value={editSegEnd} onChange={e => setEditSegEnd(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} />
+                    </Card>
+                    <Card style={{ padding: 10, width: 80 }}>
+                      <input type="time" value={editSegEndTime} onChange={e => setEditSegEndTime(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%", paddingLeft: 4 }} />
+                    </Card>
+                  </div>
+                </div>
               </div>
               <div style={{ marginBottom: 12 }}>
                 <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.iconLabel')}</div>
