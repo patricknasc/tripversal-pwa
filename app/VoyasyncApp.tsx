@@ -285,27 +285,28 @@ function formatDisplayDate(dateStr: string): string {
 function segmentsToEvents(segments: TripSegment[], t: any): ItineraryEvent[] {
   const events: ItineraryEvent[] = [];
   segments.forEach(seg => {
-    const sDate = seg.startDate ? seg.startDate.substring(0, 10) : "";
-    const sTime = seg.startDate && seg.startDate.includes('T') ? seg.startDate.substring(11, 16) : "00:00";
+    // If no startDate/endDate, skip or use fallbacks? Segments usually have them.
+    if (!seg.startDate) return;
 
-    const eDate = seg.endDate ? seg.endDate.substring(0, 10) : "";
+    const sDate = seg.startDate.substring(0, 10);
+    const sTime = seg.startDate.includes('T') ? seg.startDate.substring(11, 16) : "00:00";
+
+    const eDate = seg.endDate ? seg.endDate.substring(0, 10) : sDate;
     const eTime = seg.endDate && seg.endDate.includes('T') ? seg.endDate.substring(11, 16) : "23:59";
 
-    if (seg.startDate && seg.origin && seg.destination) {
+    if (seg.origin && seg.destination) {
       events.push({
         id: `${seg.id}-travel`, date: sDate, time: sTime, category: "flight",
         title: `${seg.origin} → ${seg.destination}`, subtitle: seg.name,
         location: { address: seg.destination }, segmentId: seg.id,
       });
     }
-    if (seg.startDate) {
-      events.push({
-        id: `${seg.id}-checkin`, date: sDate, time: sTime, category: "checkin",
-        title: `${t('itinerary.segmentStart') || 'Segment Start'}: ${seg.name}`, subtitle: seg.destination,
-        location: seg.destination ? { address: seg.destination } : undefined, segmentId: seg.id,
-      });
-    }
-    if (seg.endDate && seg.endDate !== seg.startDate) {
+    events.push({
+      id: `${seg.id}-checkin`, date: sDate, time: sTime, category: "checkin",
+      title: `${t('itinerary.segmentStart') || 'Segment Start'}: ${seg.name}`, subtitle: seg.destination,
+      location: seg.destination ? { address: seg.destination } : undefined, segmentId: seg.id,
+    });
+    if (seg.endDate) {
       events.push({
         id: `${seg.id}-checkout`, date: eDate, time: eTime, category: "hotel",
         title: `${t('itinerary.segmentEnd') || 'Segment End'}: ${seg.name}`, subtitle: seg.destination, segmentId: seg.id,
@@ -625,11 +626,14 @@ function mergeServerExpenses(stored: Expense[], server: Expense[], tripId: strin
 }
 
 function formatDateRange(start: string, end: string): string {
-  const s = new Date(start + 'T12:00:00');
-  const e = new Date(end + 'T12:00:00');
+  if (!start || !end) return "—";
+  const s = new Date(start.includes('T') ? start : start + 'T12:00:00');
+  const e = new Date(end.includes('T') ? end : end + 'T12:00:00');
+  if (isNaN(s.getTime()) || isNaN(e.getTime())) return "Invalid Date";
   const sStr = s.toLocaleDateString("en", { month: "short", day: "numeric" });
-  const eStr = e.toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" });
-  return `${sStr} – ${eStr}`;
+  const eStr = e.toLocaleDateString("en", { month: "short", day: "numeric", year: s.getFullYear() !== e.getFullYear() ? "numeric" : undefined });
+  const yearSuffix = s.getFullYear() === e.getFullYear() ? `, ${s.getFullYear()}` : "";
+  return `${sStr} – ${eStr}${yearSuffix}`;
 }
 
 const INVITE_EVENTS_KEY = 'voyasync_invite_events';
@@ -775,7 +779,29 @@ const Card = ({ children, style = {}, onClick }: any) => (
   </div>
 );
 
-const Header = ({ onSettings, onHome, onSwitchTrip, activeTripName, isOnline = true, isSyncing = false, user }: any) => {
+const ActiveTripCard = ({ trip, onSwitch, activeSavedBudget, onCreateBudget }: any) => {
+  const { t } = useTranslation();
+  if (!trip) return null;
+  return (
+    <div style={{ background: C.card3, borderRadius: 14, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+      <span style={{ fontSize: 18 }}>✈️</span>
+      <div onClick={onSwitch} style={{ flex: 1, minWidth: 0, cursor: "pointer" }}>
+        <div style={{ fontSize: 11, color: C.textMuted, letterSpacing: 1 }}>{t('wallet.activeTrip')}</div>
+        <div style={{ fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{trip.name}</div>
+      </div>
+      {activeSavedBudget ? (
+        <div style={{ textAlign: "right", flexShrink: 0 }}>
+          <div style={{ fontSize: 11, color: C.textMuted }}>{t('wallet.budgetLabel')}</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.cyan }}>{activeSavedBudget.currency} {activeSavedBudget.amount.toLocaleString()}</div>
+        </div>
+      ) : onCreateBudget ? (
+        <button onClick={(e) => { e.stopPropagation(); onCreateBudget(); }} style={{ background: C.cyan, color: "#000", border: "none", borderRadius: 16, padding: "6px 14px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{t('wallet.createBudgetBtn')}</button>
+      ) : null}
+    </div>
+  );
+};
+
+const Header = ({ onSettings, onHome, isOnline = true, isSyncing = false, user }: any) => {
   const { t } = useTranslation();
   const [weather, setWeather] = useState<{ temp: number; code: number; isDay: boolean } | null>(null);
   const [cityName, setCityName] = useState("Localizando...");
@@ -839,15 +865,6 @@ const Header = ({ onSettings, onHome, onSwitchTrip, activeTripName, isOnline = t
             <img src="/voyasync-logo-transp.png" alt="Voyasync" style={{ height: 16, objectFit: "contain" }} />
           </button>
 
-          {activeTripName && (
-            <button
-              onClick={onSwitchTrip}
-              style={{ background: C.card3, border: "none", borderRadius: 8, padding: "2px 8px", display: "flex", alignItems: "center", gap: 4, cursor: "pointer", marginTop: 4 }}
-            >
-              <span style={{ fontSize: 11, fontWeight: 700, color: C.cyan, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 120 }}>{activeTripName.toUpperCase()}</span>
-              <Icon d="M7 10l5 5 5-5H7z" size={12} fill={C.cyan} />
-            </button>
-          )}
         </div>
 
         <button
@@ -1000,13 +1017,11 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
         })
         .catch(() => { });
       // Fetch activity feed handled in parent
-      // Fetch upcoming itinerary events (next 5)
+      // Fetch itinerary events (past 7 days + future 30 days) for feed and countdown
       fetch(`/api/trips/${activeTripId}/itinerary?callerSub=${encodeURIComponent(user.sub)}`)
         .then(r => r.ok ? r.json() : [])
         .then((evts: ItineraryEventRecord[]) => {
-          const now = new Date().toISOString();
-          const upcoming = evts.filter(e => e.startDt >= now).slice(0, 5);
-          setUpcomingEvents(upcoming);
+          setUpcomingEvents(evts);
         })
         .catch(() => { });
     }
@@ -1201,11 +1216,13 @@ const HomeScreen = ({ onNav, onAddExpense, onCreateBudget, onShowGroup, activeTr
         {activeTrip && <span style={{ fontSize: 9, color: C.cyan, fontWeight: 700, letterSpacing: 0.5 }}>{activeTrip.name.toUpperCase()}</span>}
       </div>
       {(() => {
+        const nowIso = new Date().toISOString();
         const activityItems = [
           ...allExpenses.map(e => ({ kind: 'expense' as const, at: e.date, data: e })),
           ...inviteEvents.map(ev => ({ kind: 'event' as const, at: ev.at, data: ev })),
           ...serverActivity.map((a: any) => ({ kind: 'activity' as const, at: a.created_at, data: a })),
-          ...upcomingEvents.map(e => ({ kind: 'upcoming' as const, at: e.startDt, data: e })),
+          // Only show itinerary events in the feed if they have already started
+          ...upcomingEvents.filter(e => e.startDt <= nowIso).map(e => ({ kind: 'upcoming' as const, at: e.startDt, data: e })),
         ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 
         if (activityItems.length === 0) return (
@@ -1903,22 +1920,13 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub, onNav, onShowGroup
       </div>
 
       {activeTrip && (
-        <div style={{ padding: "0 20px" }}>
-          <div style={{ background: C.card3, borderRadius: 14, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-            <span style={{ fontSize: 18 }}>✈️</span>
-            <div onClick={onShowGroup} style={{ flex: 1, minWidth: 0, cursor: "pointer" }}>
-              <div style={{ fontSize: 11, color: C.textMuted, letterSpacing: 1 }}>{t('wallet.activeTrip')}</div>
-              <div style={{ fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{activeTrip.name}</div>
-            </div>
-            {activeSavedBudget ? (
-              <div style={{ textAlign: "right", flexShrink: 0 }}>
-                <div style={{ fontSize: 11, color: C.textMuted }}>{t('wallet.budgetLabel')}</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: C.cyan }}>{activeSavedBudget.currency} {activeSavedBudget.amount.toLocaleString()}</div>
-              </div>
-            ) : (
-              <button onClick={(e) => { e.stopPropagation(); onCreateBudget(); }} style={{ background: C.cyan, color: "#000", border: "none", borderRadius: 16, padding: "6px 14px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{t('wallet.createBudgetBtn')}</button>
-            )}
-          </div>
+        <div style={{ padding: "0 20px 12px" }}>
+          <ActiveTripCard
+            trip={activeTrip}
+            onSwitch={onShowGroup}
+            activeSavedBudget={activeSavedBudget}
+            onCreateBudget={onCreateBudget}
+          />
         </div>
       )}
 
@@ -2158,33 +2166,27 @@ const ItineraryScreen = ({ activeTripId, activeTrip, userSub, onNav, onShowGroup
                 style={{ width: "100%", boxSizing: "border-box" as const, background: C.card2, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", color: C.text, fontSize: 14, outline: "none", fontFamily: "inherit" }} />
             </div>
 
-            {/* Date + Time */}
-            <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
-              <div style={{ flex: 2 }}>
-                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>DATE <span style={{ color: C.red, fontWeight: 'normal' }}>(*)</span></div>
-                <Card style={{ padding: "10px 14px" }}>
+            {/* Date + Time Row 1 */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>DATE & TIME <span style={{ color: C.red, fontWeight: 'normal' }}>(*)</span></div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <Card style={{ padding: "10px 14px", flex: 2 }}>
                   <input type="date" value={evtDate} onChange={e => setEvtDate(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} />
                 </Card>
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>TIME <span style={{ color: C.red, fontWeight: 'normal' }}>(*)</span></div>
-                <Card style={{ padding: "10px 14px" }}>
+                <Card style={{ padding: "10px 14px", flex: 1 }}>
                   <input type="time" value={evtTime} onChange={e => setEvtTime(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} />
                 </Card>
               </div>
             </div>
 
-            {/* End Date + Time */}
-            <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
-              <div style={{ flex: 2 }}>
-                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('itinerary.endDateLabel')} <span style={{ color: C.textSub, fontWeight: 'normal' }}>(opc)</span></div>
-                <Card style={{ padding: "10px 14px" }}>
+            {/* End Date + Time Row 2 */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('itinerary.endDateLabel').toUpperCase()} <span style={{ color: C.textSub, fontWeight: 'normal' }}>(opc)</span></div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <Card style={{ padding: "10px 14px", flex: 2 }}>
                   <input type="date" value={evtEndDate} onChange={e => setEvtEndDate(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} />
                 </Card>
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('itinerary.endTimeLabel')} <span style={{ color: C.textSub, fontWeight: 'normal' }}>(opc)</span></div>
-                <Card style={{ padding: "10px 14px" }}>
+                <Card style={{ padding: "10px 14px", flex: 1 }}>
                   <input type="time" value={evtEndTime} onChange={e => setEvtEndTime(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} />
                 </Card>
               </div>
@@ -3569,7 +3571,26 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
 
   return (
     <div style={{ padding: "0 20px 100px", overflowY: "auto" }}>
-      <div style={{ textAlign: "center", padding: "24px 0 16px", borderBottom: `1px solid ${C.border}` }}>
+      {activeTrip && (
+        <div style={{ padding: "0 0 16px", marginTop: 16 }}>
+          <div style={{ background: C.card3, borderRadius: 14, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 18 }}>✈️</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 11, color: C.textMuted, letterSpacing: 1 }}>{t('wallet.activeTrip')}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{activeTrip.name}</div>
+            </div>
+            {activeSavedBudget ? (
+              <div style={{ textAlign: "right", flexShrink: 0 }}>
+                <div style={{ fontSize: 11, color: C.textMuted }}>{t('wallet.budgetLabel')}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.cyan }}>{activeSavedBudget.currency} {activeSavedBudget.amount.toLocaleString()}</div>
+              </div>
+            ) : (
+              <button onClick={(e) => { e.stopPropagation(); onGoToBudget(); }} style={{ background: C.cyan, color: "#000", border: "none", borderRadius: 16, padding: "6px 14px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{t('wallet.createBudgetBtn')}</button>
+            )}
+          </div>
+        </div>
+      )}
+      <div style={{ textAlign: "center", padding: "12px 0 16px", borderBottom: `1px solid ${C.border}` }}>
         <div style={{ color: C.textMuted, fontSize: 12, letterSpacing: 1.5, marginBottom: 12 }}>{t('addExpense.amountLabel')}</div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
           <span style={{ fontSize: 32, color: C.textMuted }}>{currSym(localCurrency)}</span>
@@ -4021,12 +4042,13 @@ class UploadManager {
 
 const uploadManager = new UploadManager();
 
-const SocialStreamScreen = ({ activeTripId, activeTripName, user, isOnline }: any) => {
+const SocialStreamScreen = ({ trips, activeTripId, user, isOnline }: any) => {
   const { t } = useTranslation();
   const [posts, setPosts] = useState<SocialPost[]>([]);
   const [managerTasks, setManagerTasks] = useState<PendingUpload[]>([]);
   const [loading, setLoading] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
+  const [uploadTripId, setUploadTripId] = useState(activeTripId || (trips[0]?.id || ''));
   const [caption, setCaption] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -4055,64 +4077,81 @@ const SocialStreamScreen = ({ activeTripId, activeTripName, user, isOnline }: an
   }, []);
 
   const allPosts = [
-    ...managerTasks.filter(t => t.tripId === activeTripId).map(t => t.post),
+    // Include managerTasks for ANY of our trips
+    ...managerTasks.filter(t => trips.some((tr: any) => tr.id === t.tripId)).map(t => t.post),
     ...posts
-  ];
+  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   const fetchPosts = useCallback(async () => {
-    if (!activeTripId || !isOnline) return;
-    setLoading(true);
+    if (trips.length === 0 || !isOnline) return;
+    setLoading(allPosts.length === 0);
     try {
-      const res = await fetch(`/api/trips/${activeTripId}/social?callerSub=${user?.sub || ''}`);
-      if (res.ok) setPosts(await res.json());
+      const results = await Promise.all(
+        trips.map((tr: any) =>
+          fetch(`/api/trips/${tr.id}/social?callerSub=${user?.sub || ''}`)
+            .then(res => res.ok ? res.json() : [])
+            .catch(() => [])
+        )
+      );
+      // Flatten and unique by ID
+      const flattened: SocialPost[] = results.flat();
+      const unique = flattened.filter((p, i, self) => self.findIndex(x => x.id === p.id) === i);
+      setPosts(unique.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
     } finally { setLoading(false); }
-  }, [activeTripId, isOnline, user?.sub]);
+  }, [trips, isOnline, user?.sub, allPosts.length]);
 
   useEffect(() => { fetchPosts(); }, [fetchPosts]);
 
-  // Realtime subscription for new posts
+  // Realtime subscription for all trips
   useEffect(() => {
-    if (!activeTripId || !isOnline) return;
-    const channel = anonSupabase.channel(`social_${activeTripId}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'social_posts',
-        filter: `trip_id=eq.${activeTripId}`,
-      }, (payload) => {
-        const newPost = payload.new as any;
-        // Map to our SocialPost interface
-        const mapped: SocialPost = {
-          id: newPost.id,
-          tripId: newPost.trip_id,
-          userSub: newPost.user_sub,
-          userName: newPost.user_name,
-          userAvatar: newPost.user_avatar,
-          mediaUrl: newPost.media_url,
-          mediaType: newPost.media_type,
-          caption: newPost.caption,
-          reactions: [],
-          myReaction: undefined,
-          viewCount: 0,
-          viewedByMe: false,
-          createdAt: newPost.created_at,
-        };
-        setPosts(prev => [mapped, ...prev]);
-      })
-      .subscribe();
-    return () => { anonSupabase.removeChannel(channel); };
-  }, [activeTripId, isOnline]);
+    if (trips.length === 0 || !isOnline) return;
+    const channels = trips.map((tr: any) => {
+      return anonSupabase.channel(`social_${tr.id}`)
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'social_posts',
+          filter: `trip_id=eq.${tr.id}`,
+        }, (payload) => {
+          const newPost = payload.new as any;
+          setPosts(prev => {
+            if (prev.some(p => p.id === newPost.id)) return prev;
+            const mapped: SocialPost = {
+              id: newPost.id,
+              tripId: newPost.trip_id,
+              userSub: newPost.user_sub,
+              userName: newPost.user_name,
+              userAvatar: newPost.user_avatar,
+              mediaUrl: newPost.media_url,
+              mediaType: newPost.media_type,
+              caption: newPost.caption,
+              reactions: [],
+              myReaction: undefined,
+              viewCount: 0,
+              viewedByMe: false,
+              createdAt: newPost.created_at,
+            };
+            return [mapped, ...prev].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          });
+        })
+        .subscribe();
+    });
+    return () => { channels.forEach((c: any) => anonSupabase.removeChannel(c)); };
+  }, [trips, isOnline]);
 
-  // IntersectionObserver — mark posts as viewed when 50% visible
+  // IntersectionObserver — mark posts as viewed
   useEffect(() => {
-    if (!isOnline || !user?.sub || !activeTripId) return;
+    if (!isOnline || !user?.sub) return;
     const observer = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
         if (!entry.isIntersecting) return;
         const postId = (entry.target as HTMLElement).dataset.postId;
         if (!postId || viewedRef.current.has(postId)) return;
         viewedRef.current.add(postId);
-        fetch(`/api/trips/${activeTripId}/social/${postId}/views`, {
+        // Find which trip this post belongs to
+        const post = allPosts.find(p => p.id === postId);
+        if (!post) return;
+        fetch(`/api/trips/${post.tripId}/social/${postId}/views`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userSub: user.sub, userName: user.name }),
         }).then(() => {
@@ -4122,13 +4161,13 @@ const SocialStreamScreen = ({ activeTripId, activeTripName, user, isOnline }: an
     }, { threshold: 0.5 });
     document.querySelectorAll('[data-post-id]').forEach(el => observer.observe(el));
     return () => observer.disconnect();
-  }, [allPosts.length, activeTripId, isOnline, user?.sub, user?.name]);
+  }, [allPosts.length, isOnline, user?.sub, user?.name]);
 
   useEffect(() => {
-    if (!activeTripId || !isOnline) return;
-    const id = setInterval(fetchPosts, 10000);
+    if (trips.length === 0 || !isOnline) return;
+    const id = setInterval(fetchPosts, 15000);
     return () => clearInterval(id);
-  }, [fetchPosts, activeTripId, isOnline]);
+  }, [fetchPosts, trips.length, isOnline]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -4139,16 +4178,15 @@ const SocialStreamScreen = ({ activeTripId, activeTripName, user, isOnline }: an
 
   // Async XHR upload — non-blocking with progress
   const handleShare = () => {
-    if (!file || !activeTripId) return;
-    uploadManager.addAndStart(activeTripId, user, file, caption);
+    if (!file || !uploadTripId) return;
+    uploadManager.addAndStart(uploadTripId, user, file, caption);
     setShowUpload(false); setFile(null); setPreviewUrl(null); setCaption('');
   };
 
   const handleReact = async (postId: string, emoji: string) => {
     if (!isOnline || !user?.sub) return;
-    // Block reaction on uploading posts
-    const post = posts.find(p => p.id === postId);
-    if (post?.uploading) return;
+    const post = allPosts.find(p => p.id === postId);
+    if (!post || post.uploading) return;
     // Optimistic
     setPosts(prev => prev.map(p => {
       if (p.id !== postId) return p;
@@ -4159,7 +4197,7 @@ const SocialStreamScreen = ({ activeTripId, activeTripName, user, isOnline }: an
       return { ...p, reactions, myReaction: already ? undefined : emoji };
     }));
     try {
-      const res = await fetch(`/api/trips/${activeTripId}/social/${postId}/reactions`, {
+      const res = await fetch(`/api/trips/${post.tripId}/social/${postId}/reactions`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userSub: user.sub, userName: user.name, userAvatar: user.picture, emoji }),
       });
@@ -4174,6 +4212,8 @@ const SocialStreamScreen = ({ activeTripId, activeTripName, user, isOnline }: an
 
   const handleDelete = async (postId: string) => {
     if (!isOnline) return;
+    const post = allPosts.find(p => p.id === postId);
+    if (!post) return;
     showConfirmModal({
       title: t('photos.deletePost', 'Excluir post'),
       message: t('photos.deletePostConfirm', 'Excluir este post? Essa ação não pode ser desfeita.'),
@@ -4181,7 +4221,7 @@ const SocialStreamScreen = ({ activeTripId, activeTripName, user, isOnline }: an
       variant: 'danger',
       onConfirm: async () => {
         setPosts(prev => prev.filter(p => p.id !== postId));
-        await fetch(`/api/trips/${activeTripId}/social/${postId}`, {
+        await fetch(`/api/trips/${post.tripId}/social/${postId}`, {
           method: 'DELETE', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userSub: user?.sub }),
         });
@@ -4190,22 +4230,32 @@ const SocialStreamScreen = ({ activeTripId, activeTripName, user, isOnline }: an
   };
 
   const handleEditSave = async (postId: string) => {
-    if (!isOnline) return;
-    const newCaption = editCaption.trim() || null;
-    setPosts(prev => prev.map(p => p.id === postId ? { ...p, caption: newCaption ?? undefined } : p));
+    if (!isOnline || !editCaption.trim()) return;
+    const post = allPosts.find(p => p.id === postId);
+    if (!post) return;
     setEditingPostId(null);
-    await fetch(`/api/trips/${activeTripId}/social/${postId}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userSub: user?.sub, caption: newCaption }),
-    });
+    const oldCaption = post.caption;
+    // Optimistic
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, caption: editCaption } : p));
+    try {
+      const res = await fetch(`/api/trips/${post.tripId}/social/${postId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userSub: user?.sub, caption: editCaption }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setPosts(prev => prev.map(p => p.id === postId ? { ...p, caption: oldCaption } : p));
+    }
   };
 
   const fetchViewers = async (postId: string) => {
+    if (!isOnline) return;
+    const post = allPosts.find(p => p.id === postId);
+    if (!post) return;
     setViewerPostId(postId);
-    setViewers([]);
     setViewersLoading(true);
     try {
-      const res = await fetch(`/api/trips/${activeTripId}/social/${postId}/views`);
+      const res = await fetch(`/api/trips/${post.tripId}/social/${postId}/views`);
       if (res.ok) setViewers(await res.json());
     } finally { setViewersLoading(false); }
   };
@@ -4259,12 +4309,24 @@ const SocialStreamScreen = ({ activeTripId, activeTripName, user, isOnline }: an
       {/* Upload panel */}
       {showUpload && (
         <Card style={{ marginBottom: 16, border: `1px solid ${C.cyan}30` }}>
-          {managerTasks.some(t => t.tripId === activeTripId && t.post.uploadError) && (
+          {managerTasks.some(t => trips.some((tr: any) => tr.id === t.tripId) && t.post.uploadError) && (
             <div style={{ background: `${C.red}20`, color: C.red, padding: "10px 14px", borderRadius: 12, marginBottom: 12, fontSize: 13, border: `1px solid ${C.red}40`, fontWeight: 600 }}>
               ⚠️ {t('social.uploadError', 'Erro no upload. Verifique sua conexão.')}
             </div>
           )}
           <div style={{ fontWeight: 700, marginBottom: 12 }}>{t('social.shareMomentTitle')}</div>
+
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ color: C.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 6 }}>TRIP</div>
+            <select
+              value={uploadTripId}
+              onChange={e => setUploadTripId(e.target.value)}
+              style={{ width: "100%", background: C.card3, border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px 12px", color: C.text, fontSize: 13, outline: "none", fontFamily: "inherit" }}
+            >
+              {trips.map((tr: any) => <option key={tr.id} value={tr.id}>{tr.name}</option>)}
+            </select>
+          </div>
+
           <input type="file" accept="image/*,video/*" id="socialMediaInput" style={{ display: "none" }} onChange={handleFileChange} />
           {previewUrl && file ? (
             <div style={{ position: "relative", marginBottom: 12 }}>
@@ -4311,8 +4373,13 @@ const SocialStreamScreen = ({ activeTripId, activeTripName, user, isOnline }: an
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px 8px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <Avatar name={post.userName || "?"} src={post.userAvatar} size={36} />
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 14 }}>{post.userName || t('social.unknownUser')}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" as const }}>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{post.userName || t('social.unknownUser')}</div>
+                    <div style={{ padding: "2px 6px", borderRadius: 4, background: `${C.cyan}15`, color: C.cyan, fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: 0.5 }}>
+                      {trips.find((t: any) => t.id === post.tripId)?.name || 'Trip'}
+                    </div>
+                  </div>
                   <div style={{ color: C.textSub, fontSize: 11 }}>{new Date(post.createdAt).toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
                 </div>
               </div>
@@ -6121,28 +6188,26 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
                   <Input placeholder={t('segments.destinationPlace')} value={segDest} onChange={setSegDest} />
                 </div>
               </div>
-              <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.startLabel')}</div>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <Card style={{ padding: 10, flex: 1 }}>
-                      <input type="date" value={segStart} onChange={e => setSegStart(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%" }} />
-                    </Card>
-                    <Card style={{ padding: 10, width: 80 }}>
-                      <input type="time" value={segStartTime} onChange={e => setSegStartTime(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%", paddingLeft: 4 }} />
-                    </Card>
-                  </div>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.startLabel')}</div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <Card style={{ padding: 10, flex: 2 }}>
+                    <input type="date" value={segStart} onChange={e => setSegStart(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%" }} />
+                  </Card>
+                  <Card style={{ padding: 10, flex: 1 }}>
+                    <input type="time" value={segStartTime} onChange={e => setSegStartTime(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%", paddingLeft: 4 }} />
+                  </Card>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.endLabel')}</div>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <Card style={{ padding: 10, flex: 1 }}>
-                      <input type="date" value={segEnd} onChange={e => setSegEnd(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%" }} />
-                    </Card>
-                    <Card style={{ padding: 10, width: 80 }}>
-                      <input type="time" value={segEndTime} onChange={e => setSegEndTime(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%", paddingLeft: 4 }} />
-                    </Card>
-                  </div>
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.endLabel')}</div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <Card style={{ padding: 10, flex: 2 }}>
+                    <input type="date" value={segEnd} onChange={e => setSegEnd(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%" }} />
+                  </Card>
+                  <Card style={{ padding: 10, flex: 1 }}>
+                    <input type="time" value={segEndTime} onChange={e => setSegEndTime(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark", width: "100%", paddingLeft: 4 }} />
+                  </Card>
                 </div>
               </div>
               <div style={{ marginBottom: 12 }}>
@@ -6222,28 +6287,26 @@ const ManageCrewScreen = ({ trip, user, onBack, onTripUpdate, onTripDelete }: an
                 <div style={{ flex: 1 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.originLabel')}</div><Input placeholder={t('segments.originPlace')} value={editSegOrigin} onChange={setEditSegOrigin} /></div>
                 <div style={{ flex: 1 }}><div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.destinationLabel')}</div><Input placeholder={t('segments.destinationPlace')} value={editSegDest} onChange={setEditSegDest} /></div>
               </div>
-              <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.startLabel')}</div>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <Card style={{ padding: 10, flex: 1 }}>
-                      <input type="date" value={editSegStart} onChange={e => setEditSegStart(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} />
-                    </Card>
-                    <Card style={{ padding: 10, width: 80 }}>
-                      <input type="time" value={editSegStartTime} onChange={e => setEditSegStartTime(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%", paddingLeft: 4 }} />
-                    </Card>
-                  </div>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.startLabel')}</div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <Card style={{ padding: 10, flex: 2 }}>
+                    <input type="date" value={editSegStart} onChange={e => setEditSegStart(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} />
+                  </Card>
+                  <Card style={{ padding: 10, flex: 1 }}>
+                    <input type="time" value={editSegStartTime} onChange={e => setEditSegStartTime(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%", paddingLeft: 4 }} />
+                  </Card>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.endLabel')}</div>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <Card style={{ padding: 10, flex: 1 }}>
-                      <input type="date" value={editSegEnd} onChange={e => setEditSegEnd(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} />
-                    </Card>
-                    <Card style={{ padding: 10, width: 80 }}>
-                      <input type="time" value={editSegEndTime} onChange={e => setEditSegEndTime(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%", paddingLeft: 4 }} />
-                    </Card>
-                  </div>
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ color: C.textMuted, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>{t('segments.endLabel')}</div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <Card style={{ padding: 10, flex: 2 }}>
+                    <input type="date" value={editSegEnd} onChange={e => setEditSegEnd(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%" }} />
+                  </Card>
+                  <Card style={{ padding: 10, flex: 1 }}>
+                    <input type="time" value={editSegEndTime} onChange={e => setEditSegEndTime(e.target.value)} style={{ background: "transparent", border: "none", color: C.text, outline: "none", fontFamily: "inherit", colorScheme: "dark" as const, width: "100%", paddingLeft: 4 }} />
+                  </Card>
                 </div>
               </div>
               <div style={{ marginBottom: 12 }}>
@@ -7550,8 +7613,8 @@ function AppShell() {
       case "wallet": content = <WalletScreen key={walletInitTab} initialTab={walletInitTab} onAddExpense={handleOpenExpense} activeTripId={activeTripId} user={user} trips={trips} onShowGroup={() => handleNav("group")} />; break;
       case "photos": content = (
         <SocialStreamScreen
+          trips={trips}
           activeTripId={activeTripId}
-          activeTripName={trips.find(t => t.id === activeTripId)?.name}
           user={user}
           isOnline={effectiveIsOnline}
         />
@@ -7644,8 +7707,6 @@ function AppShell() {
           user={user}
           isOnline={effectiveIsOnline}
           isSyncing={isSyncing}
-          activeTripName={trips.find(t => t.id === activeTripId)?.name}
-          onSwitchTrip={() => setShowTripSwitcher(true)}
         />
         <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
           {content}

@@ -11,7 +11,7 @@ const resources = {
                 itinerary: "Itinerary",
                 wallet: "Wallet",
                 photos: "Photos",
-                crew: "Crew"
+                crew: "Groups"
             },
             header: {
                 online: "Online",
@@ -550,8 +550,8 @@ const resources = {
                 directions: "Directions",
                 itineraryBtn: "Itinerary",
                 expense: "EXPENSE",
-                photo: "PHOTO",
-                group: "GROUP",
+                photo: "PHOTOS",
+                group: "GROUPS",
                 sos: "SOS",
                 todo: "TO DO",
                 recentActivity: "RECENT ACTIVITY",
@@ -648,7 +648,7 @@ const resources = {
                 itinerary: "Roteiro",
                 wallet: "Carteira",
                 photos: "Fotos",
-                crew: "Grupo"
+                crew: "Grupos"
             },
             header: {
                 online: "Online",
@@ -1187,8 +1187,8 @@ const resources = {
                 directions: "Rotas",
                 itineraryBtn: "Roteiro",
                 expense: "DESPESA",
-                photo: "FOTO",
-                group: "GRUPO",
+                photo: "FOTOS",
+                group: "GRUPOS",
                 sos: "SOS",
                 todo: "TAREFAS",
                 recentActivity: "ATIVIDADE RECENTE",
@@ -1285,7 +1285,7 @@ const resources = {
                 itinerary: "Itinerario",
                 wallet: "Billetera",
                 photos: "Fotos",
-                crew: "Grupo"
+                crew: "Grupos"
             },
             header: {
                 online: "En línea",
