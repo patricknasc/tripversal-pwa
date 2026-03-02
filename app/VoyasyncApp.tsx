@@ -3485,7 +3485,7 @@ function compressImage(file: File, maxPx = 800, quality = 0.7): Promise<string> 
   });
 }
 
-const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user, activeSavedBudget, isPrivate }: any) => {
+const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user, activeSavedBudget, budget, isPrivate }: any) => {
   const { t } = useTranslation();
   const [amount, setAmount] = useState("0");
   const [cat, setCat] = useState("food");
@@ -3505,19 +3505,6 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
   const totalShares = Object.values(shares).reduce((a, b) => a + b, 0);
   const total = parseFloat(amount) || 0;
 
-  const [budget] = useState<TripBudget>(() => {
-    try { const s = localStorage.getItem('voyasync_budget'); if (s) return JSON.parse(s); } catch { }
-    return DEFAULT_BUDGET;
-  });
-  const [activeSavedBudget] = useState<SavedBudget | null>(() => {
-    try {
-      const bs: SavedBudget[] = JSON.parse(localStorage.getItem('voyasync_saved_budgets') || '[]');
-      const act = bs.find(b => b.activeTripId === activeTripId);
-      if (act) return act;
-      const id = localStorage.getItem(`voyasync_active_budget_${activeTripId}`);
-      return id ? bs.find(b => b.id === id) || null : null;
-    } catch { return null; }
-  });
   const activeSources = activeSavedBudget ? (activeSavedBudget.sources || []) : budget.sources;
 
   const [localCurrency, setLocalCurrency] = useState<Currency>(() => {
@@ -7306,6 +7293,13 @@ function AppShell() {
   const [headerBudget, setHeaderBudget] = useState(0);
   const [headerCurrency, setHeaderCurrency] = useState<Currency>("EUR");
   const [activeSavedBudget, setActiveSavedBudget] = useState<SavedBudget | null>(null);
+  const [budget, setBudget] = useState<TripBudget>(DEFAULT_BUDGET);
+  useEffect(() => {
+    try {
+      const bs = localStorage.getItem('voyasync_budget');
+      if (bs) setBudget(JSON.parse(bs));
+    } catch { }
+  }, []);
 
   useEffect(() => {
     const handleSyncBudget = () => {
@@ -7697,6 +7691,7 @@ function AppShell() {
       activeTrip={activeTrip!}
       user={user}
       activeSavedBudget={activeSavedBudget}
+      budget={budget}
       isPrivate={isPrivate}
       onTogglePrivate={togglePrivate}
     />;
@@ -7734,14 +7729,6 @@ function AppShell() {
       />
     );
   } else {
-    const [budget, setBudget] = useState<TripBudget>(DEFAULT_BUDGET);
-    useEffect(() => {
-      try {
-        const bs = localStorage.getItem('voyasync_budget');
-        if (bs) setBudget(JSON.parse(bs));
-      } catch { }
-    }, []);
-
     switch (tab) {
       case "home": content = <HomeScreen onNav={handleNav} onAddExpense={handleOpenExpense} onCreateBudget={handleGoToBudget} onShowGroup={() => handleNav("group")} activeTripId={activeTripId} activeTrip={activeTrip} user={user} isPanicModeActive={isPanicModeActive} serverActivity={serverActivity} onSOS={() => setShowPanicModal(true)} onShowMap={() => setShowLiveMap(true)} onTodo={() => setShowTodo(true)} isPrivate={isPrivate} todaySpent={todaySpent} yesterdaySpent={yesterdaySpent} activeSavedBudget={activeSavedBudget} budget={budget} />; break;
       case "itinerary": content = <ItineraryScreen activeTripId={activeTripId} activeTrip={activeTrip} userSub={user?.sub} onNav={handleNav} onCreateBudget={handleGoToBudget} onShowGroup={() => handleNav("group")} activeSavedBudget={activeSavedBudget} isPrivate={isPrivate} onTogglePrivate={togglePrivate} />; break;
