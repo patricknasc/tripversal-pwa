@@ -833,7 +833,7 @@ const Header = ({ onSettings, onHome, isOnline = true, isSyncing = false, user }
           onClick={onHome}
           style={{ background: "none", border: "none", padding: 0, outline: "none", cursor: "pointer", display: "flex", alignItems: "center" }}
         >
-          <img src="/voyasync-logo.png" alt="Voyasync" style={{ height: 152, objectFit: "contain" }} />
+          <img src="/voyasync-logo-transp.png" alt="Voyasync" style={{ height: 152, objectFit: "contain" }} />
         </button>
         <button
           onClick={() => {
