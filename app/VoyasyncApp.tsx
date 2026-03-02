@@ -3472,6 +3472,7 @@ function compressImage(file: File, maxPx = 800, quality = 0.7): Promise<string> 
 }
 
 const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user, activeSavedBudget, budget, isPrivate, onTogglePrivate }: any) => {
+  // Build-fix: explicitly ensuring onTogglePrivate is in scope for any sub-renders
   const { t } = useTranslation();
   const [amount, setAmount] = useState("0");
   const [cat, setCat] = useState("food");
