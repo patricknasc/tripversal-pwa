@@ -833,7 +833,7 @@ const Header = ({ onSettings, onHome, isOnline = true, isSyncing = false, user }
           onClick={onHome}
           style={{ background: "none", border: "none", padding: 0, outline: "none", cursor: "pointer", display: "flex", alignItems: "center" }}
         >
-          <img src="/voyasync-logo-transp.png" alt="Voyasync" style={{ height: 152, objectFit: "contain" }} />
+          <img src="/voyasync-logo-transp.png" alt="Voyasync" style={{ height: 36, objectFit: "contain" }} />
         </button>
         <button
           onClick={() => {
@@ -7035,6 +7035,23 @@ function AppShell() {
   useEffect(() => {
     fetchServerActivity();
   }, [activeTripId, user]);
+
+  // Live subscription to trip_activity — ensures all group members see SOS and other events instantly
+  useEffect(() => {
+    if (!activeTripId) return;
+    const channel = anonSupabase.channel(`activity_${activeTripId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'trip_activity',
+        filter: `trip_id=eq.${activeTripId}`,
+      }, (payload) => {
+        const row = payload.new as TripActivityItem;
+        setServerActivity(prev => [row, ...prev].slice(0, 20));
+      })
+      .subscribe();
+    return () => { anonSupabase.removeChannel(channel); };
+  }, [activeTripId]);
   const [showPanicModal, setShowPanicModal] = useState(false);
   const [showLiveMap, setShowLiveMap] = useState(initialRoute === 'live_map');
   const [showTodo, setShowTodo] = useState(false);
