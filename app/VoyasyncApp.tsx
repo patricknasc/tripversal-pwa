@@ -754,9 +754,9 @@ const Header = ({ onSettings, onHome, isOnline = true, isSyncing = false, user }
       <div>
         <button
           onClick={onHome}
-          style={{ background: "none", border: "none", padding: 0, outline: "none", cursor: "pointer", color: C.cyan, fontSize: 13, fontWeight: 800, letterSpacing: 2 }}
+          style={{ background: "none", border: "none", padding: 0, outline: "none", cursor: "pointer", display: "flex", alignItems: "center" }}
         >
-          VOYASYNC
+          <img src="/logo.png" alt="Voyasync" style={{ height: 26, objectFit: "contain" }} />
         </button>
         <button
           onClick={() => {
@@ -6234,7 +6234,9 @@ const LoginScreen = ({ onLogin }: { onLogin: (user: any) => void }) => {
   return (
     <div style={{ background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ width: "100%", maxWidth: 430, minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 40 }}>
-        <div style={{ color: C.cyan, fontSize: 32, fontWeight: 900, letterSpacing: 5, marginBottom: 8 }}>VOYASYNC</div>
+        <div style={{ marginBottom: 24, display: "flex", justifyContent: "center" }}>
+          <img src="/voyasync-logo.png" alt="Voyasync" style={{ height: 100, objectFit: "contain" }} />
+        </div>
         <div style={{ color: C.textMuted, fontSize: 14, marginBottom: 60 }}>{t('auth.subtitle')}</div>
         <button
           onClick={() => login()}
@@ -7043,12 +7045,22 @@ function AppShell() {
   }, [activeTripId]);
 
   const handleLogout = () => {
-    localStorage.removeItem('voyasync_user');
-    localStorage.removeItem('voyasync_profile');
-    localStorage.removeItem('voyasync_budget');
-    localStorage.removeItem('voyasync_expenses');
-    localStorage.removeItem('voyasync_active_trip_id');
-    setUser(null); setTrips([]); setActiveTripId(null);
+    showConfirmModal({
+      title: t('auth.logoutConfirmTitle'),
+      message: t('auth.logoutConfirmDesc'),
+      onConfirm: () => {
+        localStorage.removeItem('voyasync_user');
+        localStorage.removeItem('voyasync_profile');
+        localStorage.removeItem('voyasync_budget');
+        localStorage.removeItem('voyasync_expenses');
+        localStorage.removeItem('voyasync_active_trip_id');
+        setTab('home');
+        if (typeof window !== 'undefined' && window.location.hash) {
+          window.history.pushState(null, '', window.location.pathname + window.location.search);
+        }
+        setUser(null); setTrips([]); setActiveTripId(null);
+      }
+    });
   };
 
   const handleDeleteTrip = (id: string) => {

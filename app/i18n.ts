@@ -216,7 +216,9 @@ const resources = {
             },
             auth: {
                 subtitle: "Your travel companion",
-                continueWithGoogle: "Continue with Google"
+                continueWithGoogle: "Continue with Google",
+                logoutConfirmTitle: "Log out of Voyasync?",
+                logoutConfirmDesc: "You will need to sign in again to access your account."
             },
             liveMap: {
                 back: "Back",
@@ -846,7 +848,9 @@ const resources = {
             },
             auth: {
                 subtitle: "Seu companheiro de viagem",
-                continueWithGoogle: "Continuar com Google"
+                continueWithGoogle: "Continuar com Google",
+                logoutConfirmTitle: "Sair do Voyasync?",
+                logoutConfirmDesc: "Você precisará fazer login novamente para acessar sua conta."
             },
             liveMap: {
                 back: "Voltar",
