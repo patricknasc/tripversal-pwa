@@ -3471,16 +3471,16 @@ function compressImage(file: File, maxPx = 800, quality = 0.7): Promise<string> 
   });
 }
 
-const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user, activeSavedBudget, budget, isPrivate }: any) => {
+const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user, activeSavedBudget, budget, isPrivate, onTogglePrivate }: any) => {
   const { t } = useTranslation();
   const [amount, setAmount] = useState("0");
   const [cat, setCat] = useState("food");
-  const [expType, setExpType] = useState("group");
-  const [whoPaid, setWhoPaid] = useState("You");
+  const [expType, setExpType] = useState<'personal' | 'group'>("group");
+  const [whoPaid, setWhoPaid] = useState(t('addExpense.you'));
   const [desc, setDesc] = useState("");
   // Build member list from accepted crew (excluding current user who is always "You")
   const members = [
-    "You",
+    t('addExpense.you'),
     ...((activeTrip?.crew || []) as TripMember[])
       .filter((m: TripMember) => m.status === 'accepted' && m.googleSub !== user?.sub)
       .map((m: TripMember) => m.name || m.email),
@@ -3550,11 +3550,16 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
   const previewBaseAmount = effectiveLocal * currentRate;
 
   // Remaining budget today (with carryover from previous days)
+  const tripDaysCount = activeTrip.startDate && activeTrip.endDate
+    ? Math.max(1, Math.round((new Date(activeTrip.endDate + 'T12:00:00').getTime() - new Date(activeTrip.startDate + 'T12:00:00').getTime()) / (1000 * 60 * 60 * 24)) + 1)
+    : 1;
+  const currentDailyLimit = activeSavedBudget.amount / tripDaysCount;
+
   const todayKey = localDateKey(new Date());
   const pastDates = new Set(allExpenses.filter(e => localDateKey(new Date(e.date)) !== todayKey).map(e => localDateKey(new Date(e.date))));
   const accumulatedDays = pastDates.size + 1;
   const totalSpentAllBase = allExpenses.reduce((s: number, e: Expense) => s + e.baseAmount, 0);
-  const remainingBase = accumulatedDays * budget.dailyLimit - totalSpentAllBase;
+  const remainingBase = accumulatedDays * currentDailyLimit - totalSpentAllBase;
   const remainingLocal = currentRate > 0 ? remainingBase / currentRate : remainingBase;
 
   // Credit vs balance distinction
@@ -3768,9 +3773,9 @@ const AddExpenseScreen = ({ onBack, onGoToBudget, activeTripId, activeTrip, user
       <div style={{ marginTop: 20 }}>
         <SectionLabel>{t('addExpense.expenseTypeLabel')}</SectionLabel>
         <div style={{ background: C.card3, borderRadius: 14, padding: 4, display: "flex" }}>
-          {["personal", "group"].map(t => (
-            <button key={t} onClick={() => setExpType(t)} style={{ flex: 1, padding: "12px", borderRadius: 10, border: "none", cursor: "pointer", background: expType === t ? C.cyan : "transparent", color: expType === t ? "#000" : C.textMuted, fontWeight: expType === t ? 700 : 400, fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit", transition: "all 0.2s" }}>
-              {t.charAt(0).toUpperCase() + t.slice(1)}
+          {["personal", "group"].map(tType => (
+            <button key={tType} onClick={() => setExpType(tType as any)} style={{ flex: 1, padding: "12px", borderRadius: 10, border: "none", cursor: "pointer", background: expType === tType ? C.cyan : "transparent", color: expType === tType ? "#000" : C.textMuted, fontWeight: expType === tType ? 700 : 400, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit", transition: "all 0.2s" }}>
+              {tType === "personal" ? t('addExpense.personal') : t('addExpense.group')}
             </button>
           ))}
         </div>

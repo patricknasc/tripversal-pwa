@@ -373,7 +373,9 @@ const resources = {
                 taxExchangeLabel: "TAX, DISCOUNTS & CAMBIO",
                 taxLabel: "Tax / Fees",
                 discountLabel: "Discount",
-                fixedAmount: "Fixed Amount",
+                fixedAmount: "Paid Separately",
+                personal: "Personal",
+                group: "Group",
                 percentage: "Percentage",
                 customRateTitle: "Custom Rate (API: {{rate}})",
                 typeCustom: "Type custom rate...",
@@ -395,7 +397,7 @@ const resources = {
                 addReceiptBtn: "Add Receipt",
                 goBackBtn: "Go Back",
                 setUpBudgetBtn: "Set Up Budget",
-                fixedLabel: "FIXED",
+                fixedLabel: "PAID SEPARATELY",
                 descPlaceholder: "e.g. Dinner"
             },
             social: {
@@ -1014,7 +1016,7 @@ const resources = {
                 taxExchangeLabel: "TAXAS, DESCONTOS E CÂMBIO",
                 taxLabel: "Taxas / Impostos",
                 discountLabel: "Desconto",
-                fixedAmount: "Valor Fixo",
+                fixedAmount: "Pago Separado",
                 percentage: "Porcentagem",
                 customRateTitle: "Taxa Personalizada (API: {{rate}})",
                 typeCustom: "Digite a taxa...",
@@ -1036,7 +1038,9 @@ const resources = {
                 addReceiptBtn: "Adicionar Recibo",
                 goBackBtn: "Voltar",
                 setUpBudgetBtn: "Configurar Orçamento",
-                fixedLabel: "FIXO",
+                fixedLabel: "PAGO SEPARADO",
+                personal: "Pessoal",
+                group: "Grupo",
                 descPlaceholder: "ex: Jantar"
             },
             social: {
@@ -1599,7 +1603,7 @@ const resources = {
                 taxExchangeLabel: "IMPUESTOS, DESCUENTOS Y CAMBIO",
                 taxLabel: "Impuestos / Tasas",
                 discountLabel: "Descuento",
-                fixedAmount: "Cantidad Fija",
+                fixedAmount: "Pago Separado",
                 percentage: "Porcentaje",
                 customRateTitle: "Tasa Personalizada (API: {{rate}})",
                 typeCustom: "Escribe la tasa...",
@@ -1621,8 +1625,9 @@ const resources = {
                 addReceiptBtn: "Añadir Recibo",
                 goBackBtn: "Volver",
                 setUpBudgetBtn: "Configurar Presupuesto",
-                fixedLabel: "FIJO",
-                descPlaceholder: "ej: Cena"
+                fixedLabel: "PAGO SEPARADO",
+                personal: "Personal",
+                group: "Grupo",
             },
             social: {
                 title: "SOCIAL STREAM",
