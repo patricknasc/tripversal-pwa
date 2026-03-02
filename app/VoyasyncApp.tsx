@@ -6919,6 +6919,30 @@ function useGlobalSOSListener(tripId?: string, currentUserSub?: string, onSOSInc
   const lastAlertedIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (!tripId || !currentUserSub) return;
+
+    // ─── Check for an already-active SOS on mount ───────────────────────────
+    // If User B opens the app after the SOS was triggered, they miss the INSERT.
+    // This query fires immediately to catch any active session.
+    (async () => {
+      try {
+        const { data } = await anonSupabase
+          .from('trip_sos_sessions')
+          .select('*')
+          .eq('trip_id', tripId)
+          .eq('is_active', true)
+          .neq('user_sub', currentUserSub)
+          .order('updated_at', { ascending: false })
+          .limit(1);
+        if (data && data.length > 0) {
+          const row = data[0];
+          if (lastAlertedIdRef.current !== row.id) {
+            lastAlertedIdRef.current = row.id;
+            if (onSOSIncoming) onSOSIncoming(row);
+          }
+        }
+      } catch { /* ignore, realtime will handle new events */ }
+    })();
+
     const channel = anonSupabase.channel('global_sos_listener')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'trip_sos_sessions', filter: `trip_id=eq.${tripId}` }, (payload) => {
         const row = payload.new as any;
